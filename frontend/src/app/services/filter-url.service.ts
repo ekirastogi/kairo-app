@@ -15,20 +15,34 @@ import {
   routeNeedsDefaultDateRange,
 } from '../utils/date-range-preset.utils';
 
+/**
+ * Keeps filter state and the URL in sync.
+ *
+ * User filter intent is authoritative. Report refreshes must not re-drive URL→state
+ * sync (that was resetting MTD/Last and watchlist bands every ~60s).
+ */
 @Injectable({ providedIn: 'root' })
 export class FilterUrlService {
   private router = inject(Router);
   private state = inject(ReportStateService);
   private started = false;
+  /** True while we are writing the URL so NavigationEnd does not echo back into state. */
   private writingUrl = false;
+  private pendingPatch: Record<string, string | null> | null = null;
+  private flushQueued = false;
+  /** Only re-sync from URL when the loaded client changes (first report / account switch). */
+  private lastSyncedClient: string | null = null;
 
   constructor() {
     effect(() => {
-      // Read the signal before any guard so the effect always tracks report loads.
       const report = this.state.report();
-      if (this.started && report) {
-        untracked(() => this.syncFromUrl());
-      }
+      if (!this.started || !report) return;
+      const clientCode = report.summary.clientCode;
+      untracked(() => {
+        if (this.lastSyncedClient === clientCode) return;
+        this.lastSyncedClient = clientCode;
+        this.syncFromUrl();
+      });
     });
   }
 
@@ -37,7 +51,9 @@ export class FilterUrlService {
     this.started = true;
     this.router.events
       .pipe(filter((event) => event instanceof NavigationEnd))
-      .subscribe(() => this.syncFromUrl());
+      .subscribe(() => {
+        if (!this.writingUrl) this.syncFromUrl();
+      });
     this.syncFromUrl();
   }
 
@@ -48,13 +64,11 @@ export class FilterUrlService {
     const paramMap = this.router.routerState.snapshot.root.queryParamMap;
     const defaults = defaultTradeTypesForRoute(path);
     const report = this.state.report();
-    const isWatchlist = path.includes('/watchlists');
 
     const typesParam = paramMap.get(FILTER_QUERY_KEYS.types);
     const needsDefaultTypes =
       routeNeedsDefaultTypes(path, paramMap.has(FILTER_QUERY_KEYS.types)) ||
       typesParamIsStaleIntradayDefault(path, typesParam);
-    const needsDefaultBands = isWatchlist && !paramMap.has(FILTER_QUERY_KEYS.bands);
     const needsDefaultDateRange =
       !!report &&
       routeNeedsDefaultDateRange(
@@ -67,31 +81,34 @@ export class FilterUrlService {
       report?.dateRange?.min && report.dateRange.max
         ? { min: report.dateRange.min, max: report.dateRange.max }
         : null;
-    const dateDefaults = needsDefaultDateRange && bounds
-      ? defaultDateRangeForRoute(path, bounds)
-      : null;
+    const dateDefaults =
+      needsDefaultDateRange && bounds ? defaultDateRangeForRoute(path, bounds) : null;
 
     if (report && bounds) {
       const parsed = readGlobalFilters(paramMap, defaults);
+      // Prefer URL → else keep the user's current in-memory range → else full report.
+      const start =
+        (dateDefaults?.start ?? parsed.startDate ?? this.state.startDate()) || bounds.min;
+      const end =
+        (dateDefaults?.end ?? parsed.endDate ?? this.state.endDate()) || bounds.max;
       this.applyParsedFilters(
         {
           ...parsed,
           tradeTypes: needsDefaultTypes ? defaults : parsed.tradeTypes,
-          startDate: dateDefaults?.start ?? parsed.startDate,
-          endDate: dateDefaults?.end ?? parsed.endDate,
+          startDate: start,
+          endDate: end,
         },
         bounds.min,
         bounds.max
       );
     }
 
-    if (needsDefaultTypes || needsDefaultBands || dateDefaults) {
+    // Do not invent watchlist `bands=band` when missing — absence means leave local
+    // tier mode alone (Cumulative used to clear the param and get overwritten here).
+    if (needsDefaultTypes || dateDefaults) {
       const patch: Record<string, string | null> = {};
       if (needsDefaultTypes) {
         patch[FILTER_QUERY_KEYS.types] = serializeTradeTypes(defaults);
-      }
-      if (needsDefaultBands) {
-        patch[FILTER_QUERY_KEYS.bands] = 'band';
       }
       if (dateDefaults) {
         patch[FILTER_QUERY_KEYS.from] = dateDefaults.start;
@@ -165,18 +182,39 @@ export class FilterUrlService {
     );
   }
 
+  /**
+   * Merge concurrent URL patches into one navigate so date writes are not
+   * clobbered by a overlapping bands/types patch reading a stale router.url.
+   */
   private replaceQuery(patch: Record<string, string | null>, replaceUrl = false): void {
+    this.pendingPatch = { ...(this.pendingPatch ?? {}), ...patch };
     this.writingUrl = true;
-    const tree = this.router.parseUrl(this.router.url);
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === null || value === '') {
-        delete tree.queryParams[key];
-      } else {
-        tree.queryParams[key] = value;
+    void this.flushQueryQueue(replaceUrl);
+  }
+
+  private async flushQueryQueue(replaceUrl: boolean): Promise<void> {
+    if (this.flushQueued) return;
+    this.flushQueued = true;
+    try {
+      while (this.pendingPatch) {
+        const patch = this.pendingPatch;
+        this.pendingPatch = null;
+        const tree = this.router.parseUrl(this.router.url);
+        for (const [key, value] of Object.entries(patch)) {
+          if (value === null || value === '') {
+            delete tree.queryParams[key];
+          } else {
+            tree.queryParams[key] = value;
+          }
+        }
+        await this.router.navigateByUrl(tree, { replaceUrl });
+      }
+    } finally {
+      this.flushQueued = false;
+      this.writingUrl = !!this.pendingPatch;
+      if (this.pendingPatch) {
+        void this.flushQueryQueue(replaceUrl);
       }
     }
-    void this.router.navigateByUrl(tree, { replaceUrl }).finally(() => {
-      this.writingUrl = false;
-    });
   }
 }

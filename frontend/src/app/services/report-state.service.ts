@@ -32,6 +32,23 @@ function defaultTradeTypesForReport(_report: Report): TradeType[] {
   return DEFAULT_TRADE_TYPES;
 }
 
+/** Cheap identity for silent refresh — skip report.set when nothing material changed. */
+function reportFingerprint(report: Report): string {
+  return [
+    report.summary.clientCode,
+    report.summary.realisedPnL,
+    report.summary.unrealisedPnL,
+    report.dateRange?.min ?? '',
+    report.dateRange?.max ?? '',
+    report.totalTradeCount ?? report.trades.length,
+    report.stockSummary?.length ?? 0,
+    report.stockProfiles?.length ?? 0,
+    report.unrealisedHoldings?.length ?? 0,
+    report.charges?.total ?? 0,
+    report.tradesLoaded ? 1 : 0,
+  ].join('|');
+}
+
 @Injectable({ providedIn: 'root' })
 export class ReportStateService {
   private parser = inject(ParserService);
@@ -107,6 +124,7 @@ export class ReportStateService {
   }
 
   private async refreshFirebaseReportSilently(): Promise<void> {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     const clientCode = this.activeClientCode();
     if (!clientCode || this.dataSource() !== 'firebase') return;
     try {
@@ -124,6 +142,13 @@ export class ReportStateService {
         if (current?.unrealisedHoldings?.length && !report.unrealisedHoldings?.length) {
           report.unrealisedHoldings = current.unrealisedHoldings;
           report.unrealisedLots = current.unrealisedLots;
+        }
+        // Preserve stable statement bounds so date presets keep matching.
+        if (current?.dateRange?.min && current.dateRange.max) {
+          report.dateRange = current.dateRange;
+        }
+        if (current && reportFingerprint(current) === reportFingerprint(report)) {
+          return;
         }
         this.applyFirebaseReport(report);
       }
@@ -380,6 +405,18 @@ export class ReportStateService {
     topStocks?: number,
     options: { syncUrl?: boolean } = {}
   ): void {
+    const sameDates = this.startDate() === start && this.endDate() === end;
+    const sameTypes =
+      this.selectedTradeTypes().length === types.length &&
+      this.selectedTradeTypes().every((t, i) => t === types[i]);
+    const nextChart = chartPeriod ?? this.chartPeriod();
+    const nextTop = topStocks ?? this.topStocksCount();
+    const sameChart = this.chartPeriod() === nextChart;
+    const sameTop = this.topStocksCount() === nextTop;
+    if (sameDates && sameTypes && sameChart && sameTop) {
+      void options;
+      return;
+    }
     this.startDate.set(start);
     this.endDate.set(end);
     this.selectedTradeTypes.set(types);

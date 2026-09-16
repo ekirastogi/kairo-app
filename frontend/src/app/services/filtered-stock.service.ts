@@ -19,6 +19,7 @@ export class FilteredStockService {
   /** Set when the last filtered load failed, so pages can distinguish an outage from no data. */
   error = signal<string | null>(null);
   private loadSeq = 0;
+  private lastQueryKey = '';
 
   /**
    * Filtered stock list.
@@ -61,6 +62,7 @@ export class FilteredStockService {
         if (!report?.dateRange) {
           this.dateFiltered.set([]);
           this.error.set(null);
+          this.lastQueryKey = '';
           return;
         }
 
@@ -73,8 +75,22 @@ export class FilteredStockService {
           this.dateFiltered.set([]);
           this.loading.set(false);
           this.error.set(null);
+          this.lastQueryKey = '';
           return;
         }
+
+        const queryKey = [
+          report.summary.clientCode,
+          report.dateRange.min,
+          report.dateRange.max,
+          opts.startDate ?? '',
+          opts.endDate ?? '',
+          (opts.tradeTypes ?? []).join(','),
+        ].join('|');
+
+        // Skip identical reloads triggered by silent report object replacement.
+        if (queryKey === this.lastQueryKey) return;
+        this.lastQueryKey = queryKey;
 
         void this.reloadFromTrades(report.summary.clientCode, report.dateRange, opts);
       });

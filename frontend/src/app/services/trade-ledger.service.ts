@@ -988,6 +988,10 @@ export class TradeLedgerService {
     );
     return {
       ...merged,
+      // Keep the statement window stable across trade hydration / silent refresh so
+      // MTD/Last presets do not flip to Custom when bounds briefly change.
+      dateRange:
+        report.dateRange?.min && report.dateRange?.max ? report.dateRange : merged.dateRange,
       charges: report.charges,
       summary: {
         ...report.summary,

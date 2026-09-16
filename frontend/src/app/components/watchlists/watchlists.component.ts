@@ -311,7 +311,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     this.expandedDayKey.set(null);
     this.lazyTrades.clear();
     this.filterUrl.patchWatchlistQuery({
-      [FILTER_QUERY_KEYS.bands]: mode === 'cumulative' ? null : mode,
+      [FILTER_QUERY_KEYS.bands]: mode,
       [FILTER_QUERY_KEYS.tier]: null,
     });
   }
