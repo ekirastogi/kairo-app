@@ -58,7 +58,8 @@ export class FilterPanelComponent {
       this.state.endDate(),
       this.localTradeTypes(),
       this.showChartFilters() ? this.chartPeriod() : undefined,
-      this.showChartFilters() ? this.topStocksCount() : undefined
+      this.showChartFilters() ? this.topStocksCount() : undefined,
+      this.state.datePeriod()
     );
     this.filtersChanged.emit();
   }

@@ -1,5 +1,37 @@
 export type DateRangePresetId = 'inception' | 'year' | 'fytd' | 'month' | 'week' | 'day';
 
+/** Short URL values for `?period=` — stable user intent, not inferred from dates. */
+export type DatePeriodUrlId = 'all' | 'ytd' | 'fytd' | 'mtd' | 'wtd' | 'last' | 'custom';
+
+const PRESET_TO_URL: Record<DateRangePresetId, DatePeriodUrlId> = {
+  inception: 'all',
+  year: 'ytd',
+  fytd: 'fytd',
+  month: 'mtd',
+  week: 'wtd',
+  day: 'last',
+};
+
+const URL_TO_PRESET: Record<Exclude<DatePeriodUrlId, 'custom'>, DateRangePresetId> = {
+  all: 'inception',
+  ytd: 'year',
+  fytd: 'fytd',
+  mtd: 'month',
+  wtd: 'week',
+  last: 'day',
+};
+
+export function periodUrlFromPreset(id: DateRangePresetId | 'custom'): DatePeriodUrlId {
+  if (id === 'custom') return 'custom';
+  return PRESET_TO_URL[id];
+}
+
+export function presetFromPeriodUrl(raw: string | null | undefined): DateRangePresetId | 'custom' | null {
+  if (!raw) return null;
+  if (raw === 'custom') return 'custom';
+  return URL_TO_PRESET[raw as Exclude<DatePeriodUrlId, 'custom'>] ?? null;
+}
+
 export interface DateRangeBounds {
   min: string;
   max: string;
@@ -120,7 +152,9 @@ export function detectDateRangePreset(
   today = new Date()
 ): DateRangePresetId | 'custom' {
   if (!start || !end) return 'custom';
-  const order: DateRangePresetId[] = ['day', 'week', 'month', 'fytd', 'year', 'inception'];
+  // Check widest ranges first so a full-history window is never mistaken for Last
+  // when min===max (single-day statement) or asOf collapses.
+  const order: DateRangePresetId[] = ['inception', 'year', 'fytd', 'month', 'week', 'day'];
   for (const id of order) {
     const range = rangeForPreset(id, bounds, today);
     if (range.start === start && range.end === end) return id;

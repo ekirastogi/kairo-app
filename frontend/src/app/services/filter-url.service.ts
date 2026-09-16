@@ -11,26 +11,27 @@ import {
 } from '../utils/filter-url.utils';
 import { routeNeedsDefaultTypes, typesParamIsStaleIntradayDefault } from '../utils/trade-type-filter.utils';
 import {
+  DateRangePresetId,
   defaultDateRangeForRoute,
+  detectDateRangePreset,
+  periodUrlFromPreset,
+  presetFromPeriodUrl,
+  rangeForPreset,
   routeNeedsDefaultDateRange,
 } from '../utils/date-range-preset.utils';
 
 /**
  * Keeps filter state and the URL in sync.
- *
- * User filter intent is authoritative. Report refreshes must not re-drive URL→state
- * sync (that was resetting MTD/Last and watchlist bands every ~60s).
+ * User filter intent (`period`, dates, types) is authoritative — never invent Last/MTD.
  */
 @Injectable({ providedIn: 'root' })
 export class FilterUrlService {
   private router = inject(Router);
   private state = inject(ReportStateService);
   private started = false;
-  /** True while we are writing the URL so NavigationEnd does not echo back into state. */
   private writingUrl = false;
   private pendingPatch: Record<string, string | null> | null = null;
   private flushQueued = false;
-  /** Only re-sync from URL when the loaded client changes (first report / account switch). */
   private lastSyncedClient: string | null = null;
 
   constructor() {
@@ -69,51 +70,96 @@ export class FilterUrlService {
     const needsDefaultTypes =
       routeNeedsDefaultTypes(path, paramMap.has(FILTER_QUERY_KEYS.types)) ||
       typesParamIsStaleIntradayDefault(path, typesParam);
+
+    const hasPeriod = paramMap.has(FILTER_QUERY_KEYS.period);
+    const hasFrom = paramMap.has(FILTER_QUERY_KEYS.from);
+    const hasTo = paramMap.has(FILTER_QUERY_KEYS.to);
     const needsDefaultDateRange =
-      !!report &&
-      routeNeedsDefaultDateRange(
-        path,
-        paramMap.has(FILTER_QUERY_KEYS.from),
-        paramMap.has(FILTER_QUERY_KEYS.to)
-      );
+      !!report && routeNeedsDefaultDateRange(path, hasFrom, hasTo) && !hasPeriod;
 
     const bounds =
       report?.dateRange?.min && report.dateRange.max
         ? { min: report.dateRange.min, max: report.dateRange.max }
         : null;
-    const dateDefaults =
+
+    // Seed All into the URL when the user has never chosen a period (watchlists/dashboard).
+    const needsSeedAllPeriod =
+      !!report &&
+      !!bounds &&
+      !hasPeriod &&
+      !hasFrom &&
+      !hasTo &&
+      !needsDefaultDateRange;
+
+    const analyticsDefaults =
       needsDefaultDateRange && bounds ? defaultDateRangeForRoute(path, bounds) : null;
 
     if (report && bounds) {
       const parsed = readGlobalFilters(paramMap, defaults);
-      // Prefer URL → else keep the user's current in-memory range → else full report.
-      const start =
-        (dateDefaults?.start ?? parsed.startDate ?? this.state.startDate()) || bounds.min;
-      const end =
-        (dateDefaults?.end ?? parsed.endDate ?? this.state.endDate()) || bounds.max;
-      this.applyParsedFilters(
-        {
-          ...parsed,
-          tradeTypes: needsDefaultTypes ? defaults : parsed.tradeTypes,
-          startDate: start,
-          endDate: end,
-        },
-        bounds.min,
-        bounds.max
+      const urlPreset = presetFromPeriodUrl(parsed.period);
+      let datePeriod: DateRangePresetId | 'custom' =
+        urlPreset ?? (needsSeedAllPeriod ? 'inception' : this.state.datePeriod() || 'inception');
+      let start = parsed.startDate ?? this.state.startDate() ?? bounds.min;
+      let end = parsed.endDate ?? this.state.endDate() ?? bounds.max;
+
+      if (urlPreset && urlPreset !== 'custom') {
+        const range = rangeForPreset(urlPreset, bounds);
+        start = range.start;
+        end = range.end;
+        datePeriod = urlPreset;
+      } else if (analyticsDefaults) {
+        start = analyticsDefaults.start;
+        end = analyticsDefaults.end;
+        datePeriod = 'year';
+      } else if (needsSeedAllPeriod) {
+        start = bounds.min;
+        end = bounds.max;
+        datePeriod = 'inception';
+      } else if (!urlPreset && parsed.startDate && parsed.endDate) {
+        // Legacy URLs without `period` — infer once, then write period so it sticks.
+        datePeriod = detectDateRangePreset(parsed.startDate, parsed.endDate, bounds);
+        start = parsed.startDate;
+        end = parsed.endDate;
+      }
+
+      this.state.applyFilters(
+        start,
+        end,
+        needsDefaultTypes ? defaults : parsed.tradeTypes,
+        parsed.chartPeriod,
+        parsed.topStocks,
+        { syncUrl: false, datePeriod }
       );
     }
 
-    // Do not invent watchlist `bands=band` when missing — absence means leave local
-    // tier mode alone (Cumulative used to clear the param and get overwritten here).
-    if (needsDefaultTypes || dateDefaults) {
-      const patch: Record<string, string | null> = {};
-      if (needsDefaultTypes) {
-        patch[FILTER_QUERY_KEYS.types] = serializeTradeTypes(defaults);
-      }
-      if (dateDefaults) {
-        patch[FILTER_QUERY_KEYS.from] = dateDefaults.start;
-        patch[FILTER_QUERY_KEYS.to] = dateDefaults.end;
-      }
+    const patch: Record<string, string | null> = {};
+    if (needsDefaultTypes) {
+      patch[FILTER_QUERY_KEYS.types] = serializeTradeTypes(defaults);
+    }
+    if (analyticsDefaults) {
+      patch[FILTER_QUERY_KEYS.period] = periodUrlFromPreset('year');
+      patch[FILTER_QUERY_KEYS.from] = analyticsDefaults.start;
+      patch[FILTER_QUERY_KEYS.to] = analyticsDefaults.end;
+    } else if (needsSeedAllPeriod && bounds) {
+      patch[FILTER_QUERY_KEYS.period] = periodUrlFromPreset('inception');
+      patch[FILTER_QUERY_KEYS.from] = bounds.min;
+      patch[FILTER_QUERY_KEYS.to] = bounds.max;
+    } else if (
+      report &&
+      bounds &&
+      !hasPeriod &&
+      hasFrom &&
+      hasTo
+    ) {
+      // Backfill `period` onto legacy URLs so All/MTD/Last stop flipping.
+      const inferred = detectDateRangePreset(
+        paramMap.get(FILTER_QUERY_KEYS.from) || bounds.min,
+        paramMap.get(FILTER_QUERY_KEYS.to) || bounds.max,
+        bounds
+      );
+      patch[FILTER_QUERY_KEYS.period] = periodUrlFromPreset(inferred);
+    }
+    if (Object.keys(patch).length) {
       this.replaceQuery(patch, true);
     }
   }
@@ -121,7 +167,9 @@ export class FilterUrlService {
   updateTradeTypes(types: TradeType[]): void {
     const report = this.state.report();
     if (!report) return;
-    this.state.applyFilters(this.state.startDate(), this.state.endDate(), types);
+    this.state.applyFilters(this.state.startDate(), this.state.endDate(), types, undefined, undefined, {
+      datePeriod: this.state.datePeriod(),
+    });
     this.replaceQuery({ [FILTER_QUERY_KEYS.types]: serializeTradeTypes(types) });
   }
 
@@ -130,12 +178,15 @@ export class FilterUrlService {
     end: string,
     types: TradeType[],
     chartPeriod?: 'daily' | 'weekly' | 'monthly',
-    topStocks?: number
+    topStocks?: number,
+    datePeriod?: DateRangePresetId | 'custom'
   ): void {
     const report = this.state.report();
     if (!report) return;
-    this.state.applyFilters(start, end, types, chartPeriod, topStocks);
+    const period = datePeriod ?? this.state.datePeriod();
+    this.state.applyFilters(start, end, types, chartPeriod, topStocks, { datePeriod: period });
     this.replaceQuery({
+      [FILTER_QUERY_KEYS.period]: periodUrlFromPreset(period),
       [FILTER_QUERY_KEYS.from]: start,
       [FILTER_QUERY_KEYS.to]: end,
       [FILTER_QUERY_KEYS.types]: serializeTradeTypes(types),
@@ -151,13 +202,16 @@ export class FilterUrlService {
     const defaults = defaultTradeTypesForRoute(path);
     const bounds = { min: report.dateRange.min, max: report.dateRange.max };
     const dateDefaults = defaultDateRangeForRoute(path, bounds);
-    const start = dateDefaults?.start ?? bounds.min;
-    const end = dateDefaults?.end ?? bounds.max;
-    this.state.applyFilters(start, end, defaults);
+    const period: DateRangePresetId = dateDefaults ? 'year' : 'inception';
+    const range = dateDefaults ?? rangeForPreset('inception', bounds);
+    this.state.applyFilters(range.start, range.end, defaults, undefined, undefined, {
+      datePeriod: period,
+    });
     this.replaceQuery({
       [FILTER_QUERY_KEYS.types]: serializeTradeTypes(defaults),
-      [FILTER_QUERY_KEYS.from]: start,
-      [FILTER_QUERY_KEYS.to]: end,
+      [FILTER_QUERY_KEYS.period]: periodUrlFromPreset(period),
+      [FILTER_QUERY_KEYS.from]: range.start,
+      [FILTER_QUERY_KEYS.to]: range.end,
       [FILTER_QUERY_KEYS.chart]: null,
       [FILTER_QUERY_KEYS.top]: null,
     });
@@ -167,25 +221,6 @@ export class FilterUrlService {
     this.replaceQuery(patch);
   }
 
-  private applyParsedFilters(
-    parsed: ReturnType<typeof readGlobalFilters>,
-    minDate: string,
-    maxDate: string
-  ): void {
-    this.state.applyFilters(
-      parsed.startDate ?? minDate,
-      parsed.endDate ?? maxDate,
-      parsed.tradeTypes,
-      parsed.chartPeriod,
-      parsed.topStocks,
-      { syncUrl: false }
-    );
-  }
-
-  /**
-   * Merge concurrent URL patches into one navigate so date writes are not
-   * clobbered by a overlapping bands/types patch reading a stale router.url.
-   */
   private replaceQuery(patch: Record<string, string | null>, replaceUrl = false): void {
     this.pendingPatch = { ...(this.pendingPatch ?? {}), ...patch };
     this.writingUrl = true;

@@ -11,6 +11,8 @@ export const FILTER_QUERY_KEYS = {
   types: 'types',
   from: 'from',
   to: 'to',
+  /** Explicit date preset — all|ytd|fytd|mtd|wtd|last|custom. Prevents All↔Last confusion. */
+  period: 'period',
   chart: 'chart',
   top: 'top',
   cap: 'cap',
@@ -24,6 +26,8 @@ export interface GlobalFilterParams {
   tradeTypes: TradeType[];
   startDate?: string;
   endDate?: string;
+  /** URL period key: all | ytd | fytd | mtd | wtd | last | custom */
+  period?: string;
   chartPeriod?: 'daily' | 'weekly' | 'monthly';
   topStocks?: number;
 }
@@ -72,6 +76,7 @@ export function readGlobalFilters(params: ParamMap, defaultTypes: TradeType[]): 
   const tradeTypes = parseTradeTypes(params.get(FILTER_QUERY_KEYS.types), defaultTypes);
   const startDate = params.get(FILTER_QUERY_KEYS.from) ?? undefined;
   const endDate = params.get(FILTER_QUERY_KEYS.to) ?? undefined;
+  const period = params.get(FILTER_QUERY_KEYS.period) ?? undefined;
   const chartRaw = params.get(FILTER_QUERY_KEYS.chart);
   const chartPeriod =
     chartRaw === 'weekly' || chartRaw === 'monthly' || chartRaw === 'daily' ? chartRaw : undefined;
@@ -82,6 +87,7 @@ export function readGlobalFilters(params: ParamMap, defaultTypes: TradeType[]): 
     tradeTypes,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
+    period: period || undefined,
     chartPeriod,
     topStocks: Number.isFinite(topStocks) && topStocks! > 0 ? topStocks : undefined,
   };

@@ -187,7 +187,7 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
 
     await this.auth.whenReady();
     this.filterUrl.start();
-    this.state.startPeriodicRefresh();
+    // No background report refresh — filters and data stay put until the user reloads.
   }
 
   ngOnDestroy(): void {

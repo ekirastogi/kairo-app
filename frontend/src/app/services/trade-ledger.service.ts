@@ -1060,6 +1060,23 @@ export class TradeLedgerService {
       }
     );
 
+    // Fast path without trades can still inherit a one-day CN upload window — expand from DB.
+    if (
+      uid &&
+      report.dateRange.min &&
+      report.dateRange.max &&
+      (report.totalTradeCount ?? 0) > 0
+    ) {
+      const bounds = await this.getSellDateBounds(uid, clientCode);
+      if (bounds) {
+        report.dateRange = {
+          min: [report.dateRange.min, bounds.min].filter(Boolean).sort()[0] || report.dateRange.min,
+          max:
+            [report.dateRange.max, bounds.max].filter(Boolean).sort().at(-1) || report.dateRange.max,
+        };
+      }
+    }
+
     if (loadTrades && trades.length !== totalTradeCount && totalTradeCount > 0) {
       console.warn(
         `Trade count mismatch for ${clientCode}: fetched ${trades.length}, expected ${totalTradeCount}`
@@ -1068,6 +1085,29 @@ export class TradeLedgerService {
     }
 
     return report;
+  }
+
+  /** Earliest/latest sell_date in the ledger — keeps All/MTD working after a one-day CN upload. */
+  private async getSellDateBounds(
+    userId: string,
+    clientCode: string
+  ): Promise<{ min: string; max: string } | null> {
+    const base = () =>
+      this.supabase.client
+        .from('trades')
+        .select('sell_date')
+        .eq('user_id', userId)
+        .eq('client_code', clientCode)
+        .not('sell_date', 'is', null);
+
+    const [{ data: earliest }, { data: latest }] = await Promise.all([
+      base().order('sell_date', { ascending: true }).limit(1),
+      base().order('sell_date', { ascending: false }).limit(1),
+    ]);
+    const min = earliest?.[0]?.sell_date ? String(earliest[0].sell_date) : '';
+    const max = latest?.[0]?.sell_date ? String(latest[0].sell_date) : '';
+    if (!min || !max) return null;
+    return { min, max };
   }
 
   async getStockProfiles(clientCode: string): Promise<StockProfile[]> {
@@ -1222,6 +1262,13 @@ export class TradeLedgerService {
     const dates = plainTrades.length
       ? plainTrades.map((t) => t.sellDate).sort()
       : (meta?.dailyAnalytics ?? []).map((row) => row.sellDate).sort();
+    const dataMin = dates[0] || '';
+    const dataMax = dates[dates.length - 1] || '';
+    // Union upload window with actual trade/analytics span. A daily contract-note upload
+    // stores periodStart=periodEnd=that day — using it alone collapsed All→Last and broke MTD.
+    const rangeMin = [dataMin, uploadMeta?.periodStart].filter(Boolean).sort()[0] || '';
+    const rangeMax =
+      [dataMax, uploadMeta?.periodEnd].filter(Boolean).sort().at(-1) || '';
     const allocatedCharges =
       trades.length > 0
         ? trades.reduce((sum, trade) => sum + trade.allocatedCharges, 0)
@@ -1250,8 +1297,8 @@ export class TradeLedgerService {
       unrealisedHoldings: holdings,
       unrealisedLots: holdings.flatMap((holding) => holding.lots ?? []),
       dateRange: {
-        min: uploadMeta?.periodStart || dates[0] || '',
-        max: uploadMeta?.periodEnd || dates[dates.length - 1] || '',
+        min: rangeMin,
+        max: rangeMax,
       },
       tradeTypes: plainTrades.length
         ? (ALL_REPORT_TRADE_TYPES.filter((t) => typeSet.has(t)) as TradeType[])

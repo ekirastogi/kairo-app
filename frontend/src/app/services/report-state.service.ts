@@ -13,6 +13,7 @@ import { ParserService } from './parser.service';
 import { TradeLedgerService } from './trade-ledger.service';
 import { ClientAccountService } from './client-account.service';
 import { AuthService } from './auth.service';
+import { DateRangePresetId } from '../utils/date-range-preset.utils';
 
 const MAX_REPORT_HISTORY = 5;
 const HISTORY_STORAGE_KEY = 'groww-pl-report-history';
@@ -71,6 +72,8 @@ export class ReportStateService {
 
   startDate = signal('');
   endDate = signal('');
+  /** User-owned date preset (All/MTD/Last/…). Never inferred away by background logic. */
+  datePeriod = signal<DateRangePresetId | 'custom'>('inception');
   selectedTradeTypes = signal<TradeType[]>(DEFAULT_TRADE_TYPES);
   chartPeriod = signal<'daily' | 'weekly' | 'monthly'>('daily');
   topStocksCount = signal(10);
@@ -104,14 +107,9 @@ export class ReportStateService {
   hasHistory = computed(() => this.reportHistory().length > 0);
   isFirebaseBacked = computed(() => this.dataSource() === 'firebase');
 
-  /** Background refresh so dashboard P&L does not stay stale in session cache. */
+  /** Disabled — filters must not change unless the user acts. Kept as a no-op for callers. */
   startPeriodicRefresh(): void {
-    if (this.periodicRefreshStarted || typeof window === 'undefined') return;
-    this.periodicRefreshStarted = true;
-    this.periodicRefreshTimer = window.setInterval(
-      () => void this.refreshFirebaseReportSilently(),
-      UI_CACHE_TTL_MS
-    );
+    this.stopPeriodicRefresh();
   }
 
   /** Stop the background refresh — called on sign-out so it does not outlive the session. */
@@ -124,37 +122,7 @@ export class ReportStateService {
   }
 
   private async refreshFirebaseReportSilently(): Promise<void> {
-    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-    const clientCode = this.activeClientCode();
-    if (!clientCode || this.dataSource() !== 'firebase') return;
-    try {
-      const report = await this.ledger.buildReportFromClient(clientCode, { loadTrades: false });
-      if (report && this.isValidReport(report)) {
-        const current = this.report();
-        if (current?.tradesLoaded && current.trades.length) {
-          report.trades = current.trades;
-          report.tradesLoaded = true;
-          report.totalTradeCount = current.totalTradeCount ?? current.trades.length;
-        }
-        if (current?.dailyAnalytics?.length && !report.dailyAnalytics?.length) {
-          report.dailyAnalytics = current.dailyAnalytics;
-        }
-        if (current?.unrealisedHoldings?.length && !report.unrealisedHoldings?.length) {
-          report.unrealisedHoldings = current.unrealisedHoldings;
-          report.unrealisedLots = current.unrealisedLots;
-        }
-        // Preserve stable statement bounds so date presets keep matching.
-        if (current?.dateRange?.min && current.dateRange.max) {
-          report.dateRange = current.dateRange;
-        }
-        if (current && reportFingerprint(current) === reportFingerprint(report)) {
-          return;
-        }
-        this.applyFirebaseReport(report);
-      }
-    } catch {
-      // Ignore background refresh errors.
-    }
+    // Intentionally empty — automatic refresh was overwriting date filters (e.g. All → Last).
   }
 
   async loadFromClient(clientCode: string): Promise<void> {
@@ -365,9 +333,15 @@ export class ReportStateService {
     this.report.set(report);
     const clientChanged = !prev || prev.summary.clientCode !== report.summary.clientCode;
     const rangeMissing = !this.startDate() || !this.endDate();
-    if (clientChanged || (rangeMissing && report.dateRange.min && report.dateRange.max)) {
-      this.startDate.set(report.dateRange.min);
-      this.endDate.set(report.dateRange.max);
+    // Only seed dates when empty or client switches — never overwrite an active user filter.
+    if (clientChanged || rangeMissing) {
+      if (report.dateRange.min && report.dateRange.max) {
+        this.startDate.set(report.dateRange.min);
+        this.endDate.set(report.dateRange.max);
+        if (clientChanged || !this.datePeriod()) {
+          this.datePeriod.set('inception');
+        }
+      }
     }
   }
 
@@ -403,8 +377,9 @@ export class ReportStateService {
     types: TradeType[],
     chartPeriod?: 'daily' | 'weekly' | 'monthly',
     topStocks?: number,
-    options: { syncUrl?: boolean } = {}
+    options: { syncUrl?: boolean; datePeriod?: DateRangePresetId | 'custom' } = {}
   ): void {
+    const nextPeriod = options.datePeriod ?? this.datePeriod();
     const sameDates = this.startDate() === start && this.endDate() === end;
     const sameTypes =
       this.selectedTradeTypes().length === types.length &&
@@ -413,12 +388,14 @@ export class ReportStateService {
     const nextTop = topStocks ?? this.topStocksCount();
     const sameChart = this.chartPeriod() === nextChart;
     const sameTop = this.topStocksCount() === nextTop;
-    if (sameDates && sameTypes && sameChart && sameTop) {
+    const samePeriod = this.datePeriod() === nextPeriod;
+    if (sameDates && sameTypes && sameChart && sameTop && samePeriod) {
       void options;
       return;
     }
     this.startDate.set(start);
     this.endDate.set(end);
+    this.datePeriod.set(nextPeriod);
     this.selectedTradeTypes.set(types);
     if (chartPeriod) this.chartPeriod.set(chartPeriod);
     if (topStocks) this.topStocksCount.set(topStocks);
@@ -431,6 +408,7 @@ export class ReportStateService {
       this.startDate.set(report.dateRange.min);
       this.endDate.set(report.dateRange.max);
     }
+    this.datePeriod.set('inception');
     this.selectedTradeTypes.set(defaultTypes);
     this.chartPeriod.set('daily');
     this.topStocksCount.set(10);
@@ -442,6 +420,9 @@ export class ReportStateService {
     this.activeClientCode.set(null);
     this.dataSource.set('local');
     this.error.set(null);
+    this.startDate.set('');
+    this.endDate.set('');
+    this.datePeriod.set('inception');
     this.reportHistory.set([]);
     this.saveHistoryToStorage([]);
     this.clearFirebaseReportCache();

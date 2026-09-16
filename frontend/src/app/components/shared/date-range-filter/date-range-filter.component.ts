@@ -7,7 +7,6 @@ import { formatDate } from '../../../utils/format.utils';
 import {
   DATE_RANGE_PRESETS,
   DateRangePresetId,
-  detectDateRangePreset,
   rangeForPreset,
 } from '../../../utils/date-range-preset.utils';
 
@@ -32,9 +31,8 @@ export class DateRangeFilterComponent {
     return { min: range?.min ?? '', max: range?.max ?? '' };
   });
 
-  activePreset = computed(() =>
-    detectDateRangePreset(this.state.startDate(), this.state.endDate(), this.bounds())
-  );
+  /** Prefer explicit user period from state/URL — never guess All vs Last from dates. */
+  activePreset = computed(() => this.state.datePeriod());
 
   rangeCaption = computed(() => {
     const start = this.state.startDate();
@@ -54,7 +52,14 @@ export class DateRangeFilterComponent {
     if (!report) return;
     this.customOpen.set(false);
     const range = rangeForPreset(id, this.bounds());
-    this.filterUrl.updateDateRange(range.start, range.end, this.state.selectedTradeTypes());
+    this.filterUrl.updateDateRange(
+      range.start,
+      range.end,
+      this.state.selectedTradeTypes(),
+      undefined,
+      undefined,
+      id
+    );
   }
 
   toggleCustom(): void {
@@ -70,6 +75,13 @@ export class DateRangeFilterComponent {
       if (which === 'start') end = start;
       else start = end;
     }
-    this.filterUrl.updateDateRange(start, end, this.state.selectedTradeTypes());
+    this.filterUrl.updateDateRange(
+      start,
+      end,
+      this.state.selectedTradeTypes(),
+      undefined,
+      undefined,
+      'custom'
+    );
   }
 }
