@@ -35,6 +35,14 @@
         <button
           type="button"
           class="tab-btn"
+          [class.tab-btn-active]="activeTab() === 'contract-notes'"
+          (click)="setTab('contract-notes')"
+        >
+          Contract notes
+        </button>
+        <button
+          type="button"
+          class="tab-btn"
           [class.tab-btn-active]="activeTab() === 'backfill'"
           (click)="setTab('backfill')"
         >
@@ -62,6 +70,10 @@
     @if (activeTab() === 'upload') {
       <div class="px-4 py-4 sm:px-5">
         <app-upload />
+      </div>
+    } @else if (activeTab() === 'contract-notes') {
+      <div class="px-4 py-4 sm:px-5">
+        <app-contract-note-upload />
       </div>
     } @else if (activeTab() === 'backfill') {
       <div class="space-y-4 px-4 py-4 sm:px-5">

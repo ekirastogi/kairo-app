@@ -188,6 +188,8 @@ export interface AnalysisOptions {
   tradeTypes?: TradeType[];
 }
 
+export type TradeSource = 'excel' | 'contract_note';
+
 export interface StoredTrade extends Trade {
   /** Row id. Uploads replace whole sell dates, so this only has to be unique. */
   dedupeKey: string;
@@ -198,6 +200,8 @@ export interface StoredTrade extends Trade {
   allocatedCharges: number;
   netPnL: number;
   createdAt: number;
+  /** Ingest provenance — Sunday Excel supersedes mid-week contract notes. */
+  source?: TradeSource;
 }
 
 export interface TradeTypeStats {

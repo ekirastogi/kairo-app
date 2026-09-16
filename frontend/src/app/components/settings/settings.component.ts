@@ -6,14 +6,15 @@ import { AuthService } from '../../services/auth.service';
 import { TradeLedgerService } from '../../services/trade-ledger.service';
 import { WorkerJobService } from '../../services/worker-job.service';
 import { UploadComponent } from '../upload/upload.component';
+import { ContractNoteUploadComponent } from '../contract-note-upload/contract-note-upload.component';
 import { formatCurrency } from '../../utils/format.utils';
 
-type SettingsTab = 'upload' | 'backfill' | 'worker' | 'reset';
+type SettingsTab = 'upload' | 'contract-notes' | 'backfill' | 'worker' | 'reset';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, UploadComponent],
+  imports: [CommonModule, UploadComponent, ContractNoteUploadComponent],
   templateUrl: './settings.component.html',
 })
 export class SettingsComponent {

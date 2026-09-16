@@ -24,3 +24,6 @@ frontend/firepit-log.txt
 # Local data samples
 *.xlsx
 *.xls
+
+# Personal Groww exports
+Contract_Note*.pdf

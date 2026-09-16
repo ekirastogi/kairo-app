@@ -14,11 +14,13 @@ import {
 import { AuthService } from './auth.service';
 import { ChargesService } from './charges.service';
 import { ClientAccountService } from './client-account.service';
+import { ContractNoteParserService } from './contract-note-parser.service';
 import { ParserService } from './parser.service';
 import { RegistryStockService } from './registry-stock.service';
 import { RegistryLabelService } from './registry-label.service';
 import { TradePlanService } from './trade-plan.service';
 import { MomentumStockService } from './momentum-stock.service';
+import { UserConfigService } from './user-config.service';
 import { WatchlistService } from './watchlist.service';
 import { objectToSnake, numField, rowToCamel, SupabaseService } from './supabase.service';
 import {
@@ -28,6 +30,7 @@ import {
   enrichTradeWithCharges,
   normalizeSymbol,
 } from '../utils/upload-merge.utils';
+import { holdingsToOpenLots, matchContractNoteDay } from '../utils/contract-note-match.utils';
 import { expandTradeTypes, effectiveTradeType, tradeMatchesTypeFilter } from '../utils/trade-type-filter.utils';
 import { mergeStockProfiles, mergeStockSummaries, profileToStockSummary, profilesHaveTypeBreakdown } from '../utils/filter-stock-profiles.utils';
 import { buildDailyAnalyticsFromTrades } from '../utils/analytics-aggregation.utils';
@@ -150,6 +153,11 @@ function profileFromRow(row: Record<string, unknown>, clientCode: string, client
 
 function tradeFromRow(row: Record<string, unknown>): StoredTrade {
   const camel = rowToCamel<Record<string, unknown>>(row);
+  const sourceRaw = String(camel['source'] ?? '').trim();
+  const source =
+    sourceRaw === 'contract_note' || sourceRaw === 'excel'
+      ? (sourceRaw as StoredTrade['source'])
+      : undefined;
   return {
     dedupeKey: String(camel['dedupeKey'] ?? camel['id'] ?? ''),
     uploadId: String(camel['uploadId'] ?? ''),
@@ -172,6 +180,7 @@ function tradeFromRow(row: Record<string, unknown>): StoredTrade {
     allocatedCharges: numField(camel, 'allocatedCharges'),
     netPnL: numField(camel, 'netPnL', 'netPnl'),
     createdAt: Number(camel['createdAt'] ?? 0),
+    source,
   };
 }
 
@@ -268,7 +277,7 @@ function holdingToRow(
 }
 
 function tradeToRow(trade: StoredTrade, userId: string): Record<string, unknown> {
-  return objectToSnake({
+  const row = objectToSnake({
     id: trade.dedupeKey,
     userId,
     clientCode: trade.clientCode,
@@ -292,7 +301,9 @@ function tradeToRow(trade: StoredTrade, userId: string): Record<string, unknown>
     netPnl: trade.netPnL,
     clientName: trade.clientName,
     createdAt: trade.createdAt,
+    source: trade.source ?? 'excel',
   });
+  return row;
 }
 
 /**
@@ -365,6 +376,8 @@ export class TradeLedgerService {
   private auth = inject(AuthService);
   private clientSvc = inject(ClientAccountService);
   private parser = inject(ParserService);
+  private contractNoteParser = inject(ContractNoteParserService);
+  private userConfig = inject(UserConfigService);
   private registry = inject(RegistryStockService);
   private registryLabels = inject(RegistryLabelService);
   private tradePlans = inject(TradePlanService);
@@ -377,6 +390,8 @@ export class TradeLedgerService {
   private holdingsTableAvailable: boolean | null = null;
   /** null = unknown; false = `trades_replaced` column not on remote DB yet. */
   private uploadsSupportTradesReplaced: boolean | null = null;
+  /** null = unknown; false = `source` column not on remote DB yet. */
+  private tradesSupportSource: boolean | null = null;
   /** The traded-label backfill only needs to run once per session. */
   private tradedLabelsSynced = false;
 
@@ -431,6 +446,7 @@ export class TradeLedgerService {
         allocatedCharges: enriched.allocatedCharges,
         netPnL: enriched.netPnL,
         createdAt: now,
+        source: 'excel',
       };
     });
 
@@ -506,6 +522,149 @@ export class TradeLedgerService {
       affectedSymbols: [...affectedSymbols],
       report: syncedReport ?? undefined,
       reconciliation: reconciliation ?? undefined,
+    };
+  }
+
+  /**
+   * Provisional evening ingest from a Groww contract note PDF.
+   * Replaces only sell_date = trade date, FIFO-matches against open holdings,
+   * and tags rows as `contract_note` so Sunday Excel can supersede them.
+   */
+  async uploadContractNote(file: File, password?: string): Promise<UploadResult> {
+    await this.auth.whenReady();
+    const uid = await this.auth.getDataUserId();
+    if (!uid) throw new Error('Sign in to push data');
+
+    const resolvedPassword =
+      password?.trim() ||
+      (await this.userConfig.getContractNotePassword()) ||
+      '';
+    if (!resolvedPassword) {
+      throw new Error('Save the contract note password under Settings → Contract notes first.');
+    }
+
+    const buffer = await file.arrayBuffer();
+    const contentHash = await computeFileContentHash(buffer);
+    const note = await this.contractNoteParser.parseFile(file, resolvedPassword);
+
+    const clientCode = note.clientCode?.trim() || 'UNKNOWN';
+    const clientName = note.clientName?.trim() || clientCode;
+
+    const existingHoldings = await this.getHoldings(clientCode);
+    const matched = matchContractNoteDay(note, holdingsToOpenLots(existingHoldings));
+    if (!matched.trades.length && !matched.holdings.length) {
+      throw new Error('No trades found in this contract note.');
+    }
+
+    const stubReport: Report = {
+      summary: {
+        clientName,
+        clientCode,
+        period: `Contract note ${note.tradeDate}`,
+        realisedPnL: note.realisedPnL,
+        unrealisedPnL: 0,
+      },
+      dateRange: { min: note.tradeDate, max: note.tradeDate },
+      charges: { items: note.charges, total: note.chargesTotal },
+      trades: matched.trades,
+      stockSummary: [],
+      unrealisedHoldings: matched.holdings,
+      unrealisedLots: matched.unrealisedLots,
+      tradeTypes: ['all', 'intraday', 'delivery', 'same_day'],
+    };
+
+    const resolver = await this.buildIdentityResolver(stubReport);
+    this.applyIdentity(stubReport, resolver);
+
+    const existingUploadId = await this.findUploadByContentHash(uid, clientCode, contentHash);
+    const uploadId = existingUploadId ?? crypto.randomUUID();
+    const rateCardCharges = computeTradeCharges(
+      stubReport.trades,
+      this.chargesSvc,
+      note.chargesTotal
+    );
+    const now = Date.now();
+
+    const affectedSymbols = new Set<string>();
+    const pendingWrites: StoredTrade[] = stubReport.trades.map((trade, index) => {
+      const identity = resolver.resolve(trade.isin, trade.stockName);
+      const enriched = enrichTradeWithCharges(trade, rateCardCharges[index] ?? 0);
+      affectedSymbols.add(identity.symbol);
+      return {
+        ...trade,
+        isin: identity.isin,
+        dedupeKey: crypto.randomUUID(),
+        uploadId,
+        clientCode,
+        clientName,
+        symbol: identity.symbol,
+        allocatedCharges: enriched.allocatedCharges,
+        netPnL: enriched.netPnL,
+        createdAt: now,
+        source: 'contract_note',
+      };
+    });
+
+    const tradesReplaced = await this.deleteTradesInSellDateRange(
+      uid,
+      clientCode,
+      note.tradeDate,
+      note.tradeDate
+    );
+
+    if (pendingWrites.length) {
+      await this.commitTradesInChunks(pendingWrites, uid);
+    }
+    const newTradesAdded = pendingWrites.length;
+
+    const uploadRecord: Omit<UploadRecord, 'id'> = {
+      fileName: file.name,
+      contentHash,
+      uploadedAt: now,
+      clientCode,
+      clientName,
+      periodLabel: `Contract note ${note.contractNoteNo || note.tradeDate}`,
+      periodStart: note.tradeDate,
+      periodEnd: note.tradeDate,
+      reportRealisedPnL: note.realisedPnL,
+      reportUnrealisedPnL: 0,
+      chargesTotal: note.chargesTotal,
+      charges: note.charges,
+      tradeCount: stubReport.trades.length,
+      newTradesAdded,
+      tradesReplaced,
+      status: 'completed',
+    };
+    await this.writeUploadRecord(uploadId, uid, uploadRecord);
+
+    const holdings = mergeUnrealisedHoldings(
+      (stubReport.unrealisedHoldings ?? []).map((holding) => {
+        const identity = resolver.resolve(holding.isin, holding.stockName, holding.symbol);
+        return {
+          ...holding,
+          isin: identity.isin,
+          symbol: identity.symbol,
+        };
+      })
+    );
+    await this.replaceHoldings(clientCode, holdings);
+
+    const storedTrades = await this.getAllTrades(clientCode);
+    const syncedReport = await this.syncDerivedData(clientCode, clientName, {
+      trades: storedTrades,
+      uploadMeta: uploadRecord,
+      holdings,
+    });
+
+    return {
+      uploadId,
+      clientCode,
+      clientName,
+      newTradesAdded,
+      tradesReplaced,
+      fileDuplicate: existingUploadId !== null,
+      affectedSymbols: [...affectedSymbols],
+      report: syncedReport ?? undefined,
     };
   }
 
@@ -1434,11 +1593,21 @@ export class TradeLedgerService {
 
   private async commitTradesInChunks(trades: StoredTrade[], userId: string): Promise<void> {
     for (let i = 0; i < trades.length; i += UPSERT_BATCH_LIMIT) {
-      const chunk = uniqueByKey(
+      let chunk = uniqueByKey(
         trades.slice(i, i + UPSERT_BATCH_LIMIT).map((t) => tradeToRow(t, userId)),
         (row) => String(row['id'] ?? '')
       );
-      const { error } = await this.supabase.client.from('trades').upsert(chunk);
+      if (this.tradesSupportSource === false) {
+        chunk = chunk.map(({ source: _s, ...rest }) => rest);
+      }
+      let { error } = await this.supabase.client.from('trades').upsert(chunk);
+      if (error && this.tradesSupportSource !== false && isMissingColumnError(error, 'source')) {
+        this.tradesSupportSource = false;
+        chunk = chunk.map(({ source: _s, ...rest }) => rest);
+        ({ error } = await this.supabase.client.from('trades').upsert(chunk));
+      } else if (!error && this.tradesSupportSource !== false) {
+        this.tradesSupportSource = true;
+      }
       if (error) throw error;
     }
   }

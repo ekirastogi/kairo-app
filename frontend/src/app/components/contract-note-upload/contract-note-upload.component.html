@@ -1,0 +1,102 @@
+<div class="space-y-4">
+  <div class="rounded-xl border border-kairo-200 bg-kairo-50 px-4 py-3 text-sm text-kairo-900">
+    <p class="font-medium">Daily contract notes + Sunday P&amp;L</p>
+    <p class="mt-2 text-kairo-800">
+      Upload the Groww PDF after ~6pm to refresh that day’s trades and charges. On Sunday,
+      re-upload the full Stocks P&amp;L Excel (Upload P&amp;L tab) to realign with Groww.
+    </p>
+  </div>
+
+  <div class="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+    <div>
+      <h3 class="text-sm font-semibold text-slate-900">Contract note password</h3>
+      <p class="mt-1 text-xs text-slate-500">
+        Groww uses your PAN. Saved encrypted in Firebase under your account and reused for every PDF.
+      </p>
+    </div>
+
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <input
+        type="password"
+        autocomplete="off"
+        class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-kairo-500 focus:outline-none focus:ring-1 focus:ring-kairo-500"
+        placeholder="{{ hasSavedPassword() ? '•••••••• (saved — enter to replace)' : 'PAN / PDF password' }}"
+        [ngModel]="passwordDraft()"
+        (ngModelChange)="passwordDraft.set($event)"
+      />
+      <div class="flex shrink-0 gap-2">
+        <button
+          type="button"
+          class="btn-primary"
+          [disabled]="passwordBusy() || !passwordDraft().trim()"
+          (click)="savePassword()"
+        >
+          {{ passwordBusy() ? 'Saving…' : 'Save' }}
+        </button>
+        @if (hasSavedPassword()) {
+          <button
+            type="button"
+            class="btn-secondary"
+            [disabled]="passwordBusy()"
+            (click)="clearPassword()"
+          >
+            Clear
+          </button>
+        }
+      </div>
+    </div>
+
+    <p class="text-xs text-slate-500">
+      Status:
+      @if (hasSavedPassword()) {
+        <span class="font-medium text-emerald-600">Password saved</span>
+      } @else {
+        <span class="font-medium text-amber-600">Not saved</span>
+      }
+    </p>
+
+    @if (passwordError()) {
+      <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ passwordError() }}</div>
+    }
+    @if (passwordMessage()) {
+      <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ passwordMessage() }}</div>
+    }
+  </div>
+
+  @if (pushError()) {
+    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ pushError() }}</div>
+  }
+  @if (pushResult()) {
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ pushResult() }}</div>
+  }
+
+  <div
+    class="card overflow-hidden"
+    [class.border-kairo-500]="dragOver()"
+    [class.bg-kairo-50]="dragOver()"
+    [class.border-2]="dragOver()"
+    [class.border-dashed]="dragOver()"
+    (drop)="onDrop($event)"
+    (dragover)="onDragOver($event)"
+    (dragleave)="onDragLeave()"
+  >
+    <div class="flex flex-col items-center px-4 py-12 text-center">
+      <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-kairo-50 text-kairo-600">
+        <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+      </div>
+      <h3 class="text-lg font-bold text-slate-900">Drop today’s contract note PDF</h3>
+      <p class="mt-2 max-w-md text-xs text-slate-500">
+        Replaces only that trade date in the ledger. Same-day square-offs are matched from the note;
+        rare delivery sells use open lots from your last Sunday Excel.
+      </p>
+      <label
+        class="btn-primary mt-6 cursor-pointer"
+        [class.opacity-60]="uploading() || !hasSavedPassword()"
+        [class.pointer-events-none]="uploading() || !hasSavedPassword()"
+      >
+        {{ uploading() ? 'Uploading…' : hasSavedPassword() ? 'Choose PDF' : 'Save password first' }}
+        <input type="file" accept=".pdf,application/pdf" (change)="onFileSelected($event)" class="hidden" />
+      </label>
+    </div>
+  </div>
+</div>
