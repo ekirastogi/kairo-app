@@ -3,10 +3,11 @@ import { getDocument, GlobalWorkerOptions, PDFDocumentProxy } from 'pdfjs-dist';
 import { ParsedContractNote } from '../models/contract-note.models';
 import { parseContractNoteText } from '../utils/contract-note-parse.utils';
 
-// Bundled worker — Angular copies node_modules assets via import URL.
+// Served from /assets (copied from pdfjs-dist via angular.json). import.meta.url
+// resolves to a broken hosting path in production Firebase builds.
 GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url
+  'assets/pdf.worker.min.mjs',
+  document.baseURI
 ).toString();
 
 @Injectable({ providedIn: 'root' })

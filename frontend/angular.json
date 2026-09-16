@@ -31,7 +31,12 @@
               "src/icon-192.png",
               "src/icon-512.png",
               "src/assets",
-              "src/manifest.webmanifest"
+              "src/manifest.webmanifest",
+              {
+                "glob": "pdf.worker.min.mjs",
+                "input": "node_modules/pdfjs-dist/build",
+                "output": "/assets"
+              }
             ],
             "styles": [
               "src/styles.scss"
@@ -101,7 +106,12 @@
               "src/icon-192.png",
               "src/icon-512.png",
               "src/assets",
-              "src/manifest.webmanifest"
+              "src/manifest.webmanifest",
+              {
+                "glob": "pdf.worker.min.mjs",
+                "input": "node_modules/pdfjs-dist/build",
+                "output": "/assets"
+              }
             ],
             "styles": [
               "src/styles.scss"
