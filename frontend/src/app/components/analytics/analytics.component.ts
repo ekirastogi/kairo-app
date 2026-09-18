@@ -179,10 +179,10 @@ export class AnalyticsComponent implements OnInit {
   readonly tradeTypeLabels = TRADE_TYPE_LABELS;
   readonly tabs: { id: AnalyticsTab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
+    { id: 'stocks', label: 'Stocks' },
     { id: 'daily', label: 'Daily' },
     { id: 'weekly', label: 'Weekly' },
     { id: 'monthly', label: 'Monthly' },
-    { id: 'stocks', label: 'Stocks' },
     { id: 'heatmap', label: 'Heatmap' },
     { id: 'holdings', label: 'Holdings' },
     { id: 'costs', label: 'Costs' },
