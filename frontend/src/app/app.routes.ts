@@ -3,6 +3,7 @@ import { SignalsComponent } from './components/signals/signals.component';
 import { LoginComponent } from './components/login/login.component';
 import { AdminLayoutComponent } from './layout/admin-layout.component';
 import { authGuard, loginGuard } from './guards/auth.guard';
+import { redirectToAnalytics } from './guards/analytics-redirect.guard';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent, canActivate: [loginGuard] },
@@ -17,26 +18,36 @@ export const routes: Routes = [
         data: { title: 'Signals', subtitle: 'Trade recommendations from your engine' },
       },
       {
-        path: 'dashboard/custom-lists/new',
+        path: 'analytics/custom-lists/new',
         loadComponent: () =>
           import('./components/dashboard/custom-stock-list-editor.component').then(
             (m) => m.CustomStockListEditorComponent
           ),
-        data: { title: 'New custom list', subtitle: 'Pick stocks for a focused dashboard view' },
+        data: { title: 'New custom list', subtitle: 'Pick stocks for a focused Performance view' },
+      },
+      {
+        path: 'analytics/custom-lists/:id',
+        loadComponent: () =>
+          import('./components/dashboard/custom-stock-list-editor.component').then(
+            (m) => m.CustomStockListEditorComponent
+          ),
+        data: { title: 'Edit custom list', subtitle: 'Update the stocks in this Performance view' },
+      },
+      {
+        path: 'dashboard/custom-lists/new',
+        redirectTo: 'analytics/custom-lists/new',
+        pathMatch: 'full',
       },
       {
         path: 'dashboard/custom-lists/:id',
-        loadComponent: () =>
-          import('./components/dashboard/custom-stock-list-editor.component').then(
-            (m) => m.CustomStockListEditorComponent
-          ),
-        data: { title: 'Edit custom list', subtitle: 'Update the stocks in this dashboard view' },
+        redirectTo: 'analytics/custom-lists/:id',
+        pathMatch: 'full',
       },
       {
         path: 'dashboard',
+        canActivate: [redirectToAnalytics('stocks')],
         loadComponent: () =>
-          import('./components/dashboard/dashboard.component').then((m) => m.DashboardComponent),
-        data: { title: 'Dashboard', subtitle: 'Portfolio overview from your P&L' },
+          import('./components/analytics/analytics.component').then((m) => m.AnalyticsComponent),
       },
       {
         path: 'upload',
@@ -47,7 +58,7 @@ export const routes: Routes = [
         path: 'analytics',
         loadComponent: () =>
           import('./components/analytics/analytics.component').then((m) => m.AnalyticsComponent),
-        data: { title: 'Analytics', subtitle: 'Charts and performance breakdowns' },
+        data: { title: 'Performance', subtitle: 'P&L overview, stocks, tiers, and charts' },
       },
       {
         path: 'utils',
@@ -104,9 +115,9 @@ export const routes: Routes = [
       },
       {
         path: 'watchlists',
+        canActivate: [redirectToAnalytics('tiers')],
         loadComponent: () =>
-          import('./components/watchlists/watchlists.component').then((m) => m.WatchlistsComponent),
-        data: { title: 'Watchlists', subtitle: 'Profitable and loss-making stocks from your P&L' },
+          import('./components/analytics/analytics.component').then((m) => m.AnalyticsComponent),
       },
       {
         path: 'stocks',
@@ -121,7 +132,6 @@ export const routes: Routes = [
         data: { title: 'Stock', subtitle: '' },
       },
       { path: 'signals', redirectTo: '', pathMatch: 'full' },
-      // The heatmap now lives as a tab on the analytics page.
       { path: 'heatmap', redirectTo: 'analytics', pathMatch: 'full' },
       {
         path: 'settings',

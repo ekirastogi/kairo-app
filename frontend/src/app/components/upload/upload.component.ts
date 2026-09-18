@@ -77,7 +77,7 @@ saveToSupabase = signal(true);
             `${result.newTradesAdded} trades imported.${replaced}`
         );
 
-        await this.router.navigate(['/dashboard']);
+        await this.router.navigate(['/analytics']);
         return;
       }
 
@@ -92,7 +92,7 @@ saveToSupabase = signal(true);
   }
 
   goToDashboard(): void {
-    void this.router.navigate(['/dashboard']);
+    void this.router.navigate(['/analytics']);
   }
 }
 

@@ -4,8 +4,6 @@ import { TradeType } from '../models/trade.models';
 export const INTRADAY_TRADE_TYPES: TradeType[] = ['intraday', 'same_day'];
 
 const ROUTES_WITH_INTRADAY_DEFAULT = [
-  '/dashboard',
-  '/watchlists',
   '/charges',
   '/analytics',
 ];

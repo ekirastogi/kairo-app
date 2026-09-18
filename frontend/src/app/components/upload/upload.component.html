@@ -16,7 +16,7 @@
     <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-kairo-500" [checked]="saveToSupabase()" (change)="saveToSupabase.set($any($event.target).checked)" />
     <div>
       <div class="text-sm font-medium text-slate-900">Save to cloud (recommended)</div>
-      <div class="text-xs text-slate-500">Stores trades under your account in Supabase. Dashboards load from there.</div>
+      <div class="text-xs text-slate-500">Stores trades under your account in Supabase. Performance views load from there.</div>
     </div>
   </label>
 
@@ -49,7 +49,7 @@
 
   @if (state.hasReport()) {
     <div class="flex gap-3">
-      <button type="button" class="btn-primary" (click)="goToDashboard()">View in Dashboard →</button>
+      <button type="button" class="btn-primary" (click)="goToDashboard()">View Performance →</button>
     </div>
   }
 

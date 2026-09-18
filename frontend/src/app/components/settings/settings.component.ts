@@ -225,7 +225,7 @@ export class SettingsComponent {
         );
         this.resetConfirmChecked.set(false);
         this.reingestFile.set(null);
-        await this.router.navigate(['/dashboard']);
+        await this.router.navigate(['/analytics']);
       } else {
         const parts = [
           result?.clientsRemoved ? `${result.clientsRemoved} client account(s)` : null,

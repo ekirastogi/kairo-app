@@ -116,7 +116,7 @@ export class ContractNoteUploadComponent implements OnInit {
         `Contract note imported for ${result.clientName} (${result.clientCode}): ` +
           `${result.newTradesAdded} trade(s).${replaced} Provisional until Sunday Excel resync.`
       );
-      await this.router.navigate(['/dashboard']);
+      await this.router.navigate(['/analytics']);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Contract note upload failed';
       this.pushError.set(message);

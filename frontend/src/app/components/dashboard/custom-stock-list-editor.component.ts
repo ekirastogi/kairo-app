@@ -136,7 +136,7 @@ export class CustomStockListEditorComponent implements OnInit {
       const id = this.editingId();
       if (id) await this.customLists.update(id, name, symbols);
       else await this.customLists.create(name, symbols);
-      await this.router.navigate(['/dashboard'], { queryParams: { tab: 'custom' }, queryParamsHandling: 'merge' });
+      await this.router.navigate(['/analytics'], { queryParams: { tab: 'custom' }, queryParamsHandling: 'merge' });
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : 'Could not save this list');
     } finally {

@@ -18,7 +18,7 @@
       Upload a P&amp;L report on the dashboard or pick a recent upload below. To price a trade
       before placing it, use the <strong>Trade calculator</strong> tab.
     </p>
-    <a routerLink="/" class="btn-primary mt-6 inline-flex">Go to Dashboard</a>
+    <a routerLink="/analytics" class="btn-primary mt-6 inline-flex">Open Performance</a>
   </div>
   @if (state.hasHistory()) {
     <div class="card mt-4 overflow-hidden p-0">
@@ -30,7 +30,7 @@
 } @else {
   @if (analysis(); as data) {
     <div class="mb-4 flex justify-end sm:mb-5">
-      <a routerLink="/" class="btn-secondary hidden sm:inline-flex">← Dashboard</a>
+      <a routerLink="/analytics" class="btn-secondary hidden sm:inline-flex">← Performance</a>
     </div>
 
     <div class="filter-toolbar mb-4 sm:mb-5">
