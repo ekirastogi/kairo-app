@@ -57,17 +57,7 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
       title: 'Portfolio',
       items: [
         {
-          label: 'Dashboard',
-          route: '/dashboard',
-          icon: 'M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z',
-        },
-        {
-          label: 'Watchlists',
-          route: '/watchlists',
-          icon: 'M5 5h14M5 12h14M5 19h14',
-        },
-        {
-          label: 'Analytics',
+          label: 'Performance',
           route: '/analytics',
           icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
         },
@@ -134,13 +124,8 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
   readonly mobileNavItems: MobileNavItem[] = [
     {
       label: 'Home',
-      route: '/dashboard',
-      icon: 'M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z',
-    },
-    {
-      label: 'Lists',
-      route: '/watchlists',
-      icon: 'M5 5h14M5 12h14M5 19h14',
+      route: '/analytics',
+      icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
     },
     {
       label: 'Plans',
@@ -152,11 +137,6 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
       route: '/',
       exact: true,
       icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
-    },
-    {
-      label: 'Analytics',
-      route: '/analytics',
-      icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
     },
     {
       label: 'Settings',
