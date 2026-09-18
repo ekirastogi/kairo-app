@@ -12,11 +12,13 @@ import { RouterLink } from '@angular/router';
 import { ChartConfiguration } from 'chart.js';
 import { ReportStateService } from '../../services/report-state.service';
 import { FilteredStockService } from '../../services/filtered-stock.service';
+import { LazyTradeLoaderService } from '../../services/lazy-trade-loader.service';
 import { AnalysisService } from '../../services/analysis.service';
 import { TRADE_TYPE_LABELS, TradeType } from '../../models/trade.models';
 import { formatCompactCurrency, formatCurrency, formatDate, pnlClass } from '../../utils/format.utils';
 import { holdingsTotals } from '../../utils/holdings.utils';
 import { stockIdentityKey } from '../../utils/stock-identity.utils';
+import { isFullReportDateRange } from '../../utils/filter-stock-profiles.utils';
 import {
   CHART_COLORS,
   abbreviateLabel,
@@ -167,6 +169,7 @@ type AnalyticsTab =
 export class AnalyticsComponent implements OnInit {
   readonly state = inject(ReportStateService);
   readonly filteredStocks = inject(FilteredStockService);
+  readonly lazyTrades = inject(LazyTradeLoaderService);
   private analysisSvc = inject(AnalysisService);
   readonly hiddenTradeTypes: TradeType[] = ['mtf'];
   readonly formatCurrency = formatCurrency;
@@ -205,33 +208,62 @@ export class AnalyticsComponent implements OnInit {
   chargeRatio = computed(() => this.analysis()?.summary.chargeRatio ?? 0);
 
   async ngOnInit(): Promise<void> {
+    // Aggregate-first: profiles + daily analytics. Trades load on day/stock expand.
     await this.state.ensureLoadedFromFirebase();
-    void this.state.ensureTradesLoaded();
   }
 
   setTab(tab: AnalyticsTab): void {
     this.activeTab.set(tab);
     this.chartVersion.update((v) => v + 1);
-    // The daily drilldown needs per-trade data to break a day down by stock.
-    if (tab === 'overview' || tab === 'stocks' || tab === 'daily' || tab === 'heatmap') {
-      void this.state.ensureTradesLoaded();
-    }
   }
 
   selectedDate = signal<string | null>(null);
 
   /** Click a date to open its per-stock breakdown; clicking the open one closes it. */
   toggleDate(period: string): void {
-    this.selectedDate.update((current) => (current === period ? null : period));
+    const next = this.selectedDate() === period ? null : period;
+    this.selectedDate.set(next);
+    if (next) {
+      void this.loadSelectedDayTrades(next);
+    }
+  }
+
+  private async loadSelectedDayTrades(period: string): Promise<void> {
+    const report = this.state.report();
+    const clientCode = report?.summary.clientCode;
+    if (!clientCode || !report) return;
+    await this.lazyTrades.loadForPeriod(
+      clientCode,
+      period,
+      'daily',
+      report,
+      this.state.analysisOptions()
+    );
   }
 
   selectedDay = computed(
     () => this.analysis()?.daily.find((d) => d.period === this.selectedDate()) ?? null
   );
 
+  isSelectedDayLoading = computed(() => {
+    const date = this.selectedDate();
+    if (!date) return false;
+    return this.lazyTrades.isLoading(this.lazyTrades.cacheKeyForPeriod('daily', date));
+  });
+
   /** Same per-stock rows the dashboard shows, narrowed to the selected day's trades. */
   selectedDateStocks = computed(() => {
-    const trades = this.selectedDay()?.trades ?? [];
+    const date = this.selectedDate();
+    if (!date) return [];
+
+    const dayTrades = this.selectedDay()?.trades ?? [];
+    if (dayTrades.length) {
+      return this.analysisSvc.aggregateByStock(dayTrades, this.chargeRatio());
+    }
+
+    const trades = this.lazyTrades.tradesForKey(
+      this.lazyTrades.cacheKeyForPeriod('daily', date)
+    );
     if (!trades.length) return [];
     return this.analysisSvc.aggregateByStock(trades, this.chargeRatio());
   });
@@ -446,19 +478,58 @@ export class AnalyticsComponent implements OnInit {
 
   avgPnLPerOutcome = computed(() => {
     const trades = this.analysis()?.filteredTrades ?? [];
-    const wins = trades.filter((t) => t.realisedPnL > 0);
-    const losses = trades.filter((t) => t.realisedPnL < 0);
-    const avgWinPerTrade = wins.length
-      ? wins.reduce((sum, trade) => sum + trade.realisedPnL, 0) / wins.length
-      : 0;
-    const avgLossPerTrade = losses.length
-      ? losses.reduce((sum, trade) => sum + trade.realisedPnL, 0) / losses.length
-      : 0;
+    if (trades.length) {
+      const wins = trades.filter((t) => t.realisedPnL > 0);
+      const losses = trades.filter((t) => t.realisedPnL < 0);
+      const avgWinPerTrade = wins.length
+        ? wins.reduce((sum, trade) => sum + trade.realisedPnL, 0) / wins.length
+        : 0;
+      const avgLossPerTrade = losses.length
+        ? losses.reduce((sum, trade) => sum + trade.realisedPnL, 0) / losses.length
+        : 0;
+      return {
+        avgWinPerTrade,
+        avgLossPerTrade,
+        winTrades: wins.length,
+        lossTrades: losses.length,
+      };
+    }
+
+    // Aggregate path: stock_profiles carry gross profit/loss for the full statement window.
+    const report = this.state.report();
+    const profiles = report?.stockProfiles ?? [];
+    const opts = this.state.analysisOptions();
+    const types = opts.tradeTypes ?? [];
+    const typeFiltered = types.length > 0 && !types.includes('all');
+    if (
+      profiles.length &&
+      report?.dateRange &&
+      isFullReportDateRange(report.dateRange, opts) &&
+      !typeFiltered
+    ) {
+      let grossProfit = 0;
+      let grossLoss = 0;
+      let winTrades = 0;
+      let lossTrades = 0;
+      for (const profile of profiles) {
+        grossProfit += profile.grossProfit;
+        grossLoss += profile.grossLoss;
+        winTrades += profile.winningTrades;
+        lossTrades += profile.losingTrades;
+      }
+      return {
+        avgWinPerTrade: winTrades ? grossProfit / winTrades : 0,
+        avgLossPerTrade: lossTrades ? grossLoss / lossTrades : 0,
+        winTrades,
+        lossTrades,
+      };
+    }
+
     return {
-      avgWinPerTrade,
-      avgLossPerTrade,
-      winTrades: wins.length,
-      lossTrades: losses.length,
+      avgWinPerTrade: 0,
+      avgLossPerTrade: 0,
+      winTrades: 0,
+      lossTrades: 0,
     };
   });
 
@@ -868,9 +939,21 @@ export class AnalyticsComponent implements OnInit {
     this.chartVersion();
     const trades = this.analysis()?.filteredTrades ?? [];
     const map = new Map<TradeType, number>();
-    for (const t of trades) {
-      map.set(t.tradeType, (map.get(t.tradeType) ?? 0) + 1);
+
+    if (trades.length) {
+      for (const t of trades) {
+        map.set(t.tradeType, (map.get(t.tradeType) ?? 0) + 1);
+      }
+    } else {
+      const rows = filterDailyAnalytics(
+        this.state.report()?.dailyAnalytics ?? [],
+        this.state.analysisOptions()
+      );
+      for (const row of rows) {
+        map.set(row.tradeType, (map.get(row.tradeType) ?? 0) + row.tradeCount);
+      }
     }
+
     const entries = [...map.entries()].sort((a, b) => b[1] - a[1]);
     if (!entries.length) return null;
     return {

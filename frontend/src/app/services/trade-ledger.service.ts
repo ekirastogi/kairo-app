@@ -1021,8 +1021,22 @@ export class TradeLedgerService {
 
     if (!stockProfiles.length && totalTradeCount === 0 && !holdings.length) return null;
 
+    let aggregatesRebuilt = false;
     if (totalTradeCount > 0) {
-      stockProfiles = await this.ensureStockProfilesWithBreakdown(clientCode, stockProfiles);
+      const profileTradeSum = stockProfiles.reduce((sum, profile) => sum + profile.tradeCount, 0);
+      const needsBreakdown = !stockProfiles.length || !profilesHaveTypeBreakdown(stockProfiles);
+      const staleCounts =
+        stockProfiles.length > 0 && profileTradeSum > 0 && profileTradeSum !== totalTradeCount;
+
+      if (needsBreakdown || staleCounts) {
+        if (staleCounts) {
+          console.warn(
+            `Stale stock_profiles for ${clientCode}: profile trades ${profileTradeSum} vs ledger ${totalTradeCount}; rebuilding`
+          );
+        }
+        stockProfiles = await this.rebuildStockProfiles(clientCode);
+        aggregatesRebuilt = true;
+      }
     }
 
     const { data: lastUploadRow } = await this.supabase.client
@@ -1042,9 +1056,22 @@ export class TradeLedgerService {
 
     const loadTrades = options.loadTrades !== false;
     const trades = loadTrades ? await this.getAllTrades(clientCode) : [];
-    const dailyAnalytics = loadTrades
-      ? undefined
-      : await this.getAnalyticsDaily(clientCode);
+    let dailyAnalytics = loadTrades ? undefined : await this.getAnalyticsDaily(clientCode);
+
+    if (!loadTrades && totalTradeCount > 0) {
+      if (aggregatesRebuilt) {
+        dailyAnalytics = await this.getAnalyticsDaily(clientCode);
+      } else {
+        const dailyTradeSum = (dailyAnalytics ?? []).reduce((sum, row) => sum + row.tradeCount, 0);
+        if (!dailyAnalytics?.length || dailyTradeSum !== totalTradeCount) {
+          console.warn(
+            `Stale analytics_daily for ${clientCode}: daily trades ${dailyTradeSum} vs ledger ${totalTradeCount}; rebuilding`
+          );
+          stockProfiles = await this.rebuildStockProfiles(clientCode);
+          dailyAnalytics = await this.getAnalyticsDaily(clientCode);
+        }
+      }
+    }
 
     const report = this.buildReportFromStoredData(
       trades,
@@ -1259,11 +1286,28 @@ export class TradeLedgerService {
 
     const typeSet = new Set<TradeType>(['all']);
     plainTrades.forEach((t) => typeSet.add(t.tradeType));
+    (meta?.dailyAnalytics ?? []).forEach((row) => typeSet.add(row.tradeType));
+    profiles.forEach((profile) => {
+      Object.keys(profile.byTradeType ?? {}).forEach((type) => typeSet.add(type as TradeType));
+    });
+
     const dates = plainTrades.length
       ? plainTrades.map((t) => t.sellDate).sort()
       : (meta?.dailyAnalytics ?? []).map((row) => row.sellDate).sort();
-    const dataMin = dates[0] || '';
-    const dataMax = dates[dates.length - 1] || '';
+    let dataMin = dates[0] || '';
+    let dataMax = dates[dates.length - 1] || '';
+    if (!dataMin || !dataMax) {
+      const profileFirst = profiles
+        .map((profile) => profile.dateRange?.first)
+        .filter(Boolean)
+        .sort();
+      const profileLast = profiles
+        .map((profile) => profile.dateRange?.last)
+        .filter(Boolean)
+        .sort();
+      dataMin = dataMin || profileFirst[0] || '';
+      dataMax = dataMax || profileLast[profileLast.length - 1] || '';
+    }
     // Union upload window with actual trade/analytics span. A daily contract-note upload
     // stores periodStart=periodEnd=that day — using it alone collapsed All→Last and broke MTD.
     const rangeMin = [dataMin, uploadMeta?.periodStart].filter(Boolean).sort()[0] || '';
@@ -1300,7 +1344,7 @@ export class TradeLedgerService {
         min: rangeMin,
         max: rangeMax,
       },
-      tradeTypes: plainTrades.length
+      tradeTypes: plainTrades.length || typeSet.size > 1
         ? (ALL_REPORT_TRADE_TYPES.filter((t) => typeSet.has(t)) as TradeType[])
         : DEFAULT_REPORT_TRADE_TYPES,
       totalTradeCount,

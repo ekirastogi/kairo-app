@@ -96,8 +96,9 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     this.navSub = this.router.events
       .pipe(filter((event) => event instanceof NavigationEnd))
       .subscribe(() => this.syncWatchlistFromUrl());
+    // Aggregate-first: watchlists use stock profiles / filtered summaries.
+    // Accordion trade rows load on demand via LazyTradeLoaderService.
     await this.state.ensureLoadedFromFirebase();
-    await this.state.ensureTradesLoaded();
   }
 
   ngOnDestroy(): void {

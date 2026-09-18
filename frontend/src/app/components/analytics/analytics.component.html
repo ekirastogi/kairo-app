@@ -167,7 +167,7 @@
             </div>
             <app-expandable-stocks-table
               [stocks]="selectedDateStocks()"
-              emptyMessage="No stock detail for this day — trades are still loading"
+              [emptyMessage]="isSelectedDayLoading() ? 'Loading trades for this day…' : 'No stock detail for this day'"
             />
           </div>
         }
@@ -390,7 +390,10 @@
               />
             </div>
 
-            <app-expandable-stocks-table [stocks]="stocksTabRows()" />
+            <app-expandable-stocks-table
+              [stocks]="stocksTabRows()"
+              [emptyMessage]="filteredStocks.loading() ? 'Loading stocks for this date range…' : 'No stock data'"
+            />
           </div>
 
           @if (stocksTabSummary(); as summary) {

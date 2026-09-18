@@ -115,8 +115,9 @@ export class DashboardComponent implements OnInit {
   }, { allowSignalWrites: true });
 
   async ngOnInit(): Promise<void> {
+    // Aggregate-first: stock_profiles + analytics_daily power the page.
+    // Individual trades load on accordion expand via LazyTradeLoaderService.
     await this.state.ensureLoadedFromFirebase();
-    await this.state.ensureTradesLoaded();
     this.clients.set(await this.clientSvc.listClients());
     const params = this.route.snapshot.queryParamMap;
     const wl = readWatchlistFilters(params);
@@ -195,6 +196,9 @@ export class DashboardComponent implements OnInit {
   );
 
   stockEmptyMessage = computed(() => {
+    if (this.filteredStocks.loading()) {
+      return 'Loading stocks for this date range…';
+    }
     if (this.activeTab() === 'custom' && !this.customLists.lists().length && !this.customLists.listsLoading()) {
       return 'No custom lists yet. Create one to pick a subset of stocks.';
     }
