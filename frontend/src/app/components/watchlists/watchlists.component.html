@@ -1,4 +1,4 @@
-<div class="watchlist-page space-y-3">
+@if (!embedded()) {
   <app-error-banner [message]="state.error() ?? filteredStocks.error()" />
   @if (!auth.user()) {
     <div class="flex justify-end">
@@ -7,14 +7,16 @@
       </button>
     </div>
   }
+}
 
-  @if (!state.hasReport()) {
-    <div class="card overflow-hidden p-8 text-center">
-      <h3 class="text-lg font-bold text-slate-900">No trade data loaded</h3>
-      <p class="mt-2 text-sm text-slate-500">Upload a P&amp;L file to generate watchlists and tier summaries.</p>
-      <a routerLink="/settings" class="btn-primary mt-4 inline-block">Upload P&amp;L</a>
-    </div>
-  } @else {
+@if (!embedded() && !state.hasReport()) {
+  <div class="card overflow-hidden p-8 text-center">
+    <h3 class="text-lg font-bold text-slate-900">No trade data loaded</h3>
+    <p class="mt-2 text-sm text-slate-500">Upload a P&amp;L file to generate watchlists and tier summaries.</p>
+    <a routerLink="/settings" class="btn-primary mt-4 inline-block">Upload P&amp;L</a>
+  </div>
+} @else if (state.hasReport()) {
+  <div class="watchlist-page space-y-3" [class.watchlist-embedded]="embedded()">
     <div class="watchlist-sticky-toolbar">
       <div class="watchlist-desk">
         <div class="watchlist-desk-group" role="tablist" aria-label="Side">
@@ -67,7 +69,7 @@
             }
           </div>
         </div>
-        @if (book() !== 'holdings') {
+        @if (!embedded() && book() !== 'holdings') {
           <span class="filter-toolbar-rule" aria-hidden="true"></span>
           <app-trade-type-filter [compact]="true" [hiddenTypes]="hiddenTradeTypes" />
           <span class="filter-toolbar-rule" aria-hidden="true"></span>
@@ -165,5 +167,5 @@
     @if (tierSummary(); as summary) {
       <app-tier-summary-bar [label]="activeViewLabel()" [summary]="summary" />
     }
-  }
-</div>
+  </div>
+}

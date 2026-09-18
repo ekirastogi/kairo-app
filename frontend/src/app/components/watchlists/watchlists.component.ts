@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, OnDestroy, signal } from '@angular/core';
+import { Component, computed, inject, input, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
@@ -80,6 +80,12 @@ interface AutoTierTab {
   templateUrl: './watchlists.component.html',
 })
 export class WatchlistsComponent implements OnInit, OnDestroy {
+  /**
+   * When hosted inside Analytics, the parent owns page load + shared trade/date filters.
+   * This view only shows side / book / band / tier controls and the stock table.
+   */
+  embedded = input(false);
+
   private stockSvc = inject(StockFirestoreService);
   private router = inject(Router);
   private filterUrl = inject(FilterUrlService);
@@ -96,9 +102,9 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     this.navSub = this.router.events
       .pipe(filter((event) => event instanceof NavigationEnd))
       .subscribe(() => this.syncWatchlistFromUrl());
-    // Aggregate-first: watchlists use stock profiles / filtered summaries.
-    // Accordion trade rows load on demand via LazyTradeLoaderService.
-    await this.state.ensureLoadedFromFirebase();
+    if (!this.embedded()) {
+      await this.state.ensureLoadedFromFirebase();
+    }
   }
 
   ngOnDestroy(): void {

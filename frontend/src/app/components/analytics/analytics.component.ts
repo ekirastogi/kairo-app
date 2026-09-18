@@ -5,14 +5,17 @@ import {
   signal,
   HostListener,
   OnInit,
+  OnDestroy,
 } from '@angular/core';
 import { CommonModule, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
 import { ChartConfiguration } from 'chart.js';
+import { filter, Subscription } from 'rxjs';
 import { ReportStateService } from '../../services/report-state.service';
 import { FilteredStockService } from '../../services/filtered-stock.service';
 import { LazyTradeLoaderService } from '../../services/lazy-trade-loader.service';
+import { CustomStockListService } from '../../services/custom-stock-list.service';
 import { AnalysisService } from '../../services/analysis.service';
 import { TRADE_TYPE_LABELS, TradeType } from '../../models/trade.models';
 import { formatCompactCurrency, formatCurrency, formatDate, pnlClass } from '../../utils/format.utils';
@@ -69,12 +72,13 @@ import {
   filterDailyAnalytics,
 } from '../../utils/analytics-aggregation.utils';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
+import { WatchlistsComponent } from '../watchlists/watchlists.component';
 
 /** Calendar heatmap scope: every date, or only the days the market actually traded. */
 type CalendarSessionFilter = 'all' | 'open';
 
-/** Stocks tab: show every stock, or only those in profit / loss on net P&L. */
-type StockPnLFilter = 'all' | 'profitable' | 'losing';
+/** Stocks tab: show every stock, only profit/loss, or a custom list. */
+type StockPnLFilter = 'all' | 'profitable' | 'losing' | 'custom';
 
 type AnalyticsTab =
   | 'overview'
@@ -82,9 +86,22 @@ type AnalyticsTab =
   | 'weekly'
   | 'monthly'
   | 'stocks'
+  | 'tiers'
   | 'heatmap'
   | 'holdings'
   | 'costs';
+
+const ANALYTICS_TABS: AnalyticsTab[] = [
+  'overview',
+  'stocks',
+  'tiers',
+  'daily',
+  'weekly',
+  'monthly',
+  'heatmap',
+  'holdings',
+  'costs',
+];
 
 @Component({
   selector: 'app-analytics',
@@ -105,6 +122,7 @@ type AnalyticsTab =
     HoldingsTableComponent,
     HeatmapComponent,
     ErrorBannerComponent,
+    WatchlistsComponent,
   ],
   templateUrl: './analytics.component.html',
   styles: `
@@ -166,11 +184,15 @@ type AnalyticsTab =
     }
   `,
 })
-export class AnalyticsComponent implements OnInit {
+export class AnalyticsComponent implements OnInit, OnDestroy {
   readonly state = inject(ReportStateService);
   readonly filteredStocks = inject(FilteredStockService);
   readonly lazyTrades = inject(LazyTradeLoaderService);
+  readonly customLists = inject(CustomStockListService);
   private analysisSvc = inject(AnalysisService);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private navSub?: Subscription;
   readonly hiddenTradeTypes: TradeType[] = ['mtf'];
   readonly formatCurrency = formatCurrency;
   readonly formatCompactCurrency = formatCompactCurrency;
@@ -180,6 +202,7 @@ export class AnalyticsComponent implements OnInit {
   readonly tabs: { id: AnalyticsTab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'stocks', label: 'Stocks' },
+    { id: 'tiers', label: 'Tiers' },
     { id: 'daily', label: 'Daily' },
     { id: 'weekly', label: 'Weekly' },
     { id: 'monthly', label: 'Monthly' },
@@ -198,6 +221,7 @@ export class AnalyticsComponent implements OnInit {
     { id: 'all', label: 'All' },
     { id: 'profitable', label: 'Profitable' },
     { id: 'losing', label: 'Losing' },
+    { id: 'custom', label: 'Custom' },
   ];
 
   private chartVersion = signal(0);
@@ -208,13 +232,48 @@ export class AnalyticsComponent implements OnInit {
   chargeRatio = computed(() => this.analysis()?.summary.chargeRatio ?? 0);
 
   async ngOnInit(): Promise<void> {
+    this.syncTabFromUrl();
+    this.navSub = this.router.events
+      .pipe(filter((event) => event instanceof NavigationEnd))
+      .subscribe(() => this.syncTabFromUrl());
     // Aggregate-first: profiles + daily analytics. Trades load on day/stock expand.
     await this.state.ensureLoadedFromFirebase();
+  }
+
+  ngOnDestroy(): void {
+    this.navSub?.unsubscribe();
+  }
+
+  private syncTabFromUrl(): void {
+    const tab = this.route.snapshot.queryParamMap.get('tab');
+    if (tab === 'custom') {
+      this.activeTab.set('stocks');
+      this.stockPnLFilter.set('custom');
+      void this.customLists.ensureLoaded();
+      const listId = this.route.snapshot.queryParamMap.get('list');
+      if (listId) this.customLists.select(listId);
+      return;
+    }
+    if (tab && ANALYTICS_TABS.includes(tab as AnalyticsTab)) {
+      this.activeTab.set(tab as AnalyticsTab);
+      if (tab === 'stocks' || tab === 'tiers') {
+        void this.customLists.ensureLoaded();
+      }
+    }
   }
 
   setTab(tab: AnalyticsTab): void {
     this.activeTab.set(tab);
     this.chartVersion.update((v) => v + 1);
+    if (tab === 'stocks' || tab === 'tiers') {
+      void this.customLists.ensureLoaded();
+    }
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   selectedDate = signal<string | null>(null);
@@ -282,15 +341,49 @@ export class AnalyticsComponent implements OnInit {
 
   setStockPnLFilter(id: StockPnLFilter): void {
     this.stockPnLFilter.set(id);
+    if (id === 'custom') {
+      void this.customLists.ensureLoaded();
+    }
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {
+        tab: 'stocks',
+        list: id === 'custom' ? this.customLists.selectedListId() : null,
+      },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
-  /** Stocks tab table rows — All / Profitable / Losing on net P&L, then scenario + search. */
+  selectCustomList(listId: string): void {
+    this.customLists.select(listId || null);
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab: 'stocks', list: listId || null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
+
+  async deleteSelectedCustomList(): Promise<void> {
+    const list = this.customLists.selectedList();
+    if (!list) return;
+    if (!confirm(`Delete custom list “${list.name}”?`)) return;
+    await this.customLists.remove(list.id);
+  }
+
+  /** Stocks tab table rows — All / Profitable / Losing / Custom, then scenario + search. */
   stocksTabRows = computed(() => {
     let stocks = this.visibleStocks();
     const filter = this.stockPnLFilter();
-    if (filter === 'profitable') stocks = stocks.filter((stock) => stock.netPnL > 0);
-    else if (filter === 'losing') stocks = stocks.filter((stock) => stock.netPnL < 0);
-    stocks = filterStocksByRules(stocks, this.stockFilterRules());
+    if (filter === 'custom') {
+      const list = this.customLists.selectedList();
+      stocks = list ? this.customLists.stocksForList(list, stocks) : [];
+    } else {
+      if (filter === 'profitable') stocks = stocks.filter((stock) => stock.netPnL > 0);
+      else if (filter === 'losing') stocks = stocks.filter((stock) => stock.netPnL < 0);
+      stocks = filterStocksByRules(stocks, this.stockFilterRules());
+    }
     const q = this.stockSearchQuery().trim().toLowerCase();
     if (q) {
       stocks = stocks.filter((stock) => {
@@ -302,6 +395,23 @@ export class AnalyticsComponent implements OnInit {
       });
     }
     return stocks;
+  });
+
+  stocksEmptyMessage = computed(() => {
+    if (this.filteredStocks.loading()) return 'Loading stocks for this date range…';
+    if (this.stockPnLFilter() === 'custom') {
+      if (!this.customLists.lists().length && !this.customLists.listsLoading()) {
+        return 'No custom lists yet. Create one to pick a subset of stocks.';
+      }
+      if (!this.customLists.selectedList()) {
+        return 'Select or create a list to see stocks.';
+      }
+      return 'None of the stocks in this list appear in the current filters.';
+    }
+    if (this.hasStockSearch()) {
+      return `No stocks match "${this.stockSearchQuery()}"`;
+    }
+    return 'No stock data';
   });
 
   stocksTabSummary = computed(() => {
