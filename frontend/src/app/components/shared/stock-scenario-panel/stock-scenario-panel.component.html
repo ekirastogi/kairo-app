@@ -1,0 +1,121 @@
+<div class="contents">
+  <button
+    type="button"
+    class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold transition"
+    [class.bg-kairo-50]="open()"
+    [class.text-kairo-700]="open()"
+    [class.text-slate-600]="!open()"
+    [class.hover:bg-slate-100]="!open()"
+    (click)="toggle()"
+  >
+    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+    Scenario builder
+    @if (hasActiveScenario()) {
+      <span class="rounded-full bg-kairo-500 px-1.5 py-0.5 text-[10px] font-bold text-white">ON</span>
+    }
+    <svg class="h-3.5 w-3.5 transition" [class.rotate-180]="open()" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+  </button>
+
+  @if (open()) {
+    <div class="order-last w-full basis-full rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 sm:p-4">
+      <p class="mb-2 text-xs text-slate-500 sm:mb-3">
+        Add rules on any column. All rules must match (AND).
+      </p>
+
+      @if (rules().length) {
+        <div class="space-y-2">
+          @for (rule of rules(); track rule.id) {
+            <div class="grid grid-cols-1 gap-1.5 rounded-lg border border-slate-200 bg-white p-2 sm:grid-cols-[1.2fr_0.8fr_1fr_auto] sm:items-center sm:gap-2">
+              <select
+                class="input-field py-1.5 text-xs"
+                [ngModel]="rule.column"
+                (ngModelChange)="updateRule(rule.id, { column: $event })"
+              >
+                @for (col of filterColumns; track col.key) {
+                  <option [value]="col.key">{{ col.label }}</option>
+                }
+              </select>
+              <select
+                class="input-field py-1.5 text-xs"
+                [ngModel]="rule.operator"
+                (ngModelChange)="updateRule(rule.id, { operator: $event })"
+              >
+                @for (op of operatorsFor(rule.column); track op.key) {
+                  <option [value]="op.key">{{ op.label }}</option>
+                }
+              </select>
+              <input
+                type="text"
+                class="input-field py-1.5 text-xs"
+                [placeholder]="placeholderFor(rule.column)"
+                [ngModel]="rule.value"
+                (ngModelChange)="updateRule(rule.id, { value: $event })"
+              />
+              <button type="button" class="btn-ghost justify-self-end px-2 py-1 text-xs text-red-600" (click)="removeRule(rule.id)">
+                Remove
+              </button>
+            </div>
+          }
+        </div>
+      } @else {
+        <p class="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-3 text-center text-sm text-slate-500">
+          No rules yet — all stocks are shown.
+        </p>
+      }
+
+      <div class="mt-2 flex flex-wrap gap-2 sm:mt-3">
+        <button type="button" class="btn-secondary px-3 py-1.5 text-xs" (click)="addRule()">+ Add rule</button>
+        @if (rules().length) {
+          <button type="button" class="btn-ghost px-3 py-1.5 text-xs" (click)="clearAll()">Clear all</button>
+        }
+      </div>
+
+      <div class="mt-3 flex flex-col gap-2 border-t border-slate-200 pt-3 sm:mt-4 sm:flex-row sm:items-center sm:pt-4">
+        <input
+          type="text"
+          class="input-field py-1.5 text-xs sm:max-w-xs"
+          placeholder="Scenario name"
+          [ngModel]="scenarioNameInput()"
+          (ngModelChange)="scenarioNameInput.set($event)"
+        />
+        <button
+          type="button"
+          class="btn-primary px-3 py-1.5 text-xs"
+          [disabled]="!scenarioNameInput().trim() || !rules().length"
+          (click)="saveScenario()"
+        >
+          Save scenario
+        </button>
+      </div>
+
+      @if (savedScenarios().length) {
+        <div class="mt-3">
+          <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Your saved scenarios</div>
+          <div class="flex flex-wrap gap-2">
+            @for (scenario of savedScenarios(); track scenario.id) {
+              <div class="inline-flex overflow-hidden rounded-full border border-slate-200 bg-white text-xs">
+                <button type="button" class="px-3 py-1 font-medium text-slate-700 hover:bg-slate-50" (click)="loadSaved(scenario.id)">
+                  {{ scenario.name }}
+                </button>
+                <button type="button" class="border-l border-slate-200 px-2 py-1 text-slate-400 hover:bg-red-50 hover:text-red-600" (click)="deleteSaved(scenario.id)" aria-label="Delete scenario">
+                  ×
+                </button>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <div class="mt-3">
+        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Quick examples</div>
+        <div class="flex flex-wrap gap-2">
+          @for (example of examples; track example.name; let i = $index) {
+            <button type="button" class="chip chip-inactive" (click)="loadExample(i)">
+              {{ example.name }}
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  }
+</div>

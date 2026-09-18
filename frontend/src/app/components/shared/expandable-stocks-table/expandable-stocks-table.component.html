@@ -1,0 +1,216 @@
+<div class="overflow-x-auto">
+  <table class="stock-table">
+    <thead>
+      <tr>
+        <th class="w-10 text-center">#</th>
+        @for (col of visibleColumns(); track col.key) {
+          <th [class]="(col.key === 'stockName' ? 'text-left w-auto' : 'text-right') + ' ' + responsiveClass(col.key)">
+            <button
+              type="button"
+              class="sort-btn"
+              [class.sort-btn-active]="isSortedColumn(col.key)"
+              (click)="toggleSort(col.key, $event)"
+            >
+              {{ col.label }} <span>{{ sortIndicator(col.key) }}</span>
+            </button>
+          </th>
+        }
+        @if (expandable()) {
+          <th class="w-8"></th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @for (stock of rows(); track stockRowKey(stock); let i = $index) {
+        <tr
+          class="transition"
+          [class.cursor-pointer]="expandable()"
+          [class.bg-kairo-50]="isStockExpanded(stock)"
+          (click)="toggleStockExpand(stock)"
+        >
+          <td class="text-center text-slate-400">{{ i + 1 }}</td>
+          @for (col of visibleColumns(); track col.key) {
+            <td [class]="(col.key === 'stockName' ? 'col-name' : cellClass(col.key, stock)) + ' ' + responsiveClass(col.key)">
+              @switch (col.key) {
+                @case ('stockName') {
+                  <a
+                    class="block truncate font-semibold text-kairo-700 hover:underline"
+                    [title]="stock.stockName"
+                    [routerLink]="['/stock', stockSymbol(stock)]"
+                    (click)="$event.stopPropagation()"
+                  >{{ stock.stockName }}</a>
+                  <span class="text-xs text-slate-400">{{ stock.isin || stockSymbol(stock) }}</span>
+                }
+                @case ('tradeCount') { {{ stock.tradeCount }} }
+                @case ('quantity') { {{ stock.quantity | number }} }
+                @case ('buyValue') { {{ formatCurrency(stock.buyValue) }} }
+                @case ('sellValue') { {{ formatCurrency(stock.sellValue) }} }
+                @case ('realisedPnL') { {{ formatCurrency(stock.realisedPnL) }} }
+                @case ('realisedPnLPct') { {{ formatPct(stock.realisedPnLPct) }} }
+                @case ('allocatedCharges') { {{ formatCurrency(stock.allocatedCharges) }} }
+                @case ('netPnL') { {{ formatCurrency(stock.netPnL) }} }
+                @case ('winRate') {
+                  {{ stock.winRate != null ? (stock.winRate | number: '1.0-0') + '%' : '—' }}
+                }
+              }
+            </td>
+          }
+          @if (expandable()) {
+            <td class="text-slate-400">
+              <svg class="h-4 w-4 transition" [class.rotate-180]="isStockExpanded(stock)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </td>
+          }
+        </tr>
+
+        @if (expandable() && isStockExpanded(stock)) {
+          <tr>
+            <td [attr.colspan]="colSpan()" class="!border-t-0 bg-slate-50 p-0">
+              <div class="stock-expand-panel">
+                <div class="mb-2 flex flex-wrap items-center justify-between gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <span>
+                    @if (isStockTradesLoading(stock)) {
+                      Loading trades…
+                    } @else {
+                      @if (stock.isin) {
+                        <span class="normal-case tracking-normal text-slate-400">{{ stock.isin }}</span>
+                        <span class="mx-1.5 text-slate-300">·</span>
+                      }
+                      {{ expandedDays().length }} trading {{ expandedDays().length === 1 ? 'day' : 'days' }}
+                      · {{ expandedTradeCount() }} trades
+                    }
+                  </span>
+                  <a
+                    class="normal-case tracking-normal text-kairo-600 hover:underline"
+                    [routerLink]="['/stock', stockSymbol(stock)]"
+                    (click)="$event.stopPropagation()"
+                  >Details →</a>
+                </div>
+
+                @if (!isStockTradesLoading(stock)) {
+                  <div class="space-y-1.5">
+                    @for (day of expandedDays(); track day.date) {
+                      <div class="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                        <button
+                          type="button"
+                          class="stock-day-header"
+                          (click)="toggleDayExpand(stock, day.date, $event)"
+                        >
+                          <div class="min-w-0 flex-1">
+                            <div class="text-sm font-semibold text-slate-900">{{ day.label }}</div>
+                            <div class="text-xs text-slate-400">
+                              {{ day.tradeCount }} {{ day.tradeCount === 1 ? 'trade' : 'trades' }} · Qty {{ day.quantity | number }}
+                            </div>
+                          </div>
+                          <div class="hidden shrink-0 text-right sm:block">
+                            <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">P&amp;L</div>
+                            <div class="text-sm font-bold tabular-nums" [class]="pnlClass(day.realisedPnL)">{{ formatCurrency(day.realisedPnL) }}</div>
+                          </div>
+                          <div class="hidden shrink-0 text-right md:block">
+                            <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Charges</div>
+                            <div class="text-sm font-bold tabular-nums text-red-600">{{ formatCurrency(day.allocatedCharges) }}</div>
+                          </div>
+                          <div class="shrink-0 text-right">
+                            <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net</div>
+                            <div class="text-sm font-bold tabular-nums" [class]="pnlClass(day.netPnL)">{{ formatCurrency(day.netPnL) }}</div>
+                          </div>
+                          <svg
+                            class="h-4 w-4 shrink-0 text-slate-400 transition"
+                            [class.rotate-180]="isDayExpanded(stock, day.date)"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+
+                        @if (isDayExpanded(stock, day.date)) {
+                          <div class="border-t border-slate-100 bg-slate-50/50">
+                            <div class="overflow-x-auto">
+                              <table class="data-table min-w-[480px] sm:min-w-[560px]">
+                                <thead>
+                                  <tr>
+                                    <th class="w-8 text-center">#</th>
+                                    <th class="text-left">Type</th>
+                                    <th class="text-right">Qty</th>
+                                    <th class="text-right">Buy</th>
+                                    <th class="text-right">Sell</th>
+                                    <th class="text-right hidden sm:table-cell">P&amp;L</th>
+                                    <th class="text-right hidden md:table-cell">Charges</th>
+                                    <th class="text-right">Net</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  @for (trade of day.trades; track trade.isin + trade.sellDate + trade.buyDate + trade.quantity; let ti = $index) {
+                                    <tr>
+                                      <td class="text-center text-slate-400">{{ ti + 1 }}</td>
+                                      <td>
+                                        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{{ tradeTypeLabel(trade.tradeType) }}</span>
+                                      </td>
+                                      <td class="text-right">{{ trade.quantity | number }}</td>
+                                      <td class="text-right">
+                                        <div class="text-xs text-slate-500">{{ formatDate(trade.buyDate) }}</div>
+                                        <div>{{ formatCurrency(trade.buyPrice) }}</div>
+                                      </td>
+                                      <td class="text-right">
+                                        <div class="text-xs text-slate-500">{{ formatDate(trade.sellDate) }}</div>
+                                        <div>{{ formatCurrency(trade.sellPrice) }}</div>
+                                      </td>
+                                      <td class="text-right hidden sm:table-cell" [class]="pnlClass(trade.realisedPnL)">{{ formatCurrency(trade.realisedPnL) }}</td>
+                                      <td class="text-right hidden text-red-600 md:table-cell">{{ formatCurrency(tradeAllocatedCharge(trade)) }}</td>
+                                      <td class="text-right font-medium" [class]="pnlClass(tradeNetPnL(trade))">{{ formatCurrency(tradeNetPnL(trade)) }}</td>
+                                    </tr>
+                                  }
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    } @empty {
+                      <div class="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-sm text-slate-400">
+                        No trades found for this stock.
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            </td>
+          </tr>
+        }
+      } @empty {
+        <tr>
+          <td [attr.colspan]="colSpan()" class="py-8 text-center text-sm text-slate-400">
+            {{ emptyMessage() }}
+          </td>
+        </tr>
+      }
+    </tbody>
+    @if (totals(); as sum) {
+      <tfoot>
+        <tr>
+          <td class="text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Total</td>
+          @for (col of visibleColumns(); track col.key) {
+            <td [class]="(col.key === 'stockName' ? 'col-name font-semibold' : totalsCellClass(col.key)) + ' ' + responsiveClass(col.key)">
+              @switch (col.key) {
+                @case ('stockName') { {{ sum.stockCount }} {{ sum.stockCount === 1 ? 'stock' : 'stocks' }} }
+                @case ('tradeCount') { {{ sum.tradeCount }} }
+                @case ('quantity') { {{ sum.quantity | number }} }
+                @case ('buyValue') { {{ formatCurrency(sum.buyValue) }} }
+                @case ('sellValue') { {{ formatCurrency(sum.sellValue) }} }
+                @case ('realisedPnL') { {{ formatCurrency(sum.realisedPnL) }} }
+                @case ('realisedPnLPct') { {{ formatPct(sum.realisedPnLPct) }} }
+                @case ('allocatedCharges') { {{ formatCurrency(sum.allocatedCharges) }} }
+                @case ('netPnL') { {{ formatCurrency(sum.netPnL) }} }
+                @case ('winRate') { — }
+              }
+            </td>
+          }
+          @if (expandable()) {
+            <td></td>
+          }
+        </tr>
+      </tfoot>
+    }
+  </table>
+</div>

@@ -1,5 +1,6 @@
 import { Component, computed, inject, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, Subscription } from 'rxjs';
@@ -10,7 +11,7 @@ import { LazyTradeLoaderService } from '../../services/lazy-trade-loader.service
 import { FilteredStockService } from '../../services/filtered-stock.service';
 import { FilterUrlService } from '../../services/filter-url.service';
 import { Watchlist } from '../../models/watchlist.models';
-import { StockSummary, TRADE_TYPE_LABELS, Trade, TradeType } from '../../models/trade.models';
+import { StockSummary, TRADE_TYPE_LABELS, TradeType } from '../../models/trade.models';
 import { StockSnapshot } from '../../models/market.models';
 import { formatCurrency, formatDate, pnlClass } from '../../utils/format.utils';
 import {
@@ -23,17 +24,20 @@ import {
 } from '../../utils/pnl-watchlist.utils';
 import { holdingsToStockSummaries, PnLBook } from '../../utils/holdings.utils';
 import { normalizeSymbol } from '../../utils/upload-merge.utils';
-import { stockIdentityKey } from '../../utils/stock-identity.utils';
-import { TableSortState } from '../../utils/table-sort.utils';
 import { TradeTypeFilterComponent } from '../shared/trade-type-filter/trade-type-filter.component';
 import { DateRangeFilterComponent } from '../shared/date-range-filter/date-range-filter.component';
-import { summariseTradesByDay, TradeDaySummary } from '../../utils/trade-day-summary.utils';
-import {
-  tradeAllocatedCharge as allocatedChargeForTrade,
-  tradeNetPnL as netPnLForTrade,
-} from '../../utils/trade-charges.utils';
 import { FILTER_QUERY_KEYS, readWatchlistFilters } from '../../utils/filter-url.utils';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
+import {
+  ExpandableStockColumn,
+  ExpandableStocksTableComponent,
+} from '../shared/expandable-stocks-table/expandable-stocks-table.component';
+import { StockScenarioPanelComponent } from '../shared/stock-scenario-panel/stock-scenario-panel.component';
+import { TierSummaryBarComponent } from '../shared/tier-summary-bar/tier-summary-bar.component';
+import {
+  StockFilterRule,
+  filterStocksByRules,
+} from '../../utils/stock-scenario.utils';
 
 const ALL_SUBTAB_ID = '__all__';
 
@@ -62,7 +66,17 @@ interface AutoTierTab {
 @Component({
   selector: 'app-watchlists',
   standalone: true,
-  imports: [CommonModule, RouterLink, TradeTypeFilterComponent, DateRangeFilterComponent, ErrorBannerComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RouterLink,
+    TradeTypeFilterComponent,
+    DateRangeFilterComponent,
+    ErrorBannerComponent,
+    ExpandableStocksTableComponent,
+    StockScenarioPanelComponent,
+    TierSummaryBarComponent,
+  ],
   templateUrl: './watchlists.component.html',
 })
 export class WatchlistsComponent implements OnInit, OnDestroy {
@@ -99,6 +113,8 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   }
 
   readonly formatDate = formatDate;
+  readonly formatCurrency = formatCurrency;
+  readonly pnlClass = pnlClass;
 
   readonly mainTabs: { id: WatchlistTab; label: string }[] = [
     { id: 'losing', label: 'Losses' },
@@ -112,18 +128,29 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   readonly allSubtabId = ALL_SUBTAB_ID;
 
+  readonly stockColumns: ExpandableStockColumn[] = [
+    'stockName',
+    'tradeCount',
+    'quantity',
+    'buyValue',
+    'sellValue',
+    'realisedPnL',
+    'realisedPnLPct',
+    'allocatedCharges',
+    'netPnL',
+    'winRate',
+  ];
+
   activeTab = signal<WatchlistTab>('losing');
   book = signal<PnLBook>('realised');
   tierMode = signal<PnlTierMode>('band');
   selectedAutoTierId = signal<string | null>(null);
-  expandedStockKey = signal<string | null>(null);
-  expandedDayKey = signal<string | null>(null);
   mobileFiltersOpen = signal(false);
+  stockSearchQuery = signal('');
+  stockFilterRules = signal<StockFilterRule[]>([]);
+  scenarioPanelOpen = signal(false);
 
   readonly hiddenTradeTypes: TradeType[] = ['mtf'];
-  readonly formatCurrency = formatCurrency;
-  readonly pnlClass = pnlClass;
-  readonly tableSort = new TableSortState('netPnL');
 
   bookStocks = computed((): StockSummary[] => {
     if (this.book() === 'holdings') {
@@ -131,13 +158,6 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     }
     return this.filteredStocks.stocks();
   });
-
-  readonly tierStockColumns = [
-    { key: 'stockName', label: 'Stock', align: 'left' as const, mobile: true },
-    { key: 'realisedPnL', label: 'P&L', align: 'right' as const, mobile: false },
-    { key: 'allocatedCharges', label: 'Charges', align: 'right' as const, mobile: false },
-    { key: 'netPnL', label: 'Net P&L', align: 'right' as const, mobile: true },
-  ];
 
   autoTierTabs = computed((): AutoTierTab[] => {
     const summaries = this.bookStocks();
@@ -233,27 +253,42 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   activeViewLabel = computed(() => this.activeAutoTierMeta()?.fullLabel ?? '');
 
-  tierStocks = computed(() => {
+  tierStocksBase = computed(() => {
     const stockSummaries = this.bookStocks();
     const watchlist = this.activeAutoWatchlist();
     if (!watchlist) return [] as StockSummary[];
 
     if (watchlist.id === ALL_SUBTAB_ID) {
-      const stocks = stockSummaries
+      return stockSummaries
         .filter((stock) =>
           this.activeTab() === 'profitable' ? stock.netPnL > 0 : stock.netPnL < 0
         )
         .sort((a, b) => b.netPnL - a.netPnL);
-      return this.tableSort.sort(stocks, (stock, col) => this.tierStockSortValue(stock, col));
     }
 
     const tier = getPnlWatchlistTier(watchlist.id);
-    const stocks = tier
-      ? stockSummariesForPnlTier(stockSummaries, tier, this.tierMode())
-      : [];
-
-    return this.tableSort.sort(stocks, (stock, col) => this.tierStockSortValue(stock, col));
+    return tier ? stockSummariesForPnlTier(stockSummaries, tier, this.tierMode()) : [];
   });
+
+  tierStocks = computed(() => {
+    let stocks = filterStocksByRules(this.tierStocksBase(), this.stockFilterRules());
+    const q = this.stockSearchQuery().trim().toLowerCase();
+    if (q) {
+      stocks = stocks.filter((stock) => {
+        const haystack = [stock.stockName, stock.isin, stock.symbol]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(q);
+      });
+    }
+    return stocks;
+  });
+
+  stockScenarioStats = computed(() => ({
+    shown: this.tierStocks().length,
+    total: this.tierStocksBase().length,
+  }));
 
   tierSummary = computed((): TierSummary | null => {
     const stocks = this.tierStocks();
@@ -280,11 +315,22 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     };
   });
 
+  emptyMessage = computed(() => {
+    if (this.stockSearchQuery().trim()) {
+      return `No stocks match "${this.stockSearchQuery().trim()}"`;
+    }
+    if (this.stockFilterRules().some((r) => r.value.trim())) {
+      return 'No stocks match your scenario';
+    }
+    if (this.activeAutoWatchlist()?.id === ALL_SUBTAB_ID) {
+      return `No ${this.activeTab() === 'profitable' ? 'profitable' : 'loss-making'} stocks found.`;
+    }
+    return 'No stocks in this tier yet.';
+  });
+
   setTab(tab: WatchlistTab): void {
     this.activeTab.set(tab);
     this.selectedAutoTierId.set(null);
-    this.expandedStockKey.set(null);
-    this.expandedDayKey.set(null);
     this.lazyTrades.clear();
     this.filterUrl.patchWatchlistQuery({
       [FILTER_QUERY_KEYS.side]: tab,
@@ -295,8 +341,6 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   setBook(book: PnLBook): void {
     this.book.set(book);
     this.selectedAutoTierId.set(null);
-    this.expandedStockKey.set(null);
-    this.expandedDayKey.set(null);
     this.lazyTrades.clear();
     this.filterUrl.patchWatchlistQuery({
       [FILTER_QUERY_KEYS.book]: book === 'realised' ? null : book,
@@ -307,8 +351,6 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   setTierMode(mode: PnlTierMode): void {
     this.tierMode.set(mode);
     this.selectedAutoTierId.set(null);
-    this.expandedStockKey.set(null);
-    this.expandedDayKey.set(null);
     this.lazyTrades.clear();
     this.filterUrl.patchWatchlistQuery({
       [FILTER_QUERY_KEYS.bands]: mode,
@@ -322,154 +364,25 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   selectAutoTier(id: string): void {
     this.selectedAutoTierId.set(id);
-    this.expandedStockKey.set(null);
-    this.expandedDayKey.set(null);
     this.lazyTrades.clear();
     this.filterUrl.patchWatchlistQuery({
       [FILTER_QUERY_KEYS.tier]: id === ALL_SUBTAB_ID ? null : id,
     });
   }
 
-  stockRowKey(stock: StockSummary): string {
-    return stockIdentityKey(stock);
-  }
-
-  isStockExpanded(stock: StockSummary): boolean {
-    return this.expandedStockKey() === this.stockRowKey(stock);
-  }
-
-  toggleStockExpand(stock: StockSummary, event?: Event): void {
-    event?.stopPropagation();
-    if (this.book() === 'holdings') return;
-    const key = this.stockRowKey(stock);
-    const expanding = this.expandedStockKey() !== key;
-    this.expandedStockKey.set(expanding ? key : null);
-    this.expandedDayKey.set(null);
-    if (expanding) void this.ensureStockTradesLoaded(stock);
-  }
-
-  daySummariesForStock(stock: StockSummary): TradeDaySummary[] {
-    return summariseTradesByDay(
-      this.tradesForStock(stock),
-      (trade) => this.tradeAllocatedCharge(trade),
-      (trade) => this.tradeNetPnL(trade)
-    );
-  }
-
-  dayRowKey(stock: StockSummary, date: string): string {
-    return `${this.stockRowKey(stock)}|${date}`;
-  }
-
-  isDayExpanded(stock: StockSummary, date: string): boolean {
-    return this.expandedDayKey() === this.dayRowKey(stock, date);
-  }
-
-  toggleDayExpand(stock: StockSummary, date: string, event?: Event): void {
-    event?.stopPropagation();
-    const key = this.dayRowKey(stock, date);
-    this.expandedDayKey.set(this.expandedDayKey() === key ? null : key);
-  }
-
-  /** Blended fallback for trades hydrated without their own allocated charges. */
-  chargeRatio = computed(() => this.state.analysis()?.summary.chargeRatio ?? 0);
-
-  tradeNetPnL(trade: Trade): number {
-    return netPnLForTrade(trade, this.chargeRatio());
-  }
-
-  tradeAllocatedCharge(trade: Trade): number {
-    return allocatedChargeForTrade(trade, this.chargeRatio());
-  }
-
-  tradesForStock(stock: StockSummary): Trade[] {
-    const cached = this.lazyTrades.tradesForKey(this.lazyTrades.cacheKeyForStock(stock));
-    if (cached.length) return cached;
-
-    const report = this.state.report();
-    const filtered = this.state.analysis()?.filteredTrades;
-    if (filtered?.length) {
-      return this.lazyTrades.filterTradesForStock(
-        filtered,
-        stock,
-        report,
-        this.state.analysisOptions()
-      );
-    }
-    return [];
-  }
-
-  isStockTradesLoading(stock: StockSummary): boolean {
-    return this.lazyTrades.isLoading(this.lazyTrades.cacheKeyForStock(stock));
-  }
-
-  tradeTypeLabel(type: string): string {
-    return TRADE_TYPE_LABELS[type] || type;
-  }
-
   tierTabLabel(tab: AutoTierTab): string {
     return `${tab.shortLabel} (${tab.count})`;
   }
 
-  tierColumnClass(col: { align: 'left' | 'right'; mobile: boolean }, stock?: StockSummary, key?: string): string {
-    const align = col.align === 'left' ? 'text-left' : 'text-right';
-    const visibility = col.mobile ? '' : 'hidden md:table-cell';
-    if (!stock || !key) return `${align} ${visibility}`.trim();
-    if (key === 'stockName') return `col-name ${visibility}`.trim();
-    return `${this.tierStockCellClass(key, stock)} ${visibility}`.trim();
+  hasStockSearch(): boolean {
+    return this.stockSearchQuery().trim().length > 0;
   }
 
-  stockPrice(symbol: string): string {
-    const s = this.stocks().find((x) => x.symbol === symbol);
-    return s ? `₹${s.ltp?.toFixed(2)} (${s.changePct?.toFixed(2)}%)` : '—';
-  }
-
-  tierStockCellClass(key: string, stock: StockSummary): string {
-    const base = 'text-right tabular-nums';
-    switch (key) {
-      case 'realisedPnL':
-        return `${base} ${this.pnlClass(stock.realisedPnL)}`;
-      case 'allocatedCharges':
-        return `${base} text-red-600`;
-      case 'netPnL':
-        return `${base} font-semibold ${this.pnlClass(stock.netPnL)}`;
-      case 'ltp':
-        return 'text-right text-slate-500';
-      default:
-        return base;
-    }
-  }
-
-  private tierStockSortValue(stock: StockSummary, col: string): string | number {
-    switch (col) {
-      case 'stockName':
-        return stock.stockName.toLowerCase();
-      case 'realisedPnL':
-        return stock.realisedPnL;
-      case 'allocatedCharges':
-        return stock.allocatedCharges;
-      case 'netPnL':
-        return stock.netPnL;
-      default:
-        return 0;
-    }
+  clearStockSearch(): void {
+    this.stockSearchQuery.set('');
   }
 
   stockSymbol(stock: StockSummary): string {
     return stock.symbol || normalizeSymbol(stock.stockName);
-  }
-
-  private clientCode(): string | null {
-    return this.state.activeClientCode() ?? this.state.report()?.summary.clientCode ?? null;
-  }
-
-  private async ensureStockTradesLoaded(stock: StockSummary): Promise<void> {
-    const clientCode = this.clientCode();
-    if (!clientCode) return;
-    await this.lazyTrades.loadForStock(
-      clientCode,
-      stock,
-      this.state.report(),
-      this.state.analysisOptions()
-    );
   }
 }

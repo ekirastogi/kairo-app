@@ -7,6 +7,7 @@ import {
   OnInit,
 } from '@angular/core';
 import { CommonModule, NgTemplateOutlet } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ChartConfiguration } from 'chart.js';
 import { ReportStateService } from '../../services/report-state.service';
@@ -39,8 +40,14 @@ import { DateRangeFilterComponent } from '../shared/date-range-filter/date-range
 import { ChartCardComponent } from '../shared/chart-card/chart-card.component';
 import { ReportHistoryComponent } from '../shared/report-history/report-history.component';
 import { HeatmapComponent } from '../heatmap/heatmap.component';
-import { StockBreakdownTableComponent } from '../shared/stock-breakdown-table/stock-breakdown-table.component';
+import { ExpandableStocksTableComponent } from '../shared/expandable-stocks-table/expandable-stocks-table.component';
+import { StockScenarioPanelComponent } from '../shared/stock-scenario-panel/stock-scenario-panel.component';
+import { TierSummaryBarComponent } from '../shared/tier-summary-bar/tier-summary-bar.component';
 import { HoldingsTableComponent } from '../shared/holdings-table/holdings-table.component';
+import {
+  StockFilterRule,
+  filterStocksByRules,
+} from '../../utils/stock-scenario.utils';
 import {
   CalendarBucket,
   aggregateByWeekday,
@@ -82,6 +89,7 @@ type AnalyticsTab =
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     NgTemplateOutlet,
     RouterLink,
     FilterPanelComponent,
@@ -89,7 +97,9 @@ type AnalyticsTab =
     DateRangeFilterComponent,
     ChartCardComponent,
     ReportHistoryComponent,
-    StockBreakdownTableComponent,
+    ExpandableStocksTableComponent,
+    StockScenarioPanelComponent,
+    TierSummaryBarComponent,
     HoldingsTableComponent,
     HeatmapComponent,
     ErrorBannerComponent,
@@ -234,19 +244,60 @@ export class AnalyticsComponent implements OnInit {
   });
 
   stockPnLFilter = signal<StockPnLFilter>('all');
+  stockFilterRules = signal<StockFilterRule[]>([]);
+  scenarioPanelOpen = signal(false);
+  stockSearchQuery = signal('');
 
   setStockPnLFilter(id: StockPnLFilter): void {
     this.stockPnLFilter.set(id);
   }
 
-  /** Stocks tab table rows — All / Profitable / Losing on net P&L. */
+  /** Stocks tab table rows — All / Profitable / Losing on net P&L, then scenario + search. */
   stocksTabRows = computed(() => {
-    const stocks = this.visibleStocks();
+    let stocks = this.visibleStocks();
     const filter = this.stockPnLFilter();
-    if (filter === 'profitable') return stocks.filter((stock) => stock.netPnL > 0);
-    if (filter === 'losing') return stocks.filter((stock) => stock.netPnL < 0);
+    if (filter === 'profitable') stocks = stocks.filter((stock) => stock.netPnL > 0);
+    else if (filter === 'losing') stocks = stocks.filter((stock) => stock.netPnL < 0);
+    stocks = filterStocksByRules(stocks, this.stockFilterRules());
+    const q = this.stockSearchQuery().trim().toLowerCase();
+    if (q) {
+      stocks = stocks.filter((stock) => {
+        const haystack = [stock.stockName, stock.isin, stock.symbol]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(q);
+      });
+    }
     return stocks;
   });
+
+  stocksTabSummary = computed(() => {
+    const stocks = this.stocksTabRows();
+    if (!stocks.length) return null;
+    const tradeCount = stocks.reduce((sum, s) => sum + s.tradeCount, 0);
+    const winningTrades = stocks.reduce(
+      (sum, s) => sum + Math.round(s.tradeCount * ((s.winRate ?? 0) / 100)),
+      0
+    );
+    return {
+      stockCount: stocks.length,
+      tradeCount,
+      realisedPnL: stocks.reduce((sum, s) => sum + s.realisedPnL, 0),
+      allocatedCharges: stocks.reduce((sum, s) => sum + s.allocatedCharges, 0),
+      netPnL: stocks.reduce((sum, s) => sum + s.netPnL, 0),
+      winRate: tradeCount ? (winningTrades / tradeCount) * 100 : 0,
+      chargesLink: true,
+    };
+  });
+
+  hasStockSearch(): boolean {
+    return this.stockSearchQuery().trim().length > 0;
+  }
+
+  clearStockSearch(): void {
+    this.stockSearchQuery.set('');
+  }
 
   holdings = computed(() => this.state.report()?.unrealisedHoldings ?? []);
   holdingsSummary = computed(() => {

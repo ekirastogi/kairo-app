@@ -165,7 +165,7 @@
                 Close
               </button>
             </div>
-            <app-stock-breakdown-table
+            <app-expandable-stocks-table
               [stocks]="selectedDateStocks()"
               emptyMessage="No stock detail for this day — trades are still loading"
             />
@@ -341,28 +341,61 @@
 
       <!-- STOCKS -->
       @if (activeTab() === 'stocks') {
-        <div class="card overflow-hidden">
-          <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-3">
-            <div class="min-w-0">
-              <h3 class="text-sm font-semibold text-slate-900">Stock-level analysis</h3>
-              <p class="text-xs text-slate-500">{{ stocksTabRows().length }} realised stocks in filtered view</p>
+        <div class="page-with-summary-bar space-y-3">
+          <div class="card overflow-hidden">
+            <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-3 py-2.5 sm:px-4 sm:py-3">
+              <div class="min-w-0">
+                <h3 class="text-sm font-semibold text-slate-900">Stock-level analysis</h3>
+                <p class="text-xs text-slate-500">{{ stocksTabRows().length }} realised stocks in filtered view</p>
+              </div>
+              <div class="period-track shrink-0" role="radiogroup" aria-label="Stock P&amp;L filter">
+                @for (opt of stockPnLFilters; track opt.id) {
+                  <button
+                    type="button"
+                    role="radio"
+                    class="period-seg"
+                    [class.period-seg-active]="stockPnLFilter() === opt.id"
+                    [attr.aria-checked]="stockPnLFilter() === opt.id"
+                    (click)="setStockPnLFilter(opt.id)"
+                  >
+                    {{ opt.label }}
+                  </button>
+                }
+              </div>
             </div>
-            <div class="period-track shrink-0" role="radiogroup" aria-label="Stock P&amp;L filter">
-              @for (opt of stockPnLFilters; track opt.id) {
-                <button
-                  type="button"
-                  role="radio"
-                  class="period-seg"
-                  [class.period-seg-active]="stockPnLFilter() === opt.id"
-                  [attr.aria-checked]="stockPnLFilter() === opt.id"
-                  (click)="setStockPnLFilter(opt.id)"
-                >
-                  {{ opt.label }}
-                </button>
-              }
+
+            <div class="stocks-toolbar">
+              <div class="relative min-w-0 flex-1 sm:max-w-xs">
+                <svg class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+                <input
+                  type="search"
+                  class="input-field w-full py-1.5 pl-9 pr-9 text-xs"
+                  placeholder="Search stocks…"
+                  [ngModel]="stockSearchQuery()"
+                  (ngModelChange)="stockSearchQuery.set($event)"
+                  aria-label="Search stocks"
+                />
+                @if (hasStockSearch()) {
+                  <button
+                    type="button"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                    (click)="clearStockSearch()"
+                    aria-label="Clear search"
+                  >✕</button>
+                }
+              </div>
+              <app-stock-scenario-panel
+                [(open)]="scenarioPanelOpen"
+                [(rules)]="stockFilterRules"
+              />
             </div>
+
+            <app-expandable-stocks-table [stocks]="stocksTabRows()" />
           </div>
-          <app-stock-breakdown-table [stocks]="stocksTabRows()" />
+
+          @if (stocksTabSummary(); as summary) {
+            <app-tier-summary-bar label="Stocks" [summary]="summary" />
+          }
         </div>
       }
 

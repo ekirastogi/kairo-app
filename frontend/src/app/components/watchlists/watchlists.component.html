@@ -1,4 +1,4 @@
-<div class="watchlist-page space-y-4">
+<div class="watchlist-page space-y-3">
   <app-error-banner [message]="state.error() ?? filteredStocks.error()" />
   @if (!auth.user()) {
     <div class="flex justify-end">
@@ -47,11 +47,11 @@
       </button>
 
       <div
-        class="watchlist-filters"
+        class="filter-toolbar"
         [class.watchlist-filters-collapsed]="!mobileFiltersOpen()"
       >
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span class="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Book</span>
+          <span class="filter-toolbar-label">Book</span>
           <div class="period-track" role="radiogroup" aria-label="Realised or unrealised">
             @for (tab of bookTabs; track tab.id) {
               <button
@@ -67,18 +67,15 @@
             }
           </div>
         </div>
-        <div class="watchlist-filter-divider hidden h-3 w-px bg-slate-200 sm:block"></div>
         @if (book() !== 'holdings') {
+          <span class="filter-toolbar-rule" aria-hidden="true"></span>
+          <app-trade-type-filter [compact]="true" [hiddenTypes]="hiddenTradeTypes" />
+          <span class="filter-toolbar-rule" aria-hidden="true"></span>
           <app-date-range-filter />
-          <div class="watchlist-filter-divider hidden h-3 w-px bg-slate-200 sm:block"></div>
-          <div class="flex min-w-0 flex-wrap items-center gap-1">
-            <span class="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Trade</span>
-            <app-trade-type-filter [compact]="true" [hiddenTypes]="hiddenTradeTypes" />
-          </div>
-          <div class="watchlist-filter-divider hidden h-3 w-px bg-slate-200 sm:block"></div>
         }
+        <span class="filter-toolbar-rule" aria-hidden="true"></span>
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span class="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Bands</span>
+          <span class="filter-toolbar-label">Bands</span>
           <div class="period-track" role="radiogroup" aria-label="Band mode">
             <button
               type="button"
@@ -124,275 +121,49 @@
     </div>
 
     <div class="card overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="stock-table w-full md:min-w-[520px]">
-          <thead>
-            <tr>
-              <th class="w-10 text-center">#</th>
-              @for (col of tierStockColumns; track col.key) {
-                <th [class]="tierColumnClass(col)">
-                  <button
-                    type="button"
-                    class="sort-btn"
-                    [class.sort-btn-active]="tableSort.isActive(col.key)"
-                    (click)="tableSort.toggle(col.key, $event)"
-                  >
-                    {{ col.label }} <span>{{ tableSort.indicator(col.key) }}</span>
-                  </button>
-                </th>
-              }
-              <th class="w-8 md:hidden"></th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (stock of tierStocks(); track stockRowKey(stock); let i = $index) {
-              <tr
-                class="cursor-pointer transition"
-                [ngClass]="{ 'bg-kairo-50': isStockExpanded(stock) }"
-                (click)="toggleStockExpand(stock)"
-              >
-                <td class="text-center tabular-nums text-slate-400">{{ i + 1 }}</td>
-                @for (col of tierStockColumns; track col.key) {
-                  <td [class]="tierColumnClass(col, stock, col.key)">
-                    @switch (col.key) {
-                      @case ('stockName') {
-                        <span class="block truncate font-semibold text-slate-900" [title]="stock.stockName">{{ stock.stockName }}</span>
-                        <div class="text-xs text-slate-400">{{ stockSymbol(stock) }}</div>
-                      }
-                      @case ('realisedPnL') { {{ formatCurrency(stock.realisedPnL) }} }
-                      @case ('allocatedCharges') { {{ formatCurrency(stock.allocatedCharges) }} }
-                      @case ('netPnL') { {{ formatCurrency(stock.netPnL) }} }
-                    }
-                  </td>
-                }
-                <td class="text-slate-400 md:hidden">
-                  <svg class="h-4 w-4 transition" [class.rotate-180]="isStockExpanded(stock)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </td>
-              </tr>
+      <div class="stocks-toolbar">
+        <div class="relative min-w-0 flex-1 sm:max-w-xs">
+          <svg class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+          <input
+            type="search"
+            class="input-field w-full py-1.5 pl-9 pr-9 text-xs"
+            placeholder="Search stocks…"
+            [ngModel]="stockSearchQuery()"
+            (ngModelChange)="stockSearchQuery.set($event)"
+            aria-label="Search stocks"
+          />
+          @if (hasStockSearch()) {
+            <button
+              type="button"
+              class="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              (click)="clearStockSearch()"
+              aria-label="Clear search"
+            >
+              ✕
+            </button>
+          }
+        </div>
 
-              @if (isStockExpanded(stock)) {
-                <tr>
-                  <td [attr.colspan]="tierStockColumns.length + 2" class="!border-t-0 bg-slate-50 p-0">
-                    <div class="border-t-2 border-kairo-500 px-4 py-4">
-                      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-                        <a
-                          [routerLink]="['/stock', stockSymbol(stock)]"
-                          class="text-sm font-semibold text-kairo-600 hover:underline"
-                          (click)="$event.stopPropagation()"
-                        >
-                          View {{ stock.stockName }} details →
-                        </a>
-                        <span class="text-xs text-slate-400">{{ stock.isin || '—' }}</span>
-                      </div>
-                      <div class="mb-3 grid grid-cols-3 gap-2 md:hidden">
-                        <div class="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                          <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">P&amp;L</div>
-                          <div class="mt-0.5 text-sm font-bold tabular-nums" [class]="pnlClass(stock.realisedPnL)">{{ formatCurrency(stock.realisedPnL) }}</div>
-                        </div>
-                        <div class="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                          <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Charges</div>
-                          <div class="mt-0.5 text-sm font-bold tabular-nums text-red-600">{{ formatCurrency(stock.allocatedCharges) }}</div>
-                        </div>
-                        <div class="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                          <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net P&amp;L</div>
-                          <div class="mt-0.5 text-sm font-bold tabular-nums" [class]="pnlClass(stock.netPnL)">{{ formatCurrency(stock.netPnL) }}</div>
-                        </div>
-                      </div>
-                      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                        <div class="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                          <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Trades</div>
-                          <div class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ stock.tradeCount }}</div>
-                        </div>
-                        <div class="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                          <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Quantity</div>
-                          <div class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ stock.quantity | number }}</div>
-                        </div>
-                        <div class="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                          <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Buy value</div>
-                          <div class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ formatCurrency(stock.buyValue) }}</div>
-                        </div>
-                        <div class="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                          <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Sell value</div>
-                          <div class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ formatCurrency(stock.sellValue) }}</div>
-                        </div>
-                        <div class="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                          <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">P&amp;L %</div>
-                          <div class="mt-0.5 text-sm font-bold tabular-nums" [class]="pnlClass(stock.realisedPnL)">
-                            {{ stock.realisedPnLPct != null ? (stock.realisedPnLPct * 100 | number:'1.1-1') + '%' : '—' }}
-                          </div>
-                        </div>
-                        <div class="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                          <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">LTP</div>
-                          <div class="mt-0.5 text-sm font-bold text-slate-700">{{ stockPrice(stockSymbol(stock)) }}</div>
-                        </div>
-                      </div>
+        <app-stock-scenario-panel
+          [(open)]="scenarioPanelOpen"
+          [(rules)]="stockFilterRules"
+        />
 
-                      <div class="mt-4">
-                        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          @if (isStockTradesLoading(stock)) {
-                            Loading trades…
-                          } @else {
-                            {{ daySummariesForStock(stock).length }} trading {{ daySummariesForStock(stock).length === 1 ? 'day' : 'days' }} · {{ tradesForStock(stock).length }} trades
-                          }
-                        </div>
-
-                        @if (!isStockTradesLoading(stock)) {
-                          <div class="space-y-2">
-                            @for (day of daySummariesForStock(stock); track day.date) {
-                              <div class="overflow-hidden rounded-lg border border-slate-200 bg-white">
-                                <button
-                                  type="button"
-                                  class="flex w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-slate-50 sm:px-4"
-                                  (click)="toggleDayExpand(stock, day.date, $event)"
-                                >
-                                  <div class="min-w-0 flex-1">
-                                    <div class="text-sm font-semibold text-slate-900">{{ day.label }}</div>
-                                    <div class="text-xs text-slate-400">
-                                      {{ day.tradeCount }} {{ day.tradeCount === 1 ? 'trade' : 'trades' }} · Qty {{ day.quantity | number }}
-                                    </div>
-                                  </div>
-                                  <div class="hidden shrink-0 text-right sm:block">
-                                    <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">P&amp;L</div>
-                                    <div class="text-sm font-bold tabular-nums" [class]="pnlClass(day.realisedPnL)">{{ formatCurrency(day.realisedPnL) }}</div>
-                                  </div>
-                                  <div class="hidden shrink-0 text-right md:block">
-                                    <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Charges</div>
-                                    <div class="text-sm font-bold tabular-nums text-red-600">{{ formatCurrency(day.allocatedCharges) }}</div>
-                                  </div>
-                                  <div class="shrink-0 text-right">
-                                    <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net P&amp;L</div>
-                                    <div class="text-sm font-bold tabular-nums" [class]="pnlClass(day.netPnL)">{{ formatCurrency(day.netPnL) }}</div>
-                                  </div>
-                                  <svg
-                                    class="h-4 w-4 shrink-0 text-slate-400 transition"
-                                    [class.rotate-180]="isDayExpanded(stock, day.date)"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                                  </svg>
-                                </button>
-
-                                @if (isDayExpanded(stock, day.date)) {
-                                  <div class="border-t border-slate-100 bg-slate-50/50">
-                                    <div class="grid grid-cols-3 gap-2 border-b border-slate-100 px-3 py-2 sm:hidden">
-                                      <div class="text-center">
-                                        <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">P&amp;L</div>
-                                        <div class="text-xs font-bold tabular-nums" [class]="pnlClass(day.realisedPnL)">{{ formatCurrency(day.realisedPnL) }}</div>
-                                      </div>
-                                      <div class="text-center">
-                                        <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Charges</div>
-                                        <div class="text-xs font-bold tabular-nums text-red-600">{{ formatCurrency(day.allocatedCharges) }}</div>
-                                      </div>
-                                      <div class="text-center">
-                                        <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Buy / Sell</div>
-                                        <div class="text-xs font-bold tabular-nums text-slate-700">{{ formatCurrency(day.buyValue) }}</div>
-                                      </div>
-                                    </div>
-                                    <div class="overflow-x-auto">
-                                      <table class="data-table min-w-[640px]">
-                                        <thead>
-                                          <tr>
-                                            <th class="w-8 text-center">#</th>
-                                            <th class="text-left">Type</th>
-                                            <th class="text-right">Qty</th>
-                                            <th class="text-right">Buy</th>
-                                            <th class="text-right hidden sm:table-cell">Buy Value</th>
-                                            <th class="text-right">Sell</th>
-                                            <th class="text-right hidden sm:table-cell">Sell Value</th>
-                                            <th class="text-right hidden md:table-cell">Charges</th>
-                                            <th class="text-right">Net P&amp;L</th>
-                                          </tr>
-                                        </thead>
-                                        <tbody>
-                                          @for (trade of day.trades; track trade.isin + trade.sellDate + trade.buyDate + trade.quantity; let ti = $index) {
-                                            <tr>
-                                              <td class="text-center text-slate-400">{{ ti + 1 }}</td>
-                                              <td>
-                                                <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                                                  {{ tradeTypeLabel(trade.tradeType) }}
-                                                </span>
-                                              </td>
-                                              <td class="text-right">{{ trade.quantity | number }}</td>
-                                              <td class="text-right">
-                                                <div class="text-xs text-slate-500">{{ formatDate(trade.buyDate) }}</div>
-                                                <div>{{ formatCurrency(trade.buyPrice) }}</div>
-                                              </td>
-                                              <td class="text-right hidden sm:table-cell">{{ formatCurrency(trade.buyValue) }}</td>
-                                              <td class="text-right">
-                                                <div class="text-xs text-slate-500">{{ formatDate(trade.sellDate) }}</div>
-                                                <div>{{ formatCurrency(trade.sellPrice) }}</div>
-                                              </td>
-                                              <td class="text-right hidden sm:table-cell">{{ formatCurrency(trade.sellValue) }}</td>
-                                              <td class="text-right hidden text-red-600 md:table-cell">{{ formatCurrency(tradeAllocatedCharge(trade)) }}</td>
-                                              <td class="text-right font-medium" [class]="pnlClass(tradeNetPnL(trade))">{{ formatCurrency(tradeNetPnL(trade)) }}</td>
-                                            </tr>
-                                          }
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                  </div>
-                                }
-                              </div>
-                            } @empty {
-                              <div class="rounded-lg border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-400">
-                                No trades found for this stock.
-                              </div>
-                            }
-                          </div>
-                        }
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              }
-            } @empty {
-              <tr>
-                <td [attr.colspan]="tierStockColumns.length + 2" class="py-10 text-center text-sm text-slate-400">
-                  @if (activeAutoWatchlist()?.id === allSubtabId) {
-                    No {{ activeTab() === 'profitable' ? 'profitable' : 'loss-making' }} stocks found.
-                  } @else {
-                    No stocks in this tier yet.
-                  }
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
+        <span class="text-xs text-slate-500 sm:ml-auto sm:shrink-0">
+          Showing {{ stockScenarioStats().shown }} of {{ stockScenarioStats().total }} stocks
+        </span>
       </div>
+
+      <app-expandable-stocks-table
+        [stocks]="tierStocks()"
+        [columns]="stockColumns"
+        [expandable]="book() !== 'holdings'"
+        [emptyMessage]="emptyMessage()"
+      />
     </div>
 
     @if (tierSummary(); as summary) {
-      <div class="tier-summary-bar" aria-live="polite">
-        <div class="tier-summary-compact">
-          <span class="tier-summary-tier truncate" [title]="activeViewLabel()">
-            {{ activeViewLabel() }}
-          </span>
-          <span class="tier-summary-kpi">
-            <span class="tier-summary-kpi-label">P&amp;L</span>
-            <span class="tier-summary-kpi-value tabular-nums" [class]="pnlClass(summary.realisedPnL)">{{ formatCurrency(summary.realisedPnL) }}</span>
-          </span>
-          <span class="tier-summary-kpi hidden sm:inline-flex">
-            <span class="tier-summary-kpi-label">Charges</span>
-            <span class="tier-summary-kpi-value tabular-nums text-red-400">{{ formatCurrency(summary.allocatedCharges) }}</span>
-          </span>
-          <span class="tier-summary-kpi">
-            <span class="tier-summary-kpi-label">Net</span>
-            <span class="tier-summary-kpi-value tabular-nums" [class]="pnlClass(summary.netPnL)">{{ formatCurrency(summary.netPnL) }}</span>
-          </span>
-          <span class="tier-summary-kpi hidden lg:inline-flex">
-            <span class="tier-summary-kpi-label">Stocks</span>
-            <span class="tier-summary-kpi-value tabular-nums text-slate-200">{{ summary.stockCount }}</span>
-          </span>
-          <span class="tier-summary-kpi hidden lg:inline-flex">
-            <span class="tier-summary-kpi-label">Trades</span>
-            <span class="tier-summary-kpi-value tabular-nums text-slate-200">{{ summary.tradeCount }}</span>
-          </span>
-        </div>
-      </div>
+      <app-tier-summary-bar [label]="activeViewLabel()" [summary]="summary" />
     }
   }
 </div>

@@ -1,0 +1,41 @@
+@if (summary(); as s) {
+  <div class="tier-summary-bar" aria-live="polite">
+    <div class="tier-summary-compact">
+      <span class="tier-summary-tier truncate" [title]="label()">
+        {{ label() }}
+      </span>
+      <span class="tier-summary-kpi">
+        <span class="tier-summary-kpi-label">{{ s.pnlLabel || 'P&L' }}</span>
+        <span class="tier-summary-kpi-value tabular-nums" [class]="pnlClass(s.realisedPnL)">{{ formatCurrency(s.realisedPnL) }}</span>
+      </span>
+      @if (s.showCharges !== false) {
+        <span class="tier-summary-kpi hidden sm:inline-flex">
+          <span class="tier-summary-kpi-label">Charges</span>
+          @if (s.chargesLink) {
+            <a routerLink="/charges" class="tier-summary-kpi-value tabular-nums text-red-400 hover:underline">{{ formatCurrency(s.allocatedCharges) }}</a>
+          } @else {
+            <span class="tier-summary-kpi-value tabular-nums text-red-400">{{ formatCurrency(s.allocatedCharges) }}</span>
+          }
+        </span>
+      }
+      <span class="tier-summary-kpi">
+        <span class="tier-summary-kpi-label">Net</span>
+        <span class="tier-summary-kpi-value tabular-nums" [class]="pnlClass(s.netPnL)">{{ formatCurrency(s.netPnL) }}</span>
+      </span>
+      <span class="tier-summary-kpi hidden lg:inline-flex">
+        <span class="tier-summary-kpi-label">{{ s.countLabel || 'Stocks' }}</span>
+        <span class="tier-summary-kpi-value tabular-nums text-slate-200">{{ s.stockCount }}</span>
+      </span>
+      <span class="tier-summary-kpi hidden lg:inline-flex">
+        <span class="tier-summary-kpi-label">{{ s.volumeLabel || 'Trades' }}</span>
+        <span class="tier-summary-kpi-value tabular-nums text-slate-200">{{ s.tradeCount | number }}</span>
+      </span>
+      @if (s.winRate != null) {
+        <span class="tier-summary-kpi hidden xl:inline-flex">
+          <span class="tier-summary-kpi-label">Win</span>
+          <span class="tier-summary-kpi-value tabular-nums text-slate-200">{{ s.winRate | number:'1.0-0' }}%</span>
+        </span>
+      }
+    </div>
+  </div>
+}

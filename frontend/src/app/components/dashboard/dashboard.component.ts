@@ -28,26 +28,23 @@ import {
   tradeAllocatedCharge as allocatedChargeForTrade,
   tradeNetPnL as netPnLForTrade,
 } from '../../utils/trade-charges.utils';
+import { TradeTypeFilterComponent } from '../shared/trade-type-filter/trade-type-filter.component';
+import { DateRangeFilterComponent } from '../shared/date-range-filter/date-range-filter.component';
+import { HoldingsTableComponent } from '../shared/holdings-table/holdings-table.component';
 import {
-  StockFilterColumn,
+  ExpandableStockColumn,
+  ExpandableStocksTableComponent,
+} from '../shared/expandable-stocks-table/expandable-stocks-table.component';
+import { StockScenarioPanelComponent } from '../shared/stock-scenario-panel/stock-scenario-panel.component';
+import { TierSummaryBarComponent } from '../shared/tier-summary-bar/tier-summary-bar.component';
+import {
   StockFilterRule,
-  StockScenario,
-  STOCK_FILTER_COLUMNS,
-  EXAMPLE_STOCK_SCENARIOS,
-  createStockFilterRule,
-  defaultOperatorForColumn,
   filterStocksByRules,
-  loadSavedStockScenarios,
-  operatorsForColumn,
-  persistStockScenarios,
 } from '../../utils/stock-scenario.utils';
 import { holdingsTotals, PnLBook } from '../../utils/holdings.utils';
 import { normalizeSymbol } from '../../utils/upload-merge.utils';
 import { stockIdentityKey } from '../../utils/stock-identity.utils';
 import { FILTER_QUERY_KEYS, readWatchlistFilters } from '../../utils/filter-url.utils';
-import { TradeTypeFilterComponent } from '../shared/trade-type-filter/trade-type-filter.component';
-import { DateRangeFilterComponent } from '../shared/date-range-filter/date-range-filter.component';
-import { HoldingsTableComponent } from '../shared/holdings-table/holdings-table.component';
 
 type PeriodColumnKey = 'period' | 'tradeCount' | 'totalBuyValue' | 'totalSellValue' | 'realisedPnL' | 'allocatedCharges' | 'netPnL' | 'winRate';
 
@@ -79,7 +76,17 @@ const DEFAULT_VISIBLE_STOCK_COLUMNS: StockColumnKey[] = [
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, TradeTypeFilterComponent, DateRangeFilterComponent, HoldingsTableComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RouterLink,
+    TradeTypeFilterComponent,
+    DateRangeFilterComponent,
+    HoldingsTableComponent,
+    ExpandableStocksTableComponent,
+    StockScenarioPanelComponent,
+    TierSummaryBarComponent,
+  ],
   templateUrl: './dashboard.component.html',
 })
 export class DashboardComponent implements OnInit {
@@ -144,13 +151,8 @@ export class DashboardComponent implements OnInit {
   periodColumnsPanelOpen = signal(false);
   stockFilterRules = signal<StockFilterRule[]>([]);
   stockSearchQuery = signal('');
-  savedStockScenarios = signal<StockScenario[]>(loadSavedStockScenarios());
-  scenarioNameInput = signal('');
   visibleStockColumns = signal<Set<StockColumnKey>>(new Set(DEFAULT_VISIBLE_STOCK_COLUMNS));
   visiblePeriodColumns = signal<Set<PeriodColumnKey>>(new Set(DEFAULT_VISIBLE_PERIOD_COLUMNS));
-
-  readonly stockFilterColumns = STOCK_FILTER_COLUMNS;
-  readonly exampleStockScenarios = EXAMPLE_STOCK_SCENARIOS;
 
   readonly periodColumns: { key: PeriodColumnKey; label: string }[] = [
     { key: 'period', label: 'Period' },
@@ -187,6 +189,29 @@ export class DashboardComponent implements OnInit {
   visibleStockColumnList = computed(() =>
     this.stockColumns.filter((col) => this.visibleStockColumns().has(col.key))
   );
+
+  expandableStockColumns = computed((): ExpandableStockColumn[] =>
+    this.visibleStockColumnList().map((col) => col.key as ExpandableStockColumn)
+  );
+
+  stockEmptyMessage = computed(() => {
+    if (this.activeTab() === 'custom' && !this.customLists.lists().length && !this.customLists.listsLoading()) {
+      return 'No custom lists yet. Create one to pick a subset of stocks.';
+    }
+    if (this.activeTab() === 'custom' && !this.customLists.selectedList()) {
+      return 'Select or create a list to see stocks.';
+    }
+    if (this.hasStockSearch()) {
+      return `No stocks match "${this.stockSearchQuery()}"`;
+    }
+    if (this.activeTab() === 'custom') {
+      return 'None of the stocks in this list appear in the current filters.';
+    }
+    if (!this.stockFilterRules().some((rule) => rule.value.trim() !== '')) {
+      return 'No stock data';
+    }
+    return 'No stocks match your scenario';
+  });
 
   visibleTradeDetailColumns = computed(() =>
     this.visibleStockColumnList().filter((col) => col.key !== 'stockName')
@@ -684,92 +709,6 @@ export class DashboardComponent implements OnInit {
     }
   }
 
-  toggleStockScenarioPanel(): void {
-    this.stockScenarioPanelOpen.update((open) => !open);
-  }
-
-  stockRuleOperators(column: StockFilterColumn) {
-    return operatorsForColumn(column);
-  }
-
-  stockRulePlaceholder(column: StockFilterColumn): string {
-    if (column === 'stockName') return 'e.g. RELIANCE';
-    if (column === 'realisedPnLPct') return 'e.g. 5 for 5%';
-    return 'e.g. 0';
-  }
-
-  addStockFilterRule(): void {
-    this.stockFilterRules.update((rules) => [...rules, createStockFilterRule()]);
-  }
-
-  removeStockFilterRule(id: string): void {
-    this.stockFilterRules.update((rules) => rules.filter((rule) => rule.id !== id));
-  }
-
-  updateStockFilterRule(id: string, patch: Partial<Pick<StockFilterRule, 'column' | 'operator' | 'value'>>): void {
-    this.stockFilterRules.update((rules) =>
-      rules.map((rule) => {
-        if (rule.id !== id) return rule;
-        const next = { ...rule, ...patch };
-        if (patch.column && patch.column !== rule.column) {
-          next.operator = defaultOperatorForColumn(patch.column);
-          if (patch.column === 'stockName') next.value = '';
-        }
-        return next;
-      })
-    );
-  }
-
-  clearStockFilterRules(): void {
-    this.stockFilterRules.set([]);
-    this.scenarioNameInput.set('');
-  }
-
-  loadExampleStockScenario(index: number): void {
-    const example = this.exampleStockScenarios[index];
-    if (!example) return;
-    this.stockFilterRules.set(example.rules.map((rule) => createStockFilterRule(rule)));
-    this.scenarioNameInput.set(example.name);
-  }
-
-  saveStockScenario(): void {
-    const name = this.scenarioNameInput().trim();
-    if (!name || !this.stockFilterRules().length) return;
-    const scenario: StockScenario = {
-      id: createStockFilterRule().id,
-      name,
-      rules: this.stockFilterRules().map((rule) => ({ ...rule })),
-      createdAt: Date.now(),
-    };
-    this.savedStockScenarios.update((scenarios) => {
-      const withoutDuplicate = scenarios.filter(
-        (item) => item.name.toLowerCase() !== name.toLowerCase()
-      );
-      const next = [scenario, ...withoutDuplicate].slice(0, 10);
-      persistStockScenarios(next);
-      return next;
-    });
-  }
-
-  loadSavedStockScenario(id: string): void {
-    const scenario = this.savedStockScenarios().find((item) => item.id === id);
-    if (!scenario) return;
-    this.stockFilterRules.set(scenario.rules.map((rule) => createStockFilterRule(rule)));
-    this.scenarioNameInput.set(scenario.name);
-  }
-
-  deleteSavedStockScenario(id: string): void {
-    this.savedStockScenarios.update((scenarios) => {
-      const next = scenarios.filter((item) => item.id !== id);
-      persistStockScenarios(next);
-      return next;
-    });
-  }
-
-  hasActiveStockScenario(): boolean {
-    return this.stockFilterRules().some((rule) => rule.value.trim() !== '');
-  }
-
   setStockSortColumn(column: StockColumnKey): void {
     this.sortColumn.set(column);
     this.sortDirection.set(this.defaultSortDirection(column));
@@ -903,7 +842,6 @@ export class DashboardComponent implements OnInit {
     this.sortDirection.set(direction);
     if (tab === 'stocks') {
       this.stockFilterRules.set([]);
-      this.scenarioNameInput.set('');
     }
   }
 
