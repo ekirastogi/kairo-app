@@ -28,65 +28,113 @@ function matchesFrom(action: CorporateAction, trade: Trade & { symbol?: string }
   const tradeIsin = normalizeIsin(trade.isin);
   if (fromIsin && tradeIsin && fromIsin === tradeIsin) return true;
 
+  const originalIsin = normalizeIsin((trade as TradeWithCorporateAction).originalIsin);
+  if (fromIsin && originalIsin && fromIsin === originalIsin) return true;
+
   const fromName = nameKey(action.fromName || action.fromSymbol);
   const tradeName = nameKey(trade.stockName);
-  if (fromName && tradeName && (tradeName === fromName || tradeName.includes(fromName) || fromName.includes(tradeName))) {
+  if (
+    fromName &&
+    tradeName &&
+    (tradeName === fromName || tradeName.includes(fromName) || fromName.includes(tradeName))
+  ) {
     return true;
   }
   return false;
 }
 
+/** Surviving entity after a merge (already on the "to" ISIN/ticker). */
+function matchesTo(action: CorporateAction, trade: Trade & { symbol?: string }): boolean {
+  const toIsin = normalizeIsin(action.toIsin);
+  const tradeIsin = normalizeIsin(trade.isin);
+  if (toIsin && tradeIsin && toIsin === tradeIsin) return true;
+
+  const toSym = normalizeSymbol(action.toSymbol);
+  const tradeSym = normalizeSymbol(trade.symbol || trade.stockName);
+  if (toSym && tradeSym && toSym === tradeSym) return true;
+
+  const toName = nameKey(action.toName || action.toSymbol);
+  const tradeName = nameKey(trade.stockName);
+  if (toName && tradeName && (tradeName === toName || tradeName.includes(toName) || toName.includes(tradeName))) {
+    return true;
+  }
+  return false;
+}
+
+function applyToIdentity<T extends TradeWithCorporateAction>(
+  trade: T,
+  action: CorporateAction,
+  opts: { preserveOriginal: boolean }
+): T {
+  const originalSymbol =
+    trade.originalSymbol || trade.symbol || normalizeSymbol(trade.stockName);
+  const originalStockName = trade.originalStockName || trade.stockName;
+  const originalIsin = trade.originalIsin || trade.isin;
+
+  const next: T = {
+    ...trade,
+    symbol: normalizeSymbol(action.toSymbol) || trade.symbol || originalSymbol,
+    stockName: action.toName || trade.stockName,
+    isin: normalizeIsin(action.toIsin) || trade.isin,
+    corporateActionId: trade.corporateActionId || action.id,
+  };
+
+  if (opts.preserveOriginal) {
+    next.originalSymbol = originalSymbol;
+    next.originalStockName = originalStockName;
+    next.originalIsin = originalIsin;
+  }
+
+  return next;
+}
+
 /**
  * Remap a trade's identity (and optionally quantity/prices for splits) using the
  * earliest matching corporate action. Preserves original_* so the UI can link back.
+ *
+ * Also normalizes rows already on the surviving ("to") ISIN/ticker so post-merger
+ * Groww names (e.g. LTM LIMITED, NETWORK18 MEDIA & INV LTD) collapse with remapped
+ * pre-merger trades.
  */
 export function applyCorporateActionToTrade<T extends TradeWithCorporateAction>(
   trade: T,
   actions: CorporateAction[]
 ): T {
-  if (!actions.length || trade.corporateActionId) return trade;
+  if (!actions.length) return trade;
 
   const sorted = [...actions].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
-  const action = sorted.find((item) => matchesFrom(item, trade));
-  if (!action) return trade;
 
-  const originalSymbol = trade.symbol || normalizeSymbol(trade.stockName);
-  const originalStockName = trade.stockName;
-  const originalIsin = trade.isin;
-
-  if (action.actionType === 'split') {
-    const factor = action.ratioFrom > 0 ? action.ratioTo / action.ratioFrom : 1;
-    if (factor !== 1 && Number.isFinite(factor) && factor > 0) {
-      const quantity = Math.round(trade.quantity * factor);
-      const buyPrice = trade.buyPrice / factor;
-      const sellPrice = trade.sellPrice / factor;
-      return {
-        ...trade,
-        quantity,
-        buyPrice,
-        sellPrice,
-        // Values and PnL stay the same for a pure split.
-        symbol: normalizeSymbol(action.toSymbol) || originalSymbol,
-        stockName: action.toName || trade.stockName,
-        isin: normalizeIsin(action.toIsin) || trade.isin,
-        originalSymbol,
-        originalStockName,
-        originalIsin,
-        corporateActionId: action.id,
-      };
+  if (trade.corporateActionId) {
+    const linked = sorted.find((item) => item.id === trade.corporateActionId);
+    if (linked) {
+      return applyToIdentity(trade, linked, { preserveOriginal: true });
     }
   }
 
-  return {
-    ...trade,
-    symbol: normalizeSymbol(action.toSymbol) || originalSymbol,
-    stockName: action.toName || trade.stockName,
-    isin: normalizeIsin(action.toIsin) || trade.isin,
-    originalSymbol,
-    originalStockName,
-    originalIsin,
-    corporateActionId: action.id,
-  };
+  const fromAction = sorted.find((item) => matchesFrom(item, trade));
+  if (fromAction) {
+    if (fromAction.actionType === 'split') {
+      const factor = fromAction.ratioFrom > 0 ? fromAction.ratioTo / fromAction.ratioFrom : 1;
+      if (factor !== 1 && Number.isFinite(factor) && factor > 0 && !trade.corporateActionId) {
+        const quantity = Math.round(trade.quantity * factor);
+        const buyPrice = trade.buyPrice / factor;
+        const sellPrice = trade.sellPrice / factor;
+        return applyToIdentity(
+          { ...trade, quantity, buyPrice, sellPrice },
+          fromAction,
+          { preserveOriginal: true }
+        );
+      }
+    }
+    return applyToIdentity(trade, fromAction, { preserveOriginal: true });
+  }
+
+  const toAction = sorted.find((item) => matchesTo(item, trade));
+  if (toAction) {
+    return applyToIdentity(trade, toAction, { preserveOriginal: false });
+  }
+
+  return trade;
 }
 
 export function applyCorporateActionsToTrades<T extends TradeWithCorporateAction>(

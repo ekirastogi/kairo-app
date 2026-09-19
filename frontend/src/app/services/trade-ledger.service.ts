@@ -983,8 +983,10 @@ export class TradeLedgerService {
     const clients = await this.clientSvc.listClients();
     const client = clients.find((c) => c.clientCode === clientCode);
     const clientName = client?.clientName ?? clientCode;
-    const trades = await this.getAllTrades(clientCode);
+    let trades = await this.getAllTrades(clientCode);
     if (!trades.length) return [];
+
+    trades = await this.resyncCorporateActionIdentities(trades);
 
     const profiles = this.buildStockProfilesFromTrades(trades, clientCode, clientName);
     try {
@@ -994,6 +996,38 @@ export class TradeLedgerService {
       console.warn('Could not persist rebuilt stock profiles', error);
     }
     return profiles;
+  }
+
+  /**
+   * Re-apply corporate-action surviving ISINs/tickers onto ledger trades and persist
+   * identity fields so merge/split pairs (Mindtree/LTIM, TV18/NETWORK18) collapse.
+   */
+  private async resyncCorporateActionIdentities(trades: StoredTrade[]): Promise<StoredTrade[]> {
+    try {
+      await this.corporateActions.ensureSeeded();
+      const actions = await this.corporateActions.listAll();
+      if (!actions.length) return trades;
+
+      const remapped = applyCorporateActionsToTrades(trades, actions) as StoredTrade[];
+      const changed = remapped.filter((trade, index) => {
+        const before = trades[index];
+        return (
+          normalizeIsin(before.isin) !== normalizeIsin(trade.isin) ||
+          (before.symbol || '') !== (trade.symbol || '') ||
+          before.stockName !== trade.stockName ||
+          (before.corporateActionId || '') !== (trade.corporateActionId || '') ||
+          normalizeIsin(before.originalIsin) !== normalizeIsin(trade.originalIsin)
+        );
+      });
+      if (changed.length) {
+        const uid = await this.auth.getDataUserId();
+        if (uid) await this.commitTradesInChunks(changed, uid);
+      }
+      return remapped;
+    } catch (error) {
+      console.warn('Could not resync corporate-action identities', error);
+      return trades;
+    }
   }
 
   async ensureStockProfilesWithBreakdown(clientCode: string, profiles: StockProfile[]): Promise<StockProfile[]> {

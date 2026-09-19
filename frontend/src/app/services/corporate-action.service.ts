@@ -102,10 +102,37 @@ export class CorporateActionService {
   /** Ensure Mindtree + TV18 seeds exist (idempotent by from→to symbol pair). */
   async ensureSeeded(): Promise<CorporateAction[]> {
     const existing = await this.listAll();
-    const byPair = new Set(existing.map((a) => `${a.fromSymbol}->${a.toSymbol}`));
+    const byPair = new Map(
+      existing.map((a) => [`${normalizeSymbol(a.fromSymbol)}->${normalizeSymbol(a.toSymbol)}`, a] as const)
+    );
     for (const seed of SEEDED_CORPORATE_ACTIONS) {
       const key = `${normalizeSymbol(seed.fromSymbol)}->${normalizeSymbol(seed.toSymbol)}`;
-      if (byPair.has(key)) continue;
+      const current = byPair.get(key);
+      if (current) {
+        const needsIsin =
+          (!normalizeIsin(current.fromIsin) && !!normalizeIsin(seed.fromIsin)) ||
+          (!normalizeIsin(current.toIsin) && !!normalizeIsin(seed.toIsin));
+        if (!needsIsin) continue;
+        await this.upsert(
+          {
+            actionType: seed.actionType,
+            fromSymbol: seed.fromSymbol,
+            fromName: seed.fromName || current.fromName,
+            fromIsin: seed.fromIsin || current.fromIsin,
+            toSymbol: seed.toSymbol,
+            toName: seed.toName || current.toName,
+            toIsin: seed.toIsin || current.toIsin,
+            ratioFrom: seed.ratioFrom,
+            ratioTo: seed.ratioTo,
+            effectiveDate: seed.effectiveDate,
+            recordDate: seed.recordDate ?? undefined,
+            notes: seed.notes || current.notes,
+            sourceUrl: seed.sourceUrl || current.sourceUrl,
+          },
+          current.id
+        );
+        continue;
+      }
       await this.upsert({
         actionType: seed.actionType,
         fromSymbol: seed.fromSymbol,
