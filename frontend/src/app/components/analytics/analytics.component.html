@@ -82,120 +82,7 @@
             </div>
           </div>
 
-          <div class="card overflow-hidden">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-              <div>
-                <h3 class="text-sm font-semibold text-slate-900">Trading days</h3>
-                <p class="text-xs text-slate-500">Click a date to open that day’s stocks below</p>
-              </div>
-              <div class="flex items-center gap-2">
-                <button type="button" class="btn-secondary px-2.5 py-1 text-xs" (click)="prevDailyCalendarMonth()" aria-label="Previous month">←</button>
-                <span class="min-w-[8.5rem] text-center text-sm font-semibold text-slate-800">{{ dailyCalendarMonthLabel() }}</span>
-                <button type="button" class="btn-secondary px-2.5 py-1 text-xs" (click)="nextDailyCalendarMonth()" aria-label="Next month">→</button>
-              </div>
-            </div>
-
-            @if (dailyCalendarHasData()) {
-              <div class="grid grid-cols-7 border-b border-slate-100 bg-slate-50 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">
-                <div class="py-2">Sun</div>
-                <div class="py-2">Mon</div>
-                <div class="py-2">Tue</div>
-                <div class="py-2">Wed</div>
-                <div class="py-2">Thu</div>
-                <div class="py-2">Fri</div>
-                <div class="py-2">Sat</div>
-              </div>
-              @for (week of dailyCalendarWeeks(); track $index) {
-                <div class="grid grid-cols-7">
-                  @for (cell of week; track $index) {
-                    @if (cell.date; as date) {
-                      @if (dailyBucketFor(date); as day) {
-                        <button
-                          type="button"
-                          class="trading-day-cell"
-                          [ngClass]="dailyCellHeatClass(date)"
-                          [class.trading-day-cell-active]="selectedDate() === date"
-                          (click)="toggleDate(date)"
-                        >
-                          <span class="text-xs font-semibold sm:text-sm">{{ cell.day }}</span>
-                          <span class="text-[10px] font-bold tabular-nums leading-tight sm:text-[11px]">{{ formatCompactCurrency(day.netPnL) }}</span>
-                          <span class="text-[9px] leading-tight opacity-70 sm:text-[10px]">{{ day.tradeCount }}t · {{ day.winRate | number:'1.0-0' }}%</span>
-                        </button>
-                      } @else {
-                        <div class="trading-day-cell trading-day-cell-empty text-slate-300">
-                          <span class="text-xs sm:text-sm">{{ cell.day }}</span>
-                        </div>
-                      }
-                    } @else {
-                      <div class="trading-day-cell trading-day-cell-empty"></div>
-                    }
-                  }
-                </div>
-              }
-            } @else {
-              <p class="px-4 py-8 text-center text-sm text-slate-400">No daily data</p>
-            }
-
-            @if (dailyCalendarMonthSummary(); as summary) {
-              <div class="border-t border-slate-200 bg-slate-50/90 px-3 py-3 sm:px-4" aria-live="polite">
-                <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    {{ dailyCalendarMonthLabel() }} summary
-                  </p>
-                  <p class="text-xs text-slate-500">
-                    {{ summary.dayCount }} trading {{ summary.dayCount === 1 ? 'day' : 'days' }}
-                    · {{ summary.greenDays }} green · {{ summary.redDays }} red
-                  </p>
-                </div>
-                <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                  <div>
-                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">P&amp;L</p>
-                    <p class="mt-0.5 text-sm font-bold tabular-nums" [class]="pnlClass(summary.realisedPnL)">{{ formatCurrency(summary.realisedPnL) }}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Charges</p>
-                    <p class="mt-0.5 text-sm font-bold tabular-nums text-red-600">{{ formatCurrency(summary.allocatedCharges) }}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net</p>
-                    <p class="mt-0.5 text-sm font-bold tabular-nums" [class]="pnlClass(summary.netPnL)">{{ formatCurrency(summary.netPnL) }}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Trades</p>
-                    <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ summary.tradeCount | number }}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Win rate</p>
-                    <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ summary.winRate | number:'1.0-0' }}%</p>
-                  </div>
-                </div>
-              </div>
-            }
-          </div>
-
-          @if (selectedDay(); as day) {
-            <div class="card overflow-hidden">
-              <div class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-kairo-500 px-4 py-3">
-                <div>
-                  <h3 class="text-sm font-semibold text-slate-900">{{ day.label }}</h3>
-                  <p class="text-xs text-slate-500">
-                    {{ selectedDateStocks().length }} stocks · {{ day.tradeCount }} trades ·
-                    net <span [class]="pnlClass(day.netPnL)">{{ formatCurrency(day.netPnL) }}</span>
-                    · {{ day.winRate | number:'1.0-0' }}% win
-                  </p>
-                </div>
-                <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="selectedDate.set(null)">
-                  Close
-                </button>
-              </div>
-              <app-expandable-stocks-table
-                [stocks]="selectedDateStocks()"
-                periodTab="daily"
-                [periodKey]="selectedDate()"
-                [emptyMessage]="isSelectedDayLoading() ? 'Loading trades for this day…' : 'No stock detail for this day'"
-              />
-            </div>
-          }
+          <ng-container *ngTemplateOutlet="tradingDaysCard" />
 
           <div class="card overflow-hidden">
             <div class="border-b border-slate-100 px-4 py-3">
@@ -262,92 +149,7 @@
             </div>
           }
 
-          <div class="card overflow-hidden">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-              <div>
-                <h3 class="text-sm font-semibold text-slate-900">Trading months</h3>
-                <p class="text-xs text-slate-500">Click a month to open that month’s stocks below</p>
-              </div>
-              <div class="flex items-center gap-2">
-                <button type="button" class="btn-secondary px-2.5 py-1 text-xs" (click)="prevMonthlyCalendarYear()" aria-label="Previous year">←</button>
-                <span class="min-w-[4rem] text-center text-sm font-semibold text-slate-800">{{ monthlyCalendarYear() }}</span>
-                <button type="button" class="btn-secondary px-2.5 py-1 text-xs" (click)="nextMonthlyCalendarYear()" aria-label="Next year">→</button>
-              </div>
-            </div>
-            <div class="grid grid-cols-3 gap-px bg-slate-100 sm:grid-cols-4">
-              @for (month of monthsInCalendarYear(); track month.key) {
-                @if (month.bucket; as bucket) {
-                  <button
-                    type="button"
-                    class="flex min-h-[4.5rem] flex-col items-start gap-0.5 p-3 text-left transition hover:brightness-95"
-                    [ngClass]="heatClass(bucket.netPnL, monthlyYearMaxAbs())"
-                    [class.trading-day-cell-active]="selectedMonth() === month.key"
-                    (click)="toggleMonth(month.key)"
-                  >
-                    <span class="text-sm font-semibold">{{ month.label }}</span>
-                    <span class="text-xs font-bold tabular-nums">{{ formatCompactCurrency(bucket.netPnL) }}</span>
-                    <span class="text-[10px] opacity-70">{{ bucket.tradeCount }} trades</span>
-                  </button>
-                } @else {
-                  <div class="flex min-h-[4.5rem] flex-col gap-0.5 bg-slate-50 p-3 text-slate-300">
-                    <span class="text-sm">{{ month.label }}</span>
-                    <span class="text-xs">—</span>
-                  </div>
-                }
-              }
-            </div>
-            @if (monthlyYearSummary(); as summary) {
-              <div class="border-t border-slate-200 bg-slate-50/90 px-3 py-3 sm:px-4" aria-live="polite">
-                <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ monthlyCalendarYear() }} summary</p>
-                  <p class="text-xs text-slate-500">{{ summary.periodCount }} months · {{ summary.green }} green · {{ summary.red }} red</p>
-                </div>
-                <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                  <div>
-                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">P&amp;L</p>
-                    <p class="mt-0.5 text-sm font-bold tabular-nums" [class]="pnlClass(summary.realisedPnL)">{{ formatCurrency(summary.realisedPnL) }}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Charges</p>
-                    <p class="mt-0.5 text-sm font-bold tabular-nums text-red-600">{{ formatCurrency(summary.allocatedCharges) }}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net</p>
-                    <p class="mt-0.5 text-sm font-bold tabular-nums" [class]="pnlClass(summary.netPnL)">{{ formatCurrency(summary.netPnL) }}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Trades</p>
-                    <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ summary.tradeCount | number }}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Win rate</p>
-                    <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ summary.winRate | number:'1.0-0' }}%</p>
-                  </div>
-                </div>
-              </div>
-            }
-          </div>
-
-          @if (selectedMonthBucket(); as month) {
-            <div class="card overflow-hidden">
-              <div class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-kairo-500 px-4 py-3">
-                <div>
-                  <h3 class="text-sm font-semibold text-slate-900">{{ month.label }}</h3>
-                  <p class="text-xs text-slate-500">
-                    {{ selectedMonthStocks().length }} stocks · {{ month.tradeCount }} trades ·
-                    net <span [class]="pnlClass(month.netPnL)">{{ formatCurrency(month.netPnL) }}</span>
-                  </p>
-                </div>
-                <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="selectedMonth.set(null)">Close</button>
-              </div>
-              <app-expandable-stocks-table
-                [stocks]="selectedMonthStocks()"
-                periodTab="monthly"
-                [periodKey]="selectedMonth()"
-                [emptyMessage]="isSelectedMonthLoading() ? 'Loading trades for this month…' : 'No stock detail for this month'"
-              />
-            </div>
-          }
+          <ng-container *ngTemplateOutlet="tradingMonthsCard" />
 
           <app-chart-card
             [config]="cumulativeChartConfig()"
@@ -428,122 +230,7 @@
           </div>
         }
 
-        <div class="card overflow-hidden">
-          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-            <div>
-              <h3 class="text-sm font-semibold text-slate-900">Trading days</h3>
-              <p class="text-xs text-slate-500">Click a date to open that day’s stocks below</p>
-            </div>
-            <div class="flex items-center gap-2">
-              <button type="button" class="btn-secondary px-2.5 py-1 text-xs" (click)="prevDailyCalendarMonth()" aria-label="Previous month">←</button>
-              <span class="min-w-[8.5rem] text-center text-sm font-semibold text-slate-800">{{ dailyCalendarMonthLabel() }}</span>
-              <button type="button" class="btn-secondary px-2.5 py-1 text-xs" (click)="nextDailyCalendarMonth()" aria-label="Next month">→</button>
-            </div>
-          </div>
-
-          @if (dailyCalendarHasData()) {
-            <div class="grid grid-cols-7 border-b border-slate-100 bg-slate-50 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">
-              <div class="py-2">Sun</div>
-              <div class="py-2">Mon</div>
-              <div class="py-2">Tue</div>
-              <div class="py-2">Wed</div>
-              <div class="py-2">Thu</div>
-              <div class="py-2">Fri</div>
-              <div class="py-2">Sat</div>
-            </div>
-            @for (week of dailyCalendarWeeks(); track $index) {
-              <div class="grid grid-cols-7">
-                @for (cell of week; track $index) {
-                  @if (cell.date; as date) {
-                    @if (dailyBucketFor(date); as day) {
-                      <button
-                        type="button"
-                        class="trading-day-cell"
-                        [ngClass]="dailyCellHeatClass(date)"
-                        [class.trading-day-cell-active]="selectedDate() === date"
-                        (click)="toggleDate(date)"
-                      >
-                        <span class="text-xs font-semibold sm:text-sm">{{ cell.day }}</span>
-                        <span class="text-[10px] font-bold tabular-nums leading-tight sm:text-[11px]">{{ formatCompactCurrency(day.netPnL) }}</span>
-                        <span class="text-[9px] leading-tight opacity-70 sm:text-[10px]">{{ day.tradeCount }}t · {{ day.winRate | number:'1.0-0' }}%</span>
-                      </button>
-                    } @else {
-                      <div class="trading-day-cell trading-day-cell-empty text-slate-300">
-                        <span class="text-xs sm:text-sm">{{ cell.day }}</span>
-                      </div>
-                    }
-                  } @else {
-                    <div class="trading-day-cell trading-day-cell-empty"></div>
-                  }
-                }
-              </div>
-            }
-          } @else {
-            <p class="px-4 py-8 text-center text-sm text-slate-400">No daily data</p>
-          }
-
-          @if (dailyCalendarMonthSummary(); as summary) {
-            <div class="border-t border-slate-200 bg-slate-50/90 px-3 py-3 sm:px-4" aria-live="polite">
-              <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  {{ dailyCalendarMonthLabel() }} summary
-                </p>
-                <p class="text-xs text-slate-500">
-                  {{ summary.dayCount }} trading {{ summary.dayCount === 1 ? 'day' : 'days' }}
-                  · {{ summary.greenDays }} green · {{ summary.redDays }} red
-                </p>
-              </div>
-              <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">P&amp;L</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums" [class]="pnlClass(summary.realisedPnL)">{{ formatCurrency(summary.realisedPnL) }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Charges</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums text-red-600">{{ formatCurrency(summary.allocatedCharges) }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums" [class]="pnlClass(summary.netPnL)">{{ formatCurrency(summary.netPnL) }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Trades</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ summary.tradeCount | number }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Win rate</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ summary.winRate | number:'1.0-0' }}%</p>
-                </div>
-              </div>
-            </div>
-          }
-        </div>
-
-        @if (selectedDay(); as day) {
-          <div class="card overflow-hidden">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-kairo-500 px-4 py-3">
-              <div>
-                <h3 class="text-sm font-semibold text-slate-900">{{ day.label }}</h3>
-                <p class="text-xs text-slate-500">
-                  {{ selectedDateStocks().length }} stocks · {{ day.tradeCount }} trades ·
-                  net <span [class]="pnlClass(day.netPnL)">{{ formatCurrency(day.netPnL) }}</span>
-                  · {{ day.winRate | number:'1.0-0' }}% win
-                </p>
-              </div>
-              <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="selectedDate.set(null)">
-                Close
-              </button>
-            </div>
-            <app-expandable-stocks-table
-              [stocks]="selectedDateStocks()"
-              periodTab="daily"
-              [periodKey]="selectedDate()"
-              [emptyMessage]="isSelectedDayLoading() ? 'Loading trades for this day…' : 'No stock detail for this day'"
-            />
-          </div>
-        } @else if (dailyCalendarHasData()) {
-          <p class="text-center text-sm text-slate-400">Select a trading day on the calendar to expand stocks.</p>
-        }
+        <ng-container *ngTemplateOutlet="tradingDaysCard" />
 
         <div class="grid gap-4">
           <app-chart-card
@@ -702,12 +389,49 @@
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
             <div>
               <h3 class="text-sm font-semibold text-slate-900">Trading weeks</h3>
-              <p class="text-xs text-slate-500">Click a week to open that week’s stocks below</p>
+              <p class="text-xs text-slate-500">
+                @if (weeklyCalendarMode() === 'all') {
+                  All weeks in the top filter
+                } @else {
+                  Click a week to open that week’s stocks below
+                }
+              </p>
             </div>
-            <div class="flex items-center gap-2">
-              <button type="button" class="btn-secondary px-2.5 py-1 text-xs" (click)="prevWeeklyCalendarYear()" aria-label="Previous year">←</button>
-              <span class="min-w-[4rem] text-center text-sm font-semibold text-slate-800">{{ weeklyCalendarYear() }}</span>
-              <button type="button" class="btn-secondary px-2.5 py-1 text-xs" (click)="nextWeeklyCalendarYear()" aria-label="Next year">→</button>
+            <div class="flex items-center gap-1.5">
+              <button
+                type="button"
+                class="btn-secondary px-2.5 py-1 text-xs"
+                [class.period-seg-active]="weeklyCalendarMode() === 'all'"
+                (click)="setWeeklyCalendarMode('all')"
+              >
+                All
+              </button>
+              <button
+                type="button"
+                class="btn-secondary px-2.5 py-1 text-xs disabled:opacity-40"
+                [disabled]="weeklyCalendarMode() === 'year' && !canPrevWeeklyCalendarYear()"
+                (click)="prevWeeklyCalendarYear()"
+                aria-label="Previous year"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                class="min-w-[4rem] px-2 py-1 text-center text-sm font-semibold text-slate-800"
+                [class.text-kairo-700]="weeklyCalendarMode() === 'year'"
+                (click)="setWeeklyCalendarMode('year')"
+              >
+                {{ weeklyCalendarMode() === 'all' ? 'By year' : weeklyCalendarYear() }}
+              </button>
+              <button
+                type="button"
+                class="btn-secondary px-2.5 py-1 text-xs disabled:opacity-40"
+                [disabled]="weeklyCalendarMode() === 'year' && !canNextWeeklyCalendarYear()"
+                (click)="nextWeeklyCalendarYear()"
+                aria-label="Next year"
+              >
+                →
+              </button>
             </div>
           </div>
           <div class="max-h-80 divide-y divide-slate-100 overflow-y-auto">
@@ -725,37 +449,21 @@
                 <p class="shrink-0 font-bold tabular-nums" [class]="pnlClass(week.netPnL)">{{ formatCurrency(week.netPnL) }}</p>
               </button>
             } @empty {
-              <p class="px-4 py-8 text-center text-sm text-slate-400">No weeks in {{ weeklyCalendarYear() }}</p>
+              <p class="px-4 py-8 text-center text-sm text-slate-400">
+                No weeks{{ weeklyCalendarMode() === 'all' ? '' : ' in ' + weeklyCalendarYear() }}
+              </p>
             }
           </div>
           @if (weeklyYearSummary(); as summary) {
-            <div class="border-t border-slate-200 bg-slate-50/90 px-3 py-3 sm:px-4" aria-live="polite">
-              <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ weeklyCalendarYear() }} summary</p>
-                <p class="text-xs text-slate-500">{{ summary.periodCount }} weeks · {{ summary.green }} green · {{ summary.red }} red</p>
-              </div>
-              <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">P&amp;L</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums" [class]="pnlClass(summary.realisedPnL)">{{ formatCurrency(summary.realisedPnL) }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Charges</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums text-red-600">{{ formatCurrency(summary.allocatedCharges) }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums" [class]="pnlClass(summary.netPnL)">{{ formatCurrency(summary.netPnL) }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Trades</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ summary.tradeCount | number }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Win rate</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ summary.winRate | number:'1.0-0' }}%</p>
-                </div>
-              </div>
+            <div
+              class="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-t border-slate-200 bg-slate-50/90 px-3 py-1.5 text-[11px] tabular-nums"
+              aria-live="polite"
+            >
+              <span class="font-semibold uppercase tracking-wide text-slate-500">{{ summary.label }}</span>
+              <span class="text-slate-500">{{ summary.periodCount }}w · {{ summary.green }}g · {{ summary.red }}r</span>
+              <span [class]="pnlClass(summary.netPnL)">Net {{ formatCompactCurrency(summary.netPnL) }}</span>
+              <span class="text-red-600">Chg {{ formatCompactCurrency(summary.allocatedCharges) }}</span>
+              <span class="text-slate-700">{{ summary.tradeCount | number }}t · {{ summary.winRate | number:'1.0-0' }}%</span>
             </div>
           }
         </div>
@@ -977,94 +685,7 @@
           </div>
         }
 
-        <div class="card overflow-hidden">
-          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-            <div>
-              <h3 class="text-sm font-semibold text-slate-900">Trading months</h3>
-              <p class="text-xs text-slate-500">Click a month to open that month’s stocks below</p>
-            </div>
-            <div class="flex items-center gap-2">
-              <button type="button" class="btn-secondary px-2.5 py-1 text-xs" (click)="prevMonthlyCalendarYear()" aria-label="Previous year">←</button>
-              <span class="min-w-[4rem] text-center text-sm font-semibold text-slate-800">{{ monthlyCalendarYear() }}</span>
-              <button type="button" class="btn-secondary px-2.5 py-1 text-xs" (click)="nextMonthlyCalendarYear()" aria-label="Next year">→</button>
-            </div>
-          </div>
-          <div class="grid grid-cols-3 gap-px bg-slate-100 sm:grid-cols-4">
-            @for (month of monthsInCalendarYear(); track month.key) {
-              @if (month.bucket; as bucket) {
-                <button
-                  type="button"
-                  class="flex min-h-[4.5rem] flex-col items-start gap-0.5 p-3 text-left transition hover:brightness-95"
-                  [ngClass]="heatClass(bucket.netPnL, monthlyYearMaxAbs())"
-                  [class.trading-day-cell-active]="selectedMonth() === month.key"
-                  (click)="toggleMonth(month.key)"
-                >
-                  <span class="text-sm font-semibold">{{ month.label }}</span>
-                  <span class="text-xs font-bold tabular-nums">{{ formatCompactCurrency(bucket.netPnL) }}</span>
-                  <span class="text-[10px] opacity-70">{{ bucket.tradeCount }} trades</span>
-                </button>
-              } @else {
-                <div class="flex min-h-[4.5rem] flex-col gap-0.5 bg-slate-50 p-3 text-slate-300">
-                  <span class="text-sm">{{ month.label }}</span>
-                  <span class="text-xs">—</span>
-                </div>
-              }
-            }
-          </div>
-          @if (monthlyYearSummary(); as summary) {
-            <div class="border-t border-slate-200 bg-slate-50/90 px-3 py-3 sm:px-4" aria-live="polite">
-              <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ monthlyCalendarYear() }} summary</p>
-                <p class="text-xs text-slate-500">{{ summary.periodCount }} months · {{ summary.green }} green · {{ summary.red }} red</p>
-              </div>
-              <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">P&amp;L</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums" [class]="pnlClass(summary.realisedPnL)">{{ formatCurrency(summary.realisedPnL) }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Charges</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums text-red-600">{{ formatCurrency(summary.allocatedCharges) }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums" [class]="pnlClass(summary.netPnL)">{{ formatCurrency(summary.netPnL) }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Trades</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ summary.tradeCount | number }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Win rate</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ summary.winRate | number:'1.0-0' }}%</p>
-                </div>
-              </div>
-            </div>
-          }
-        </div>
-
-        @if (selectedMonthBucket(); as month) {
-          <div class="card overflow-hidden">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-kairo-500 px-4 py-3">
-              <div>
-                <h3 class="text-sm font-semibold text-slate-900">{{ month.label }}</h3>
-                <p class="text-xs text-slate-500">
-                  {{ selectedMonthStocks().length }} stocks · {{ month.tradeCount }} trades ·
-                  net <span [class]="pnlClass(month.netPnL)">{{ formatCurrency(month.netPnL) }}</span>
-                </p>
-              </div>
-              <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="selectedMonth.set(null)">Close</button>
-            </div>
-            <app-expandable-stocks-table
-              [stocks]="selectedMonthStocks()"
-              periodTab="monthly"
-              [periodKey]="selectedMonth()"
-              [emptyMessage]="isSelectedMonthLoading() ? 'Loading trades for this month…' : 'No stock detail for this month'"
-            />
-          </div>
-        } @else if (monthlyYearSummary()) {
-          <p class="text-center text-sm text-slate-400">Select a trading month to expand stocks.</p>
-        }
+        <ng-container *ngTemplateOutlet="tradingMonthsCard" />
 
         <div class="grid gap-4 lg:grid-cols-2">
           <app-chart-card [config]="monthlyChartConfig()" title="Monthly net P&amp;L" subtitle="Month-by-month performance" size="lg" class="lg:col-span-2" />
@@ -1328,20 +949,299 @@
   </div>
   <div class="mt-4 grid grid-cols-7 gap-1 sm:grid-cols-10 sm:gap-2 lg:grid-cols-11 lg:gap-2.5">
     @for (bucket of dayOfMonthBuckets(); track bucket.key) {
-      <div
-        class="heat-cell overview-calendar-cell"
-        [class]="bucket.tradeCount ? heatClass(bucket.netPnL, dayOfMonthMaxAbs()) : 'heat-neutral opacity-40'"
-        [class.heat-session-muted]="isCalendarSessionMuted(bucket.key)"
-        [attr.aria-disabled]="isCalendarSessionMuted(bucket.key) || null"
-        [title]="calendarCellTitle(bucket)"
-      >
-        <span class="heat-day">{{ bucket.label }}</span>
-        @if (bucket.tradeCount) {
+      @if (bucket.tradeCount && !isCalendarSessionMuted(bucket.key)) {
+        <button
+          type="button"
+          class="heat-cell overview-calendar-cell"
+          [class]="heatClass(bucket.netPnL, dayOfMonthMaxAbs())"
+          [class.trading-day-cell-active]="selectedDayOfMonth() === bucket.key"
+          [title]="calendarCellTitle(bucket)"
+          (click)="toggleDayOfMonth(bucket.key)"
+        >
+          <span class="heat-day">{{ bucket.label }}</span>
           <span class="heat-pnl lg:hidden">{{ formatCompactCurrency(bucket.netPnL) }}</span>
           <span class="heat-pnl hidden lg:inline">{{ formatCurrency(bucket.netPnL) }}</span>
-        }
+        </button>
+      } @else {
+        <div
+          class="heat-cell overview-calendar-cell"
+          [class]="bucket.tradeCount ? heatClass(bucket.netPnL, dayOfMonthMaxAbs()) : 'heat-neutral opacity-40'"
+          [class.heat-session-muted]="isCalendarSessionMuted(bucket.key)"
+          [attr.aria-disabled]="isCalendarSessionMuted(bucket.key) || null"
+          [title]="calendarCellTitle(bucket)"
+        >
+          <span class="heat-day">{{ bucket.label }}</span>
+          @if (bucket.tradeCount) {
+            <span class="heat-pnl lg:hidden">{{ formatCompactCurrency(bucket.netPnL) }}</span>
+            <span class="heat-pnl hidden lg:inline">{{ formatCurrency(bucket.netPnL) }}</span>
+          }
+        </div>
+      }
+    }
+  </div>
+</ng-template>
+
+<ng-template #tradingDaysCard>
+  <div class="card overflow-hidden">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+      <div>
+        <h3 class="text-sm font-semibold text-slate-900">Trading days</h3>
+        <p class="text-xs text-slate-500">
+          @if (dailyCalendarMode() === 'all') {
+            All dates in the top filter · click a day-of-month for stocks
+          } @else {
+            Click a date to open that day’s stocks below
+          }
+        </p>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button
+          type="button"
+          class="btn-secondary px-2.5 py-1 text-xs"
+          [class.period-seg-active]="dailyCalendarMode() === 'all'"
+          (click)="setDailyCalendarMode('all')"
+        >
+          All
+        </button>
+        <button
+          type="button"
+          class="btn-secondary px-2.5 py-1 text-xs disabled:opacity-40"
+          [disabled]="dailyCalendarMode() === 'month' && !canPrevDailyCalendarMonth()"
+          (click)="prevDailyCalendarMonth()"
+          aria-label="Previous month"
+        >
+          ←
+        </button>
+        <button
+          type="button"
+          class="min-w-[8.5rem] px-2 py-1 text-center text-sm font-semibold text-slate-800"
+          [class.text-kairo-700]="dailyCalendarMode() === 'month'"
+          (click)="setDailyCalendarMode('month')"
+        >
+          {{ dailyCalendarMode() === 'all' ? 'By month' : dailyCalendarMonthLabel() }}
+        </button>
+        <button
+          type="button"
+          class="btn-secondary px-2.5 py-1 text-xs disabled:opacity-40"
+          [disabled]="dailyCalendarMode() === 'month' && !canNextDailyCalendarMonth()"
+          (click)="nextDailyCalendarMonth()"
+          aria-label="Next month"
+        >
+          →
+        </button>
+      </div>
+    </div>
+
+    @if (dailyCalendarMode() === 'all') {
+      <div class="px-3 pb-3 sm:px-4">
+        <ng-container *ngTemplateOutlet="calendarDayGrid" />
+      </div>
+    } @else if (dailyCalendarHasData()) {
+      <div class="grid grid-cols-7 border-b border-slate-100 bg-slate-50 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">
+        <div class="py-2">Sun</div>
+        <div class="py-2">Mon</div>
+        <div class="py-2">Tue</div>
+        <div class="py-2">Wed</div>
+        <div class="py-2">Thu</div>
+        <div class="py-2">Fri</div>
+        <div class="py-2">Sat</div>
+      </div>
+      @for (week of dailyCalendarWeeks(); track $index) {
+        <div class="grid grid-cols-7">
+          @for (cell of week; track $index) {
+            @if (cell.date; as date) {
+              @if (isDailyDateSelectable(date)) {
+                <button
+                  type="button"
+                  class="trading-day-cell"
+                  [ngClass]="dailyCellHeatClass(date)"
+                  [class.trading-day-cell-active]="selectedDate() === date"
+                  (click)="toggleDate(date)"
+                >
+                  <span class="text-xs font-semibold sm:text-sm">{{ cell.day }}</span>
+                  <span class="text-[10px] font-bold tabular-nums leading-tight sm:text-[11px]">{{ formatCompactCurrency(dailyBucketFor(date)!.netPnL) }}</span>
+                  <span class="text-[9px] leading-tight opacity-70 sm:text-[10px]">{{ dailyBucketFor(date)!.tradeCount }}t · {{ dailyBucketFor(date)!.winRate | number:'1.0-0' }}%</span>
+                </button>
+              } @else {
+                <div class="trading-day-cell trading-day-cell-empty text-slate-300">
+                  <span class="text-xs sm:text-sm">{{ cell.day }}</span>
+                </div>
+              }
+            } @else {
+              <div class="trading-day-cell trading-day-cell-empty"></div>
+            }
+          }
+        </div>
+      }
+    } @else {
+      <p class="px-4 py-8 text-center text-sm text-slate-400">No daily data</p>
+    }
+
+    @if (dailyCalendarMonthSummary(); as summary) {
+      <div
+        class="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-t border-slate-200 bg-slate-50/90 px-3 py-1.5 text-[11px] tabular-nums"
+        aria-live="polite"
+      >
+        <span class="font-semibold uppercase tracking-wide text-slate-500">{{ summary.label }}</span>
+        <span class="text-slate-500">{{ summary.dayCount }}d · {{ summary.greenDays }}g · {{ summary.redDays }}r</span>
+        <span [class]="pnlClass(summary.netPnL)">Net {{ formatCompactCurrency(summary.netPnL) }}</span>
+        <span class="text-red-600">Chg {{ formatCompactCurrency(summary.allocatedCharges) }}</span>
+        <span class="text-slate-700">{{ summary.tradeCount | number }}t · {{ summary.winRate | number:'1.0-0' }}%</span>
       </div>
     }
   </div>
+
+  @if (selectedDayOfMonthBucket(); as dom) {
+    <div class="card overflow-hidden">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-kairo-500 px-4 py-3">
+        <div>
+          <h3 class="text-sm font-semibold text-slate-900">Day {{ dom.label }} (all months)</h3>
+          <p class="text-xs text-slate-500">
+            {{ selectedDayOfMonthStocks().length }} stocks · {{ dom.tradeCount }} trades ·
+            net <span [class]="pnlClass(dom.netPnL)">{{ formatCurrency(dom.netPnL) }}</span>
+          </p>
+        </div>
+        <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="selectedDayOfMonth.set(null)">Close</button>
+      </div>
+      <app-expandable-stocks-table
+        [stocks]="selectedDayOfMonthStocks()"
+        periodTab="dayOfMonth"
+        [periodKey]="selectedDayOfMonth()"
+        [emptyMessage]="isSelectedDayOfMonthLoading() ? 'Loading trades for this day…' : 'No stock detail for this day'"
+      />
+    </div>
+  }
+
+  @if (!selectedDayOfMonth() && selectedDay(); as day) {
+    <div class="card overflow-hidden">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-kairo-500 px-4 py-3">
+        <div>
+          <h3 class="text-sm font-semibold text-slate-900">{{ day.label }}</h3>
+          <p class="text-xs text-slate-500">
+            {{ selectedDateStocks().length }} stocks · {{ day.tradeCount }} trades ·
+            net <span [class]="pnlClass(day.netPnL)">{{ formatCurrency(day.netPnL) }}</span>
+            · {{ day.winRate | number:'1.0-0' }}% win
+          </p>
+        </div>
+        <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="selectedDate.set(null)">Close</button>
+      </div>
+      <app-expandable-stocks-table
+        [stocks]="selectedDateStocks()"
+        periodTab="daily"
+        [periodKey]="selectedDate()"
+        [emptyMessage]="isSelectedDayLoading() ? 'Loading trades for this day…' : 'No stock detail for this day'"
+      />
+    </div>
+  }
+</ng-template>
+
+<ng-template #tradingMonthsCard>
+  <div class="card overflow-hidden">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+      <div>
+        <h3 class="text-sm font-semibold text-slate-900">Trading months</h3>
+        <p class="text-xs text-slate-500">
+          @if (monthlyCalendarMode() === 'all') {
+            Each month summed across years in the top filter
+          } @else {
+            Click a month to open that month’s stocks below
+          }
+        </p>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button
+          type="button"
+          class="btn-secondary px-2.5 py-1 text-xs"
+          [class.period-seg-active]="monthlyCalendarMode() === 'all'"
+          (click)="setMonthlyCalendarMode('all')"
+        >
+          All
+        </button>
+        <button
+          type="button"
+          class="btn-secondary px-2.5 py-1 text-xs disabled:opacity-40"
+          [disabled]="monthlyCalendarMode() === 'year' && !canPrevMonthlyCalendarYear()"
+          (click)="prevMonthlyCalendarYear()"
+          aria-label="Previous year"
+        >
+          ←
+        </button>
+        <button
+          type="button"
+          class="min-w-[4rem] px-2 py-1 text-center text-sm font-semibold text-slate-800"
+          [class.text-kairo-700]="monthlyCalendarMode() === 'year'"
+          (click)="setMonthlyCalendarMode('year')"
+        >
+          {{ monthlyCalendarMode() === 'all' ? 'By year' : monthlyCalendarYear() }}
+        </button>
+        <button
+          type="button"
+          class="btn-secondary px-2.5 py-1 text-xs disabled:opacity-40"
+          [disabled]="monthlyCalendarMode() === 'year' && !canNextMonthlyCalendarYear()"
+          (click)="nextMonthlyCalendarYear()"
+          aria-label="Next year"
+        >
+          →
+        </button>
+      </div>
+    </div>
+    <div class="grid grid-cols-3 gap-px bg-slate-100 sm:grid-cols-4">
+      @for (month of monthsInCalendarView(); track month.key) {
+        @if (month.bucket; as bucket) {
+          <button
+            type="button"
+            class="flex min-h-[4.5rem] flex-col items-start gap-0.5 p-3 text-left transition hover:brightness-95"
+            [ngClass]="heatClass(bucket.netPnL, monthlyYearMaxAbs())"
+            [class.trading-day-cell-active]="selectedMonth() === month.key"
+            (click)="toggleMonth(month.key)"
+          >
+            <span class="text-sm font-semibold">{{ month.label }}</span>
+            <span class="text-xs font-bold tabular-nums">{{ formatCompactCurrency(bucket.netPnL) }}</span>
+            <span class="text-[10px] opacity-70">{{ bucket.tradeCount }} trades</span>
+          </button>
+        } @else {
+          <div class="flex min-h-[4.5rem] flex-col gap-0.5 bg-slate-50 p-3 text-slate-300">
+            <span class="text-sm">{{ month.label }}</span>
+            <span class="text-xs">—</span>
+          </div>
+        }
+      }
+    </div>
+    @if (monthlyYearSummary(); as summary) {
+      <div
+        class="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-t border-slate-200 bg-slate-50/90 px-3 py-1.5 text-[11px] tabular-nums"
+        aria-live="polite"
+      >
+        <span class="font-semibold uppercase tracking-wide text-slate-500">{{ summary.label }}</span>
+        <span class="text-slate-500">{{ summary.periodCount }}mo · {{ summary.green }}g · {{ summary.red }}r</span>
+        <span [class]="pnlClass(summary.netPnL)">Net {{ formatCompactCurrency(summary.netPnL) }}</span>
+        <span class="text-red-600">Chg {{ formatCompactCurrency(summary.allocatedCharges) }}</span>
+        <span class="text-slate-700">{{ summary.tradeCount | number }}t · {{ summary.winRate | number:'1.0-0' }}%</span>
+      </div>
+    }
+  </div>
+
+  @if (selectedMonthBucket(); as month) {
+    <div class="card overflow-hidden">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-kairo-500 px-4 py-3">
+        <div>
+          <h3 class="text-sm font-semibold text-slate-900">
+            {{ month.label }}{{ monthlyCalendarMode() === 'all' ? ' (all years)' : '' }}
+          </h3>
+          <p class="text-xs text-slate-500">
+            {{ selectedMonthStocks().length }} stocks · {{ month.tradeCount }} trades ·
+            net <span [class]="pnlClass(month.netPnL)">{{ formatCurrency(month.netPnL) }}</span>
+          </p>
+        </div>
+        <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="selectedMonth.set(null)">Close</button>
+      </div>
+      <app-expandable-stocks-table
+        [stocks]="selectedMonthStocks()"
+        [periodTab]="selectedMonth()?.startsWith('moy-') ? 'monthOfYear' : 'monthly'"
+        [periodKey]="selectedMonth()?.startsWith('moy-') ? selectedMonth()!.slice(4) : selectedMonth()"
+        [emptyMessage]="isSelectedMonthLoading() ? 'Loading trades for this month…' : 'No stock detail for this month'"
+      />
+    </div>
+  }
 </ng-template>
 

@@ -151,24 +151,24 @@ export class LazyTradeLoaderService {
     if (cached) return cached;
 
     const effective = this.effectiveFilters(report, filters);
-    const mergedFilters: AnalysisOptions =
-      tab === 'weekday'
-        ? { ...filters, startDate: effective.startDate, endDate: effective.endDate }
-        : (() => {
-            const periodRange = periodDateRange(periodKey, tab);
-            return {
-              ...filters,
-              startDate: intersectStart(periodRange.start, effective.startDate ?? ''),
-              endDate: intersectEnd(periodRange.end, effective.endDate ?? ''),
-            };
-          })();
+    const mergedFilters: AnalysisOptions = usesFullFilterRange(tab)
+      ? { ...filters, startDate: effective.startDate, endDate: effective.endDate }
+      : (() => {
+          const periodRange = periodDateRange(periodKey, tab as 'daily' | 'weekly' | 'monthly');
+          return {
+            ...filters,
+            startDate: intersectStart(periodRange.start, effective.startDate ?? ''),
+            endDate: intersectEnd(periodRange.end, effective.endDate ?? ''),
+          };
+        })();
 
-    const weekdayFilter =
-      tab === 'weekday' ? (trade: Trade) => tradeWeekday(trade) === Number(periodKey) : null;
+    const scopeFilter = usesFullFilterRange(tab)
+      ? (trade: Trade) => matchesPeriodScope(trade, tab, periodKey)
+      : null;
 
     if (report?.trades?.length) {
       let trades = this.filterTradesByOptions(report.trades, mergedFilters);
-      if (weekdayFilter) trades = trades.filter(weekdayFilter);
+      if (scopeFilter) trades = trades.filter(scopeFilter);
       this.setCache(key, sortTradesBySellDateDesc(trades));
       return this.lists().get(key)!;
     }
@@ -182,7 +182,7 @@ export class LazyTradeLoaderService {
         mergedFilters
       );
       let trades = rows.map(storedTradeToTrade);
-      if (weekdayFilter) trades = trades.filter(weekdayFilter);
+      if (scopeFilter) trades = trades.filter(scopeFilter);
       this.setCache(key, sortTradesBySellDateDesc(trades));
       return this.lists().get(key)!;
     } finally {
@@ -251,10 +251,35 @@ function intersectEnd(periodEnd: string, filterEnd: string): string {
   return filterEnd < periodEnd ? filterEnd : periodEnd;
 }
 
-export type PeriodScopeTab = 'daily' | 'weekly' | 'monthly' | 'weekday';
+export type PeriodScopeTab =
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'weekday'
+  | 'dayOfMonth'
+  | 'monthOfYear';
 
 function tradeWeekday(trade: Trade): number {
   return new Date(`${trade.sellDate}T12:00:00`).getDay();
+}
+
+function tradeDayOfMonth(trade: Trade): number {
+  return Number(trade.sellDate.slice(8, 10));
+}
+
+function tradeMonthOfYear(trade: Trade): string {
+  return trade.sellDate.slice(5, 7);
+}
+
+function matchesPeriodScope(trade: Trade, tab: PeriodScopeTab, periodKey: string): boolean {
+  if (tab === 'weekday') return tradeWeekday(trade) === Number(periodKey);
+  if (tab === 'dayOfMonth') return tradeDayOfMonth(trade) === Number(periodKey);
+  if (tab === 'monthOfYear') return tradeMonthOfYear(trade) === periodKey.padStart(2, '0');
+  return true;
+}
+
+function usesFullFilterRange(tab: PeriodScopeTab): boolean {
+  return tab === 'weekday' || tab === 'dayOfMonth' || tab === 'monthOfYear';
 }
 
 export function periodDateRange(
