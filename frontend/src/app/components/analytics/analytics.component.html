@@ -82,74 +82,7 @@
             </div>
           </div>
 
-          <ng-container *ngTemplateOutlet="tradingDaysCard" />
-
-          <div class="card overflow-hidden">
-            <div class="border-b border-slate-100 px-4 py-3">
-              <h3 class="text-sm font-semibold text-slate-900">Weekday heatmap</h3>
-              <p class="mt-0.5 text-xs text-slate-500">Click a weekday to open stocks for that day of week</p>
-            </div>
-            <div class="grid grid-cols-7 gap-1 p-3 sm:gap-2.5 sm:p-4">
-              @for (bucket of weekdayBuckets(); track bucket.key) {
-                @if (bucket.tradeCount) {
-                  <button
-                    type="button"
-                    class="heat-cell overview-weekday-cell"
-                    [class]="heatClass(bucket.netPnL, weekdayMaxAbs())"
-                    [class.trading-day-cell-active]="selectedWeekday() === bucket.key"
-                    [title]="bucket.label + ': ' + formatCurrency(bucket.netPnL)"
-                    (click)="toggleWeekday(bucket.key)"
-                  >
-                    <span class="heat-day uppercase">
-                      <span class="sm:hidden">{{ bucket.label.slice(0, 2) }}</span>
-                      <span class="hidden sm:inline">{{ bucket.label }}</span>
-                    </span>
-                    <span class="heat-pnl lg:hidden">{{ formatCompactCurrency(bucket.netPnL) }}</span>
-                    <span class="heat-pnl hidden lg:inline">{{ formatCurrency(bucket.netPnL) }}</span>
-                    <span class="text-[9px] leading-none text-slate-500 sm:text-[10px]">{{ bucket.tradeCount }}t</span>
-                  </button>
-                } @else {
-                  <div
-                    class="heat-cell overview-weekday-cell heat-neutral opacity-40"
-                    [title]="bucket.label + ': No trades'"
-                  >
-                    <span class="heat-day uppercase">
-                      <span class="sm:hidden">{{ bucket.label.slice(0, 2) }}</span>
-                      <span class="hidden sm:inline">{{ bucket.label }}</span>
-                    </span>
-                    <span class="heat-pnl">—</span>
-                    <span class="text-[9px] leading-none text-slate-500 sm:text-[10px]">0t</span>
-                  </div>
-                }
-              }
-            </div>
-          </div>
-
-          @if (selectedWeekdayBucket(); as weekday) {
-            <div class="card overflow-hidden">
-              <div class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-kairo-500 px-4 py-3">
-                <div>
-                  <h3 class="text-sm font-semibold text-slate-900">All {{ weekday.label }}s</h3>
-                  <p class="text-xs text-slate-500">
-                    {{ selectedWeekdayStocks().length }} stocks · {{ weekday.tradeCount }} trades ·
-                    net <span [class]="pnlClass(weekday.netPnL)">{{ formatCurrency(weekday.netPnL) }}</span>
-                    · {{ weekdayWinRate(weekday) | number:'1.0-0' }}% win
-                  </p>
-                </div>
-                <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="selectedWeekday.set(null)">
-                  Close
-                </button>
-              </div>
-              <app-expandable-stocks-table
-                [stocks]="selectedWeekdayStocks()"
-                periodTab="weekday"
-                [periodKey]="selectedWeekday()"
-                [emptyMessage]="isSelectedWeekdayLoading() ? 'Loading trades for this weekday…' : 'No stock detail for this weekday'"
-              />
-            </div>
-          }
-
-          <ng-container *ngTemplateOutlet="tradingMonthsCard" />
+          <ng-container *ngTemplateOutlet="periodHeatmaps" />
 
           <app-chart-card
             [config]="cumulativeChartConfig()"
@@ -230,7 +163,7 @@
           </div>
         }
 
-        <ng-container *ngTemplateOutlet="tradingDaysCard" />
+        <ng-container *ngTemplateOutlet="periodHeatmaps" />
 
         <div class="grid gap-4">
           <app-chart-card
@@ -385,6 +318,8 @@
           </div>
         }
 
+        <ng-container *ngTemplateOutlet="periodHeatmaps" />
+
         <div class="card overflow-hidden">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
             <div>
@@ -501,71 +436,6 @@
           <app-chart-card [config]="weeklyWinLossChartConfig()" title="Winning vs losing trades" subtitle="Outcomes by week" />
           <app-chart-card [config]="weeklyChargesChartConfig()" title="P&amp;L vs charges" subtitle="Charge drag on weekly realised P&amp;L" />
         </div>
-
-        <div class="card overflow-hidden">
-          <div class="border-b border-slate-100 px-4 py-3">
-            <h3 class="text-sm font-semibold text-slate-900">Weekday heatmap</h3>
-            <p class="mt-0.5 text-xs text-slate-500">Click a weekday to open stocks for that day of week</p>
-          </div>
-          <div class="grid grid-cols-7 gap-1 p-3 sm:gap-2 sm:p-4">
-            @for (bucket of weekdayBuckets(); track bucket.key) {
-              @if (bucket.tradeCount) {
-                <button
-                  type="button"
-                  class="heat-cell overview-weekday-cell"
-                  [class]="heatClass(bucket.netPnL, weekdayMaxAbs())"
-                  [class.trading-day-cell-active]="selectedWeekday() === bucket.key"
-                  [title]="bucket.label + ': ' + formatCurrency(bucket.netPnL)"
-                  (click)="toggleWeekday(bucket.key)"
-                >
-                  <span class="heat-day uppercase">
-                    <span class="sm:hidden">{{ bucket.label.slice(0, 2) }}</span>
-                    <span class="hidden sm:inline">{{ bucket.label }}</span>
-                  </span>
-                  <span class="heat-pnl lg:hidden">{{ formatCompactCurrency(bucket.netPnL) }}</span>
-                  <span class="heat-pnl hidden lg:inline">{{ formatCurrency(bucket.netPnL) }}</span>
-                  <span class="text-[9px] leading-none text-slate-500 sm:text-[10px]">{{ bucket.tradeCount }}t</span>
-                </button>
-              } @else {
-                <div
-                  class="heat-cell overview-weekday-cell heat-neutral opacity-40"
-                  [title]="bucket.label + ': No trades'"
-                >
-                  <span class="heat-day uppercase">
-                    <span class="sm:hidden">{{ bucket.label.slice(0, 2) }}</span>
-                    <span class="hidden sm:inline">{{ bucket.label }}</span>
-                  </span>
-                  <span class="heat-pnl">—</span>
-                  <span class="text-[9px] leading-none text-slate-500 sm:text-[10px]">0t</span>
-                </div>
-              }
-            }
-          </div>
-        </div>
-
-        @if (selectedWeekdayBucket(); as weekday) {
-          <div class="card overflow-hidden">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-kairo-500 px-4 py-3">
-              <div>
-                <h3 class="text-sm font-semibold text-slate-900">All {{ weekday.label }}s</h3>
-                <p class="text-xs text-slate-500">
-                  {{ selectedWeekdayStocks().length }} stocks · {{ weekday.tradeCount }} trades ·
-                  net <span [class]="pnlClass(weekday.netPnL)">{{ formatCurrency(weekday.netPnL) }}</span>
-                  · {{ weekdayWinRate(weekday) | number:'1.0-0' }}% win
-                </p>
-              </div>
-              <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="selectedWeekday.set(null)">
-                Close
-              </button>
-            </div>
-            <app-expandable-stocks-table
-              [stocks]="selectedWeekdayStocks()"
-              periodTab="weekday"
-              [periodKey]="selectedWeekday()"
-              [emptyMessage]="isSelectedWeekdayLoading() ? 'Loading trades for this weekday…' : 'No stock detail for this weekday'"
-            />
-          </div>
-        }
 
         <div class="grid gap-3 sm:grid-cols-2">
           <div class="insight-card insight-card-best">
@@ -685,7 +555,7 @@
           </div>
         }
 
-        <ng-container *ngTemplateOutlet="tradingMonthsCard" />
+        <ng-container *ngTemplateOutlet="periodHeatmaps" />
 
         <div class="grid gap-4 lg:grid-cols-2">
           <app-chart-card [config]="monthlyChartConfig()" title="Monthly net P&amp;L" subtitle="Month-by-month performance" size="lg" class="lg:col-span-2" />
@@ -696,21 +566,6 @@
           <app-chart-card [config]="monthlyAvgNetTradeChartConfig()" title="Avg net per trade" subtitle="Monthly trading efficiency" />
           <app-chart-card [config]="monthlyWinLossChartConfig()" title="Winning vs losing trades" subtitle="Outcomes by month" />
           <app-chart-card [config]="monthlyChargesChartConfig()" title="P&amp;L vs charges" subtitle="Charge drag on monthly realised P&amp;L" class="lg:col-span-2" />
-        </div>
-
-        <div class="card p-4">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <h3 class="text-sm font-semibold text-slate-900">Calendar day heatmap</h3>
-              <p class="mt-0.5 text-xs text-slate-500">Net P&amp;L aggregated by date of month (1–31)</p>
-            </div>
-            <p class="shrink-0 pt-0.5 text-xs font-semibold tabular-nums">
-              <span class="text-emerald-700">Profitable: {{ calendarDayOutcomes().success.length }}</span>
-              <span class="px-1.5 text-slate-300">|</span>
-              <span class="text-red-700">Losing: {{ calendarDayOutcomes().failed.length }}</span>
-            </p>
-          </div>
-          <ng-container *ngTemplateOutlet="calendarDayGrid" />
         </div>
 
         <div class="grid gap-3 sm:grid-cols-2">
@@ -929,6 +784,80 @@
   }
 }
 
+
+<ng-template #weekdayHeatmapCard>
+  <div class="card overflow-hidden">
+    <div class="border-b border-slate-100 px-4 py-3">
+      <h3 class="text-sm font-semibold text-slate-900">Weekday heatmap</h3>
+      <p class="mt-0.5 text-xs text-slate-500">Click a weekday to open stocks for that day of week</p>
+    </div>
+    <div class="grid grid-cols-7 gap-1 p-3 sm:gap-2.5 sm:p-4">
+      @for (bucket of weekdayBuckets(); track bucket.key) {
+        @if (bucket.tradeCount) {
+          <button
+            type="button"
+            class="heat-cell overview-weekday-cell"
+            [class]="heatClass(bucket.netPnL, weekdayMaxAbs())"
+            [class.trading-day-cell-active]="selectedWeekday() === bucket.key"
+            [title]="bucket.label + ': ' + formatCurrency(bucket.netPnL)"
+            (click)="toggleWeekday(bucket.key)"
+          >
+            <span class="heat-day uppercase">
+              <span class="sm:hidden">{{ bucket.label.slice(0, 2) }}</span>
+              <span class="hidden sm:inline">{{ bucket.label }}</span>
+            </span>
+            <span class="heat-pnl lg:hidden">{{ formatCompactCurrency(bucket.netPnL) }}</span>
+            <span class="heat-pnl hidden lg:inline">{{ formatCurrency(bucket.netPnL) }}</span>
+            <span class="text-[9px] leading-none text-slate-500 sm:text-[10px]">{{ bucket.tradeCount }}t</span>
+          </button>
+        } @else {
+          <div
+            class="heat-cell overview-weekday-cell heat-neutral opacity-40"
+            [title]="bucket.label + ': No trades'"
+          >
+            <span class="heat-day uppercase">
+              <span class="sm:hidden">{{ bucket.label.slice(0, 2) }}</span>
+              <span class="hidden sm:inline">{{ bucket.label }}</span>
+            </span>
+            <span class="heat-pnl">—</span>
+            <span class="text-[9px] leading-none text-slate-500 sm:text-[10px]">0t</span>
+          </div>
+        }
+      }
+    </div>
+  </div>
+
+  @if (selectedWeekdayBucket(); as weekday) {
+    <div class="card overflow-hidden">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-kairo-500 px-4 py-3">
+        <div>
+          <h3 class="text-sm font-semibold text-slate-900">All {{ weekday.label }}s</h3>
+          <p class="text-xs text-slate-500">
+            {{ selectedWeekdayStocks().length }} stocks · {{ weekday.tradeCount }} trades ·
+            net <span [class]="pnlClass(weekday.netPnL)">{{ formatCurrency(weekday.netPnL) }}</span>
+            · {{ weekdayWinRate(weekday) | number:'1.0-0' }}% win
+          </p>
+        </div>
+        <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="selectedWeekday.set(null)">
+          Close
+        </button>
+      </div>
+      <app-expandable-stocks-table
+        [stocks]="selectedWeekdayStocks()"
+        periodTab="weekday"
+        [periodKey]="selectedWeekday()"
+        [emptyMessage]="isSelectedWeekdayLoading() ? 'Loading trades for this weekday…' : 'No stock detail for this weekday'"
+      />
+    </div>
+  }
+</ng-template>
+
+<ng-template #periodHeatmaps>
+  <ng-container *ngTemplateOutlet="tradingDaysCard" />
+  <ng-container *ngTemplateOutlet="weekdayHeatmapCard" />
+  <ng-container *ngTemplateOutlet="tradingMonthsCard" />
+</ng-template>
+
 <ng-template #calendarDayGrid>
   <div class="mt-3 flex flex-wrap items-center gap-2">
     <div class="period-track" role="radiogroup" aria-label="This month market session">
@@ -947,12 +876,12 @@
     </div>
     <p class="min-w-0 text-[11px] text-slate-400">{{ calendarSessionCaption() }}</p>
   </div>
-  <div class="mt-4 grid grid-cols-7 gap-1 sm:grid-cols-10 sm:gap-2 lg:grid-cols-11 lg:gap-2.5">
+  <div class="mt-4 grid grid-cols-7 gap-1 p-0 sm:grid-cols-10 sm:gap-2.5 lg:grid-cols-11">
     @for (bucket of dayOfMonthBuckets(); track bucket.key) {
       @if (bucket.tradeCount && !isCalendarSessionMuted(bucket.key)) {
         <button
           type="button"
-          class="heat-cell overview-calendar-cell"
+          class="heat-cell overview-weekday-cell"
           [class]="heatClass(bucket.netPnL, dayOfMonthMaxAbs())"
           [class.trading-day-cell-active]="selectedDayOfMonth() === bucket.key"
           [title]="calendarCellTitle(bucket)"
@@ -961,10 +890,11 @@
           <span class="heat-day">{{ bucket.label }}</span>
           <span class="heat-pnl lg:hidden">{{ formatCompactCurrency(bucket.netPnL) }}</span>
           <span class="heat-pnl hidden lg:inline">{{ formatCurrency(bucket.netPnL) }}</span>
+          <span class="text-[9px] leading-none text-slate-500 sm:text-[10px]">{{ bucket.tradeCount }}t</span>
         </button>
       } @else {
         <div
-          class="heat-cell overview-calendar-cell"
+          class="heat-cell overview-weekday-cell"
           [class]="bucket.tradeCount ? heatClass(bucket.netPnL, dayOfMonthMaxAbs()) : 'heat-neutral opacity-40'"
           [class.heat-session-muted]="isCalendarSessionMuted(bucket.key)"
           [attr.aria-disabled]="isCalendarSessionMuted(bucket.key) || null"
@@ -974,6 +904,10 @@
           @if (bucket.tradeCount) {
             <span class="heat-pnl lg:hidden">{{ formatCompactCurrency(bucket.netPnL) }}</span>
             <span class="heat-pnl hidden lg:inline">{{ formatCurrency(bucket.netPnL) }}</span>
+            <span class="text-[9px] leading-none text-slate-500 sm:text-[10px]">{{ bucket.tradeCount }}t</span>
+          } @else {
+            <span class="heat-pnl">—</span>
+            <span class="text-[9px] leading-none text-slate-500 sm:text-[10px]">0t</span>
           }
         </div>
       }
@@ -1185,24 +1119,30 @@
         </button>
       </div>
     </div>
-    <div class="grid grid-cols-3 gap-px bg-slate-100 sm:grid-cols-4 lg:grid-cols-6">
+    <div class="grid grid-cols-3 gap-1 p-3 sm:grid-cols-4 sm:gap-2.5 sm:p-4 lg:grid-cols-6">
       @for (month of monthsInCalendarView(); track month.key) {
         @if (month.bucket; as bucket) {
           <button
             type="button"
-            class="flex min-h-[4.5rem] flex-col items-start gap-0.5 p-3 text-left transition hover:brightness-95"
-            [ngClass]="heatClass(bucket.netPnL, monthlyYearMaxAbs())"
+            class="heat-cell overview-weekday-cell"
+            [class]="heatClass(bucket.netPnL, monthlyYearMaxAbs())"
             [class.trading-day-cell-active]="selectedMonth() === month.key"
+            [title]="month.label + ': ' + formatCurrency(bucket.netPnL)"
             (click)="toggleMonth(month.key)"
           >
-            <span class="text-sm font-semibold">{{ month.label }}</span>
-            <span class="text-xs font-bold tabular-nums">{{ formatCompactCurrency(bucket.netPnL) }}</span>
-            <span class="text-[10px] opacity-70">{{ bucket.tradeCount }} trades</span>
+            <span class="heat-day uppercase">{{ month.label }}</span>
+            <span class="heat-pnl lg:hidden">{{ formatCompactCurrency(bucket.netPnL) }}</span>
+            <span class="heat-pnl hidden lg:inline">{{ formatCurrency(bucket.netPnL) }}</span>
+            <span class="text-[9px] leading-none text-slate-500 sm:text-[10px]">{{ bucket.tradeCount }}t</span>
           </button>
         } @else {
-          <div class="flex min-h-[4.5rem] flex-col gap-0.5 bg-slate-50 p-3 text-slate-300">
-            <span class="text-sm">{{ month.label }}</span>
-            <span class="text-xs">—</span>
+          <div
+            class="heat-cell overview-weekday-cell heat-neutral opacity-40"
+            [title]="month.label + ': No trades'"
+          >
+            <span class="heat-day uppercase">{{ month.label }}</span>
+            <span class="heat-pnl">—</span>
+            <span class="text-[9px] leading-none text-slate-500 sm:text-[10px]">0t</span>
           </div>
         }
       }
