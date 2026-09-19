@@ -57,6 +57,8 @@ export interface UnrealisedHolding {
 export interface Trade {
   stockName: string;
   isin: string;
+  /** Optional ticker when known (set after identity resolve / corporate-action remap). */
+  symbol?: string;
   quantity: number;
   buyDate: string;
   buyPrice: number;
@@ -70,6 +72,11 @@ export interface Trade {
   holdingDays: number;
   allocatedCharges?: number;
   netPnL?: number;
+  /** Filled when a corporate action remapped this trade's identity. */
+  originalSymbol?: string;
+  originalStockName?: string;
+  originalIsin?: string;
+  corporateActionId?: string;
 }
 
 export interface ChargeItem {
@@ -202,6 +209,11 @@ export interface StoredTrade extends Trade {
   createdAt: number;
   /** Ingest provenance — Sunday Excel supersedes mid-week contract notes. */
   source?: TradeSource;
+  /** Pre-corporate-action identity when a merge/split remapped this row. */
+  originalSymbol?: string;
+  originalStockName?: string;
+  originalIsin?: string;
+  corporateActionId?: string;
 }
 
 export interface TradeTypeStats {

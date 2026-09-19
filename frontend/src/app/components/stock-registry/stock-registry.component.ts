@@ -6,7 +6,10 @@ import { RegistryStockService } from '../../services/registry-stock.service';
 import { StockLabelsStore } from '../../services/stock-labels.store';
 import { TRADED_LABEL_NAME } from '../../services/registry-label.service';
 import { TradeLedgerService } from '../../services/trade-ledger.service';
+import { CorporateActionService } from '../../services/corporate-action.service';
 import { ScreenerService, ScreenerSnapshot } from '../../services/screener.service';
+import { applyCorporateActionToTrade } from '../../utils/corporate-action.utils';
+import { normalizeSymbol } from '../../utils/stock-identity.utils';
 import { RegistryLabel, RegistryStock } from '../../models/trading-journal.models';
 import { StockLabelsManagerComponent } from '../stock-labels/stock-labels-manager.component';
 import {
@@ -50,6 +53,7 @@ export class StockRegistryComponent implements OnInit {
   private labelStore = inject(StockLabelsStore);
   private screener = inject(ScreenerService);
   private ledger = inject(TradeLedgerService);
+  private corporateActions = inject(CorporateActionService);
 
   /** Once the user picks a filter we stop forcing the "traded" default. */
   private labelFilterTouched = false;
@@ -700,9 +704,42 @@ export class StockRegistryComponent implements OnInit {
         .map((v) => this.num(v))
         .filter((v): v is number => v != null);
 
+      let symbol = normalizeSymbol(this.form.symbol);
+      let name = this.form.name.trim();
+      let remappedNote = '';
+      try {
+        const actions = await this.corporateActions.ensureSeeded();
+        const remapped = applyCorporateActionToTrade(
+          {
+            stockName: name || symbol,
+            isin: '',
+            symbol,
+            quantity: 0,
+            buyDate: '',
+            buyPrice: 0,
+            buyValue: 0,
+            sellDate: '',
+            sellPrice: 0,
+            sellValue: 0,
+            realisedPnL: 0,
+            remark: '',
+            tradeType: 'delivery',
+            holdingDays: 0,
+          } as import('../../utils/corporate-action.utils').TradeWithCorporateAction,
+          actions
+        );
+        if (remapped.corporateActionId && remapped.symbol && remapped.symbol !== symbol) {
+          remappedNote = `Remapped ${symbol} → ${remapped.symbol} via corporate action. `;
+          symbol = remapped.symbol;
+          name = remapped.stockName || name;
+        }
+      } catch {
+        // Corporate actions table may be unavailable until migration 020.
+      }
+
       await this.registrySvc.save({
-        symbol: this.form.symbol,
-        name: this.form.name,
+        symbol,
+        name,
         currentPrice: this.num(this.form.currentPrice) ?? 0,
         marketCap: this.num(this.form.marketCap),
         pe: this.num(this.form.pe),
@@ -716,7 +753,7 @@ export class StockRegistryComponent implements OnInit {
         resistances,
         notes: this.form.notes.trim() || undefined,
       });
-      this.success.set(`Saved ${this.form.symbol.toUpperCase()}`);
+      this.success.set(`${remappedNote}Saved ${symbol}`);
       this.showAddForm.set(false);
       this.resetForm();
       await this.reload();

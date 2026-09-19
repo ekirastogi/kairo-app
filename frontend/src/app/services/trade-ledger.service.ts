@@ -15,6 +15,7 @@ import { AuthService } from './auth.service';
 import { ChargesService } from './charges.service';
 import { ClientAccountService } from './client-account.service';
 import { ContractNoteParserService } from './contract-note-parser.service';
+import { CorporateActionService } from './corporate-action.service';
 import { ParserService } from './parser.service';
 import { RegistryStockService } from './registry-stock.service';
 import { RegistryLabelService } from './registry-label.service';
@@ -30,6 +31,7 @@ import {
   enrichTradeWithCharges,
   normalizeSymbol,
 } from '../utils/upload-merge.utils';
+import { applyCorporateActionsToTrades } from '../utils/corporate-action.utils';
 import { holdingsToOpenLots, matchContractNoteDay } from '../utils/contract-note-match.utils';
 import { expandTradeTypes, effectiveTradeType, tradeMatchesTypeFilter } from '../utils/trade-type-filter.utils';
 import { mergeStockProfiles, mergeStockSummaries, profileToStockSummary, profilesHaveTypeBreakdown } from '../utils/filter-stock-profiles.utils';
@@ -181,6 +183,12 @@ function tradeFromRow(row: Record<string, unknown>): StoredTrade {
     netPnL: numField(camel, 'netPnL', 'netPnl'),
     createdAt: Number(camel['createdAt'] ?? 0),
     source,
+    originalSymbol: camel['originalSymbol'] ? String(camel['originalSymbol']) : undefined,
+    originalStockName: camel['originalStockName'] ? String(camel['originalStockName']) : undefined,
+    originalIsin: camel['originalIsin'] ? normalizeIsin(String(camel['originalIsin'])) : undefined,
+    corporateActionId: camel['corporateActionId']
+      ? String(camel['corporateActionId'])
+      : undefined,
   };
 }
 
@@ -302,8 +310,23 @@ function tradeToRow(trade: StoredTrade, userId: string): Record<string, unknown>
     clientName: trade.clientName,
     createdAt: trade.createdAt,
     source: trade.source ?? 'excel',
+    originalSymbol: trade.originalSymbol ?? null,
+    originalStockName: trade.originalStockName ?? null,
+    originalIsin: trade.originalIsin ? normalizeIsin(trade.originalIsin) : null,
+    corporateActionId: trade.corporateActionId ?? null,
   });
   return row;
+}
+
+function stripCorporateActionColumns(row: Record<string, unknown>): Record<string, unknown> {
+  const {
+    original_symbol: _os,
+    original_stock_name: _on,
+    original_isin: _oi,
+    corporate_action_id: _ca,
+    ...rest
+  } = row;
+  return rest;
 }
 
 /**
@@ -379,6 +402,7 @@ export class TradeLedgerService {
   private contractNoteParser = inject(ContractNoteParserService);
   private userConfig = inject(UserConfigService);
   private registry = inject(RegistryStockService);
+  private corporateActions = inject(CorporateActionService);
   private registryLabels = inject(RegistryLabelService);
   private tradePlans = inject(TradePlanService);
   private momentumStocks = inject(MomentumStockService);
@@ -392,6 +416,8 @@ export class TradeLedgerService {
   private uploadsSupportTradesReplaced: boolean | null = null;
   /** null = unknown; false = `source` column not on remote DB yet. */
   private tradesSupportSource: boolean | null = null;
+  /** null = unknown; false = corporate-action columns not on remote DB yet. */
+  private tradesSupportCorporateAction: boolean | null = null;
   /** The traded-label backfill only needs to run once per session. */
   private tradedLabelsSynced = false;
 
@@ -405,6 +431,7 @@ export class TradeLedgerService {
     const report = await this.parser.parseFile(file);
     const resolver = await this.buildIdentityResolver(report);
     this.applyIdentity(report, resolver);
+    await this.applyCorporateActionsToReport(report);
 
     if (!report.trades.length && !(report.unrealisedHoldings?.length)) {
       throw new Error('No trades found in this file. Check that it is a Groww P&L export.');
@@ -432,21 +459,26 @@ export class TradeLedgerService {
 
     const affectedSymbols = new Set<string>();
     const pendingWrites: StoredTrade[] = report.trades.map((trade, index) => {
-      const identity = resolver.resolve(trade.isin, trade.stockName);
+      const identity = resolver.resolve(trade.isin, trade.stockName, trade.symbol);
       const enriched = enrichTradeWithCharges(trade, rateCardCharges[index] ?? 0);
-      affectedSymbols.add(identity.symbol);
+      const symbol = trade.symbol || identity.symbol;
+      affectedSymbols.add(symbol);
       return {
         ...trade,
-        isin: identity.isin,
+        isin: trade.isin || identity.isin,
         dedupeKey: crypto.randomUUID(),
         uploadId,
         clientCode,
         clientName,
-        symbol: identity.symbol,
+        symbol,
         allocatedCharges: enriched.allocatedCharges,
         netPnL: enriched.netPnL,
         createdAt: now,
         source: 'excel',
+        originalSymbol: trade.originalSymbol,
+        originalStockName: trade.originalStockName,
+        originalIsin: trade.originalIsin,
+        corporateActionId: trade.corporateActionId,
       };
     });
 
@@ -575,6 +607,7 @@ export class TradeLedgerService {
 
     const resolver = await this.buildIdentityResolver(stubReport);
     this.applyIdentity(stubReport, resolver);
+    await this.applyCorporateActionsToReport(stubReport);
 
     const existingUploadId = await this.findUploadByContentHash(uid, clientCode, contentHash);
     const uploadId = existingUploadId ?? crypto.randomUUID();
@@ -587,21 +620,26 @@ export class TradeLedgerService {
 
     const affectedSymbols = new Set<string>();
     const pendingWrites: StoredTrade[] = stubReport.trades.map((trade, index) => {
-      const identity = resolver.resolve(trade.isin, trade.stockName);
+      const identity = resolver.resolve(trade.isin, trade.stockName, trade.symbol);
       const enriched = enrichTradeWithCharges(trade, rateCardCharges[index] ?? 0);
-      affectedSymbols.add(identity.symbol);
+      const symbol = trade.symbol || identity.symbol;
+      affectedSymbols.add(symbol);
       return {
         ...trade,
-        isin: identity.isin,
+        isin: trade.isin || identity.isin,
         dedupeKey: crypto.randomUUID(),
         uploadId,
         clientCode,
         clientName,
-        symbol: identity.symbol,
+        symbol,
         allocatedCharges: enriched.allocatedCharges,
         netPnL: enriched.netPnL,
         createdAt: now,
         source: 'contract_note',
+        originalSymbol: trade.originalSymbol,
+        originalStockName: trade.originalStockName,
+        originalIsin: trade.originalIsin,
+        corporateActionId: trade.corporateActionId,
       };
     });
 
@@ -1589,6 +1627,88 @@ export class TradeLedgerService {
     return removed;
   }
 
+  private async applyCorporateActionsToReport(report: Report): Promise<void> {
+    try {
+      await this.corporateActions.ensureSeeded();
+      const actions = await this.corporateActions.listAll();
+      if (!actions.length) return;
+
+      report.trades = applyCorporateActionsToTrades(
+        report.trades.map((trade) => ({
+          ...trade,
+          symbol: (trade as Trade & { symbol?: string }).symbol,
+        })),
+        actions
+      );
+
+      if (report.stockSummary.length) {
+        report.stockSummary = report.stockSummary.map((stock) => {
+          const remapped = applyCorporateActionsToTrades(
+            [
+              {
+                stockName: stock.stockName,
+                isin: stock.isin,
+                symbol: stock.symbol,
+                quantity: 0,
+                buyDate: '',
+                buyPrice: 0,
+                buyValue: 0,
+                sellDate: '',
+                sellPrice: 0,
+                sellValue: 0,
+                realisedPnL: 0,
+                remark: '',
+                tradeType: 'delivery' as const,
+                holdingDays: 0,
+              },
+            ],
+            actions
+          )[0];
+          return {
+            ...stock,
+            symbol: remapped.symbol || stock.symbol,
+            stockName: remapped.stockName || stock.stockName,
+            isin: remapped.isin || stock.isin,
+          };
+        });
+      }
+
+      if (report.unrealisedHoldings?.length) {
+        report.unrealisedHoldings = report.unrealisedHoldings.map((holding) => {
+          const remapped = applyCorporateActionsToTrades(
+            [
+              {
+                stockName: holding.stockName,
+                isin: holding.isin,
+                symbol: holding.symbol,
+                quantity: holding.quantity,
+                buyDate: '',
+                buyPrice: holding.avgBuyPrice,
+                buyValue: holding.buyValue,
+                sellDate: '',
+                sellPrice: 0,
+                sellValue: 0,
+                realisedPnL: 0,
+                remark: '',
+                tradeType: 'delivery' as const,
+                holdingDays: 0,
+              },
+            ],
+            actions
+          )[0];
+          return {
+            ...holding,
+            symbol: remapped.symbol || holding.symbol,
+            stockName: remapped.stockName || holding.stockName,
+            isin: remapped.isin || holding.isin,
+          };
+        });
+      }
+    } catch {
+      // Corporate actions table may be missing until migration 020 is applied.
+    }
+  }
+
   private applyIdentity(report: Report, resolver: StockIdentityResolver): void {
     const knownIsins = collectIsinsByName([
       ...report.trades,
@@ -1695,6 +1815,9 @@ export class TradeLedgerService {
       if (this.tradesSupportSource === false) {
         chunk = chunk.map(({ source: _s, ...rest }) => rest);
       }
+      if (this.tradesSupportCorporateAction === false) {
+        chunk = chunk.map((row) => stripCorporateActionColumns(row));
+      }
       let { error } = await this.supabase.client.from('trades').upsert(chunk);
       if (error && this.tradesSupportSource !== false && isMissingColumnError(error, 'source')) {
         this.tradesSupportSource = false;
@@ -1702,6 +1825,18 @@ export class TradeLedgerService {
         ({ error } = await this.supabase.client.from('trades').upsert(chunk));
       } else if (!error && this.tradesSupportSource !== false) {
         this.tradesSupportSource = true;
+      }
+      if (
+        error &&
+        this.tradesSupportCorporateAction !== false &&
+        (isMissingColumnError(error, 'corporate_action_id') ||
+          isMissingColumnError(error, 'original_symbol'))
+      ) {
+        this.tradesSupportCorporateAction = false;
+        chunk = chunk.map((row) => stripCorporateActionColumns(row));
+        ({ error } = await this.supabase.client.from('trades').upsert(chunk));
+      } else if (!error && this.tradesSupportCorporateAction !== false) {
+        this.tradesSupportCorporateAction = true;
       }
       if (error) throw error;
     }

@@ -1,0 +1,168 @@
+<div class="mx-auto flex max-w-5xl flex-col gap-5">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h2 class="text-lg font-semibold text-slate-900">Corporate actions</h2>
+      <p class="mt-1 text-sm text-slate-500">
+        Mergers, splits, and renames remapped onto trades before they are saved. Mindtree trades store as LTIM, with a link back to the original name.
+      </p>
+    </div>
+    <button type="button" class="btn-primary" (click)="startCreate()" [disabled]="busy()">
+      Add action
+    </button>
+  </div>
+
+  @if (error()) {
+    <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ error() }}</div>
+  }
+  @if (success()) {
+    <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ success() }}</div>
+  }
+
+  @if (showForm()) {
+    <div class="card p-4 sm:p-5">
+      <h3 class="text-sm font-semibold text-slate-900">
+        {{ editingId() ? 'Edit corporate action' : 'New corporate action' }}
+      </h3>
+      <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Type
+          <select class="input-field mt-1 w-full" [(ngModel)]="form.actionType">
+            @for (t of types; track t) {
+              <option [value]="t">{{ typeLabels[t] }}</option>
+            }
+          </select>
+        </label>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Effective date
+          <input type="date" class="input-field mt-1 w-full" [(ngModel)]="form.effectiveDate" />
+        </label>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Record date
+          <input type="date" class="input-field mt-1 w-full" [(ngModel)]="form.recordDate" />
+        </label>
+
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          From symbol
+          <input class="input-field mt-1 w-full uppercase" [(ngModel)]="form.fromSymbol" placeholder="MINDTREE" />
+        </label>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          From name
+          <input class="input-field mt-1 w-full" [(ngModel)]="form.fromName" placeholder="Mindtree Ltd" />
+        </label>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          From ISIN
+          <input class="input-field mt-1 w-full uppercase" [(ngModel)]="form.fromIsin" placeholder="optional" />
+        </label>
+
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          To symbol
+          <input class="input-field mt-1 w-full uppercase" [(ngModel)]="form.toSymbol" placeholder="LTIM" />
+        </label>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          To name
+          <input class="input-field mt-1 w-full" [(ngModel)]="form.toName" placeholder="LTIMindtree Ltd" />
+        </label>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          To ISIN
+          <input class="input-field mt-1 w-full uppercase" [(ngModel)]="form.toIsin" placeholder="optional" />
+        </label>
+
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Ratio from (old)
+          <input type="number" min="1" step="1" class="input-field mt-1 w-full" [(ngModel)]="form.ratioFrom" />
+        </label>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Ratio to (new)
+          <input type="number" min="1" step="1" class="input-field mt-1 w-full" [(ngModel)]="form.ratioTo" />
+        </label>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 sm:col-span-2 lg:col-span-1">
+          Source URL
+          <input class="input-field mt-1 w-full" [(ngModel)]="form.sourceUrl" placeholder="https://…" />
+        </label>
+
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 sm:col-span-2 lg:col-span-3">
+          Notes
+          <textarea class="input-field mt-1 w-full" rows="2" [(ngModel)]="form.notes"></textarea>
+        </label>
+      </div>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <button type="button" class="btn-primary" (click)="save()" [disabled]="busy()">
+          {{ busy() ? 'Saving…' : editingId() ? 'Update' : 'Save' }}
+        </button>
+        <button type="button" class="btn-secondary" (click)="cancelForm()" [disabled]="busy()">Cancel</button>
+      </div>
+    </div>
+  }
+
+  @if (loading()) {
+    <p class="text-sm text-slate-400">Loading corporate actions…</p>
+  } @else if (!actions().length) {
+    <p class="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-400">
+      No corporate actions yet. Add a merger or split to remap uploads.
+    </p>
+  } @else {
+    <div class="card overflow-hidden">
+      <div class="divide-y divide-slate-100">
+        @for (action of actions(); track action.id) {
+          <div
+            class="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+            [class.bg-kairo-50]="highlightId() === action.id"
+            [attr.id]="'ca-' + action.id"
+          >
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                  {{ typeLabels[action.actionType] }}
+                </span>
+                <p class="font-semibold text-slate-900">
+                  {{ action.fromSymbol }}
+                  <span class="font-normal text-slate-400">→</span>
+                  {{ action.toSymbol }}
+                </p>
+              </div>
+              <p class="mt-1 text-sm text-slate-600">
+                {{ action.fromName || action.fromSymbol }}
+                →
+                {{ action.toName || action.toSymbol }}
+                · {{ formatSwapRatio(action) }}
+              </p>
+              <p class="mt-0.5 text-xs text-slate-400">
+                Effective {{ formatDate(action.effectiveDate) }}
+                @if (action.recordDate) {
+                  · Record {{ formatDate(action.recordDate) }}
+                }
+              </p>
+              @if (action.notes) {
+                <p class="mt-1 text-xs text-slate-500">{{ action.notes }}</p>
+              }
+              @if (action.sourceUrl) {
+                <a
+                  class="mt-1 inline-block text-xs font-medium text-kairo-700 hover:underline"
+                  [href]="action.sourceUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Source
+                </a>
+              }
+            </div>
+            <div class="flex shrink-0 gap-2">
+              <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="startEdit(action)" [disabled]="busy()">
+                Edit
+              </button>
+              <button type="button" class="btn-secondary !py-1.5 !text-xs text-red-600" (click)="remove(action)" [disabled]="busy()">
+                Delete
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <p class="text-xs text-slate-400">
+    Uploads and stock adds apply these rules before writing to the ledger. Individual trades keep the original symbol and link here when remapped.
+    <a routerLink="/settings" class="font-medium text-kairo-700 hover:underline">Re-upload</a>
+    a statement to remap existing history.
+  </p>
+</div>

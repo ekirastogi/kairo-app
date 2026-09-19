@@ -84,6 +84,17 @@ export const routes: Routes = [
         data: { title: 'Stock registry', subtitle: 'Your tracked stocks with levels and indicators' },
       },
       {
+        path: 'corporate-actions',
+        loadComponent: () =>
+          import('./components/corporate-actions/corporate-actions.component').then(
+            (m) => m.CorporateActionsComponent
+          ),
+        data: {
+          title: 'Corporate actions',
+          subtitle: 'Mergers, splits, and renames applied before trades are saved',
+        },
+      },
+      {
         path: 'trade-plans/new',
         loadComponent: () =>
           import('./components/trade-plans/trade-plan-form.component').then((m) => m.TradePlanFormComponent),

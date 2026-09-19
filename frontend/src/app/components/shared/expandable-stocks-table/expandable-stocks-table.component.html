@@ -146,6 +146,16 @@
                                       <td class="text-center text-slate-400">{{ ti + 1 }}</td>
                                       <td>
                                         <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{{ tradeTypeLabel(trade.tradeType) }}</span>
+                                        @if (trade.corporateActionId && trade.originalSymbol) {
+                                          <a
+                                            class="mt-1 block text-[10px] font-medium text-kairo-700 hover:underline"
+                                            [routerLink]="['/corporate-actions']"
+                                            [queryParams]="{ id: trade.corporateActionId }"
+                                            (click)="$event.stopPropagation()"
+                                          >
+                                            Before {{ trade.originalSymbol }}
+                                          </a>
+                                        }
                                       </td>
                                       <td class="text-right">{{ trade.quantity | number }}</td>
                                       <td class="text-right">
