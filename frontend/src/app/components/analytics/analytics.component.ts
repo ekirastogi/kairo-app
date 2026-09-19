@@ -390,6 +390,37 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
 
   dailyCalendarHasData = computed(() => (this.analysis()?.daily?.length ?? 0) > 0);
 
+  /** Month totals for the calendar currently on screen. */
+  dailyCalendarMonthSummary = computed(() => {
+    const year = this.dailyCalendarYear();
+    const month = this.dailyCalendarMonth();
+    const prefix = `${year}-${String(month).padStart(2, '0')}`;
+    const days = (this.analysis()?.daily ?? []).filter((d) => d.period.startsWith(prefix));
+    if (!days.length) return null;
+
+    const tradeCount = days.reduce((sum, d) => sum + d.tradeCount, 0);
+    const realisedPnL = days.reduce((sum, d) => sum + d.realisedPnL, 0);
+    const allocatedCharges = days.reduce((sum, d) => sum + d.allocatedCharges, 0);
+    const netPnL = days.reduce((sum, d) => sum + d.netPnL, 0);
+    const winningTrades = days.reduce((sum, d) => sum + d.winningTrades, 0);
+    const losingTrades = days.reduce((sum, d) => sum + d.losingTrades, 0);
+    const greenDays = days.filter((d) => d.netPnL > 0).length;
+    const redDays = days.filter((d) => d.netPnL < 0).length;
+
+    return {
+      dayCount: days.length,
+      greenDays,
+      redDays,
+      tradeCount,
+      realisedPnL,
+      allocatedCharges,
+      netPnL,
+      winRate: tradeCount ? (winningTrades / tradeCount) * 100 : 0,
+      winningTrades,
+      losingTrades,
+    };
+  });
+
   prevDailyCalendarMonth(): void {
     if (this.dailyCalendarMonth() === 1) {
       this.dailyCalendarMonth.set(12);

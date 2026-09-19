@@ -288,6 +288,42 @@
           } @else {
             <p class="px-4 py-8 text-center text-sm text-slate-400">No daily data</p>
           }
+
+          @if (dailyCalendarMonthSummary(); as summary) {
+            <div class="border-t border-slate-200 bg-slate-50/90 px-3 py-3 sm:px-4" aria-live="polite">
+              <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  {{ dailyCalendarMonthLabel() }} summary
+                </p>
+                <p class="text-xs text-slate-500">
+                  {{ summary.dayCount }} trading {{ summary.dayCount === 1 ? 'day' : 'days' }}
+                  · {{ summary.greenDays }} green · {{ summary.redDays }} red
+                </p>
+              </div>
+              <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                <div>
+                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">P&amp;L</p>
+                  <p class="mt-0.5 text-sm font-bold tabular-nums" [class]="pnlClass(summary.realisedPnL)">{{ formatCurrency(summary.realisedPnL) }}</p>
+                </div>
+                <div>
+                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Charges</p>
+                  <p class="mt-0.5 text-sm font-bold tabular-nums text-red-600">{{ formatCurrency(summary.allocatedCharges) }}</p>
+                </div>
+                <div>
+                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net</p>
+                  <p class="mt-0.5 text-sm font-bold tabular-nums" [class]="pnlClass(summary.netPnL)">{{ formatCurrency(summary.netPnL) }}</p>
+                </div>
+                <div>
+                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Trades</p>
+                  <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ summary.tradeCount | number }}</p>
+                </div>
+                <div>
+                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Win rate</p>
+                  <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{{ summary.winRate | number:'1.0-0' }}%</p>
+                </div>
+              </div>
+            </div>
+          }
         </div>
 
         @if (selectedDay(); as day) {
