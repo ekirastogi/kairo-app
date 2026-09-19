@@ -168,6 +168,15 @@ const ANALYTICS_TABS: AnalyticsTab[] = [
     .heat-day {
       @apply text-[10px] font-bold leading-none text-current sm:text-sm;
     }
+    .trading-day-cell {
+      @apply flex min-h-[4.25rem] flex-col items-stretch gap-0.5 border-r border-b border-slate-100 p-1.5 text-left transition last:border-r-0 sm:min-h-[5.5rem] sm:p-2;
+    }
+    .trading-day-cell-empty {
+      @apply bg-slate-50/60;
+    }
+    .trading-day-cell-active {
+      @apply ring-2 ring-inset ring-kairo-500;
+    }
     .heat-neutral { @apply bg-slate-50 text-slate-400; }
     .heat-pos-soft { @apply bg-emerald-50 text-emerald-700; }
     .heat-pos-mid { @apply bg-emerald-100 text-emerald-800; }
@@ -240,10 +249,18 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
       .subscribe(() => this.syncTabFromUrl());
     // Aggregate-first: profiles + daily analytics. Trades load on day/stock expand.
     await this.state.ensureLoadedFromFirebase();
+    this.syncDailyCalendarToLatest();
   }
 
   ngOnDestroy(): void {
     this.navSub?.unsubscribe();
+  }
+
+  private syncDailyCalendarToLatest(): void {
+    const latest = [...(this.analysis()?.daily ?? [])].sort((a, b) =>
+      b.period.localeCompare(a.period)
+    )[0];
+    if (latest) this.focusDailyCalendarOn(latest.period);
   }
 
   private syncTabFromUrl(): void {
@@ -270,6 +287,9 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     if (tab === 'stocks' || tab === 'tiers') {
       void this.customLists.ensureLoaded();
     }
+    if (tab === 'daily') {
+      this.syncDailyCalendarToLatest();
+    }
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { tab },
@@ -279,14 +299,24 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   }
 
   selectedDate = signal<string | null>(null);
+  dailyCalendarYear = signal(new Date().getFullYear());
+  dailyCalendarMonth = signal(new Date().getMonth() + 1);
 
   /** Click a date to open its per-stock breakdown; clicking the open one closes it. */
   toggleDate(period: string): void {
     const next = this.selectedDate() === period ? null : period;
     this.selectedDate.set(next);
     if (next) {
+      this.focusDailyCalendarOn(next);
       void this.loadSelectedDayTrades(next);
     }
+  }
+
+  private focusDailyCalendarOn(period: string): void {
+    const match = /^(\d{4})-(\d{2})/.exec(period);
+    if (!match) return;
+    this.dailyCalendarYear.set(Number(match[1]));
+    this.dailyCalendarMonth.set(Number(match[2]));
   }
 
   private async loadSelectedDayTrades(period: string): Promise<void> {
@@ -311,6 +341,83 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     if (!date) return false;
     return this.lazyTrades.isLoading(this.lazyTrades.cacheKeyForPeriod('daily', date));
   });
+
+  dailyByDate = computed(() => {
+    const map = new Map<string, PeriodBucket>();
+    for (const day of this.analysis()?.daily ?? []) {
+      map.set(day.period, day);
+    }
+    return map;
+  });
+
+  dailyCalendarMonthLabel = computed(() =>
+    new Date(this.dailyCalendarYear(), this.dailyCalendarMonth() - 1, 1).toLocaleDateString('en-IN', {
+      month: 'long',
+      year: 'numeric',
+    })
+  );
+
+  dailyCalendarWeeks = computed(() => {
+    const year = this.dailyCalendarYear();
+    const month = this.dailyCalendarMonth();
+    const first = new Date(year, month - 1, 1);
+    const startPad = first.getDay(); // Sunday-first, matches trade calendar
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const cells: Array<{ date: string | null; day: number | null }> = [];
+    for (let i = 0; i < startPad; i++) cells.push({ date: null, day: null });
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      cells.push({ date, day: d });
+    }
+    while (cells.length % 7 !== 0) cells.push({ date: null, day: null });
+    const weeks: typeof cells[] = [];
+    for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+    return weeks;
+  });
+
+  dailyCalendarMaxAbs = computed(() => {
+    const year = this.dailyCalendarYear();
+    const month = this.dailyCalendarMonth();
+    const prefix = `${year}-${String(month).padStart(2, '0')}`;
+    let max = 1;
+    for (const day of this.analysis()?.daily ?? []) {
+      if (day.period.startsWith(prefix)) {
+        max = Math.max(max, Math.abs(day.netPnL));
+      }
+    }
+    return max;
+  });
+
+  dailyCalendarHasData = computed(() => (this.analysis()?.daily?.length ?? 0) > 0);
+
+  prevDailyCalendarMonth(): void {
+    if (this.dailyCalendarMonth() === 1) {
+      this.dailyCalendarMonth.set(12);
+      this.dailyCalendarYear.update((y) => y - 1);
+    } else {
+      this.dailyCalendarMonth.update((m) => m - 1);
+    }
+  }
+
+  nextDailyCalendarMonth(): void {
+    if (this.dailyCalendarMonth() === 12) {
+      this.dailyCalendarMonth.set(1);
+      this.dailyCalendarYear.update((y) => y + 1);
+    } else {
+      this.dailyCalendarMonth.update((m) => m + 1);
+    }
+  }
+
+  dailyBucketFor(date: string | null): PeriodBucket | undefined {
+    if (!date) return undefined;
+    return this.dailyByDate().get(date);
+  }
+
+  dailyCellHeatClass(date: string | null): string {
+    const bucket = this.dailyBucketFor(date);
+    if (!bucket) return 'heat-neutral';
+    return heatClass(bucket.netPnL, this.dailyCalendarMaxAbs());
+  }
 
   /** Same per-stock rows the dashboard shows, narrowed to the selected day's trades. */
   selectedDateStocks = computed(() => {

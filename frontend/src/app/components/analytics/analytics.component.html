@@ -235,14 +235,70 @@
           </div>
         </div>
 
+        <div class="card overflow-hidden">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+            <div>
+              <h3 class="text-sm font-semibold text-slate-900">Trading days</h3>
+              <p class="text-xs text-slate-500">Click a date to open that day’s stocks below</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" class="btn-secondary px-2.5 py-1 text-xs" (click)="prevDailyCalendarMonth()" aria-label="Previous month">←</button>
+              <span class="min-w-[8.5rem] text-center text-sm font-semibold text-slate-800">{{ dailyCalendarMonthLabel() }}</span>
+              <button type="button" class="btn-secondary px-2.5 py-1 text-xs" (click)="nextDailyCalendarMonth()" aria-label="Next month">→</button>
+            </div>
+          </div>
+
+          @if (dailyCalendarHasData()) {
+            <div class="grid grid-cols-7 border-b border-slate-100 bg-slate-50 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">
+              <div class="py-2">Sun</div>
+              <div class="py-2">Mon</div>
+              <div class="py-2">Tue</div>
+              <div class="py-2">Wed</div>
+              <div class="py-2">Thu</div>
+              <div class="py-2">Fri</div>
+              <div class="py-2">Sat</div>
+            </div>
+            @for (week of dailyCalendarWeeks(); track $index) {
+              <div class="grid grid-cols-7">
+                @for (cell of week; track $index) {
+                  @if (cell.date; as date) {
+                    @if (dailyBucketFor(date); as day) {
+                      <button
+                        type="button"
+                        class="trading-day-cell"
+                        [ngClass]="dailyCellHeatClass(date)"
+                        [class.trading-day-cell-active]="selectedDate() === date"
+                        (click)="toggleDate(date)"
+                      >
+                        <span class="text-xs font-semibold sm:text-sm">{{ cell.day }}</span>
+                        <span class="text-[10px] font-bold tabular-nums leading-tight sm:text-[11px]">{{ formatCompactCurrency(day.netPnL) }}</span>
+                        <span class="text-[9px] leading-tight opacity-70 sm:text-[10px]">{{ day.tradeCount }}t · {{ day.winRate | number:'1.0-0' }}%</span>
+                      </button>
+                    } @else {
+                      <div class="trading-day-cell trading-day-cell-empty text-slate-300">
+                        <span class="text-xs sm:text-sm">{{ cell.day }}</span>
+                      </div>
+                    }
+                  } @else {
+                    <div class="trading-day-cell trading-day-cell-empty"></div>
+                  }
+                }
+              </div>
+            }
+          } @else {
+            <p class="px-4 py-8 text-center text-sm text-slate-400">No daily data</p>
+          }
+        </div>
+
         @if (selectedDay(); as day) {
           <div class="card overflow-hidden">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-kairo-500 px-4 py-3">
               <div>
-                <h3 class="text-sm font-semibold text-slate-900">Stocks traded on {{ day.label }}</h3>
+                <h3 class="text-sm font-semibold text-slate-900">{{ day.label }}</h3>
                 <p class="text-xs text-slate-500">
                   {{ selectedDateStocks().length }} stocks · {{ day.tradeCount }} trades ·
                   net <span [class]="pnlClass(day.netPnL)">{{ formatCurrency(day.netPnL) }}</span>
+                  · {{ day.winRate | number:'1.0-0' }}% win
                 </p>
               </div>
               <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="selectedDate.set(null)">
@@ -254,32 +310,9 @@
               [emptyMessage]="isSelectedDayLoading() ? 'Loading trades for this day…' : 'No stock detail for this day'"
             />
           </div>
+        } @else if (dailyCalendarHasData()) {
+          <p class="text-center text-sm text-slate-400">Select a trading day on the calendar to expand stocks.</p>
         }
-
-        <div class="card overflow-hidden">
-          <div class="border-b border-slate-100 px-4 py-3">
-            <h3 class="text-sm font-semibold text-slate-900">Trading days</h3>
-            <p class="text-xs text-slate-500">Click a date to see every stock traded that day</p>
-          </div>
-          <div class="max-h-96 divide-y divide-slate-100 overflow-y-auto">
-            @for (day of tradingDays(); track day.period) {
-              <button
-                type="button"
-                class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
-                [class.bg-kairo-50]="selectedDate() === day.period"
-                (click)="toggleDate(day.period)"
-              >
-                <div>
-                  <p class="font-medium text-slate-900">{{ day.label }}</p>
-                  <p class="text-xs text-slate-500">{{ day.tradeCount }} trades · {{ day.winRate | number: '1.0-0' }}% win</p>
-                </div>
-                <p class="font-bold tabular-nums" [class]="pnlClass(day.netPnL)">{{ formatCurrency(day.netPnL) }}</p>
-              </button>
-            } @empty {
-              <p class="px-4 py-6 text-center text-sm text-slate-400">No daily data</p>
-            }
-          </div>
-        </div>
 
         <div class="grid gap-4 lg:grid-cols-2">
           <div class="card overflow-hidden">
