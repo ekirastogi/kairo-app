@@ -92,8 +92,8 @@ type AnalyticsTab =
   | 'costs';
 
 const ANALYTICS_TABS: AnalyticsTab[] = [
-  'overview',
   'stocks',
+  'overview',
   'tiers',
   'daily',
   'weekly',
@@ -200,8 +200,8 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   readonly pnlClass = pnlClass;
   readonly tradeTypeLabels = TRADE_TYPE_LABELS;
   readonly tabs: { id: AnalyticsTab; label: string }[] = [
-    { id: 'overview', label: 'Overview' },
     { id: 'stocks', label: 'Stocks' },
+    { id: 'overview', label: 'Overview' },
     { id: 'tiers', label: 'Tiers' },
     { id: 'daily', label: 'Daily' },
     { id: 'weekly', label: 'Weekly' },
@@ -226,7 +226,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
 
   private chartVersion = signal(0);
   winRateShowDots = signal(false);
-  activeTab = signal<AnalyticsTab>('overview');
+  activeTab = signal<AnalyticsTab>('stocks');
 
   analysis = computed(() => this.state.analysis());
   chargeRatio = computed(() => this.analysis()?.summary.chargeRatio ?? 0);
