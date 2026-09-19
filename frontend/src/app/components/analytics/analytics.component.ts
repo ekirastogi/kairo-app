@@ -303,7 +303,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     if (tab === 'stocks' || tab === 'tiers') {
       void this.customLists.ensureLoaded();
     }
-    if (tab === 'daily') {
+    if (tab === 'daily' || tab === 'overview') {
       this.syncDailyCalendarToLatest();
     }
     void this.router.navigate([], {
@@ -317,6 +317,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   selectedDate = signal<string | null>(null);
   selectedWeek = signal<string | null>(null);
   selectedMonth = signal<string | null>(null);
+  selectedWeekday = signal<string | null>(null);
   dailyCalendarYear = signal(new Date().getFullYear());
   dailyCalendarMonth = signal(new Date().getMonth() + 1);
   weeklyCalendarYear = signal(new Date().getFullYear());
@@ -327,6 +328,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     const next = this.selectedDate() === period ? null : period;
     this.selectedDate.set(next);
     if (next) {
+      this.clearOtherPeriodSelections('date');
       this.focusDailyCalendarOn(next);
       void this.loadSelectedPeriodTrades('daily', next);
     }
@@ -336,6 +338,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     const next = this.selectedWeek() === period ? null : period;
     this.selectedWeek.set(next);
     if (next) {
+      this.clearOtherPeriodSelections('week');
       const year = Number(period.slice(0, 4));
       if (year) this.weeklyCalendarYear.set(year);
       void this.loadSelectedPeriodTrades('weekly', next);
@@ -346,10 +349,27 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     const next = this.selectedMonth() === period ? null : period;
     this.selectedMonth.set(next);
     if (next) {
+      this.clearOtherPeriodSelections('month');
       const year = Number(period.slice(0, 4));
       if (year) this.monthlyCalendarYear.set(year);
       void this.loadSelectedPeriodTrades('monthly', next);
     }
+  }
+
+  toggleWeekday(key: string): void {
+    const next = this.selectedWeekday() === key ? null : key;
+    this.selectedWeekday.set(next);
+    if (next) {
+      this.clearOtherPeriodSelections('weekday');
+      void this.loadSelectedPeriodTrades('weekday', next);
+    }
+  }
+
+  private clearOtherPeriodSelections(keep: 'date' | 'week' | 'month' | 'weekday'): void {
+    if (keep !== 'date') this.selectedDate.set(null);
+    if (keep !== 'week') this.selectedWeek.set(null);
+    if (keep !== 'month') this.selectedMonth.set(null);
+    if (keep !== 'weekday') this.selectedWeekday.set(null);
   }
 
   private focusDailyCalendarOn(period: string): void {
@@ -360,7 +380,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   }
 
   private async loadSelectedPeriodTrades(
-    tab: 'daily' | 'weekly' | 'monthly',
+    tab: 'daily' | 'weekly' | 'monthly' | 'weekday',
     period: string
   ): Promise<void> {
     const report = this.state.report();
@@ -387,6 +407,10 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     () => this.analysis()?.monthly.find((d) => d.period === this.selectedMonth()) ?? null
   );
 
+  selectedWeekdayBucket = computed(
+    () => this.weekdayBuckets().find((b) => b.key === this.selectedWeekday()) ?? null
+  );
+
   isSelectedDayLoading = computed(() => {
     const date = this.selectedDate();
     if (!date) return false;
@@ -405,8 +429,14 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     return this.lazyTrades.isLoading(this.lazyTrades.cacheKeyForPeriod('monthly', period));
   });
 
+  isSelectedWeekdayLoading = computed(() => {
+    const key = this.selectedWeekday();
+    if (!key) return false;
+    return this.lazyTrades.isLoading(this.lazyTrades.cacheKeyForPeriod('weekday', key));
+  });
+
   private stocksForPeriodTrades(
-    tab: 'daily' | 'weekly' | 'monthly',
+    tab: 'daily' | 'weekly' | 'monthly' | 'weekday',
     period: string | null,
     embeddedTrades: Trade[] | undefined
   ): StockSummary[] {
@@ -539,6 +569,15 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   selectedMonthStocks = computed(() =>
     this.stocksForPeriodTrades('monthly', this.selectedMonth(), this.selectedMonthBucket()?.trades)
   );
+
+  selectedWeekdayStocks = computed(() =>
+    this.stocksForPeriodTrades('weekday', this.selectedWeekday(), undefined)
+  );
+
+  weekdayWinRate(bucket: { tradeCount: number; winningTrades: number } | null): number {
+    if (!bucket?.tradeCount) return 0;
+    return (bucket.winningTrades / bucket.tradeCount) * 100;
+  }
 
   weeksInCalendarYear = computed(() => {
     const year = this.weeklyCalendarYear();

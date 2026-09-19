@@ -63,9 +63,9 @@ export class ExpandableStocksTableComponent {
   columns = input<ExpandableStockColumn[] | null>(null);
   /**
    * When set with periodKey, expanded stock trades are clipped to that
-   * daily / weekly / monthly bucket — never the full filter window.
+   * daily / weekly / monthly / weekday bucket — never the full filter window.
    */
-  periodTab = input<'daily' | 'weekly' | 'monthly' | null>(null);
+  periodTab = input<'daily' | 'weekly' | 'monthly' | 'weekday' | null>(null);
   periodKey = input<string | null>(null);
 
   sortColumn = signal<ExpandableStockColumn>('netPnL');

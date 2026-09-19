@@ -59,13 +59,13 @@ export class LazyTradeLoaderService {
 
   cacheKeyForStockInPeriod(
     stock: StockSummary,
-    tab: 'daily' | 'weekly' | 'monthly',
+    tab: PeriodScopeTab,
     periodKey: string
   ): string {
     return `stock:${stockIdentityKey(stock)}:${tab}:${periodKey}:${this.filterKey()}`;
   }
 
-  cacheKeyForPeriod(tab: 'daily' | 'weekly' | 'monthly', periodKey: string): string {
+  cacheKeyForPeriod(tab: PeriodScopeTab, periodKey: string): string {
     return `period:${tab}:${periodKey}:${this.filterKey()}`;
   }
 
@@ -122,7 +122,7 @@ export class LazyTradeLoaderService {
   async loadForStockInPeriod(
     clientCode: string,
     stock: StockSummary,
-    tab: 'daily' | 'weekly' | 'monthly',
+    tab: PeriodScopeTab,
     periodKey: string,
     report: Report | null,
     filters: AnalysisOptions
@@ -142,7 +142,7 @@ export class LazyTradeLoaderService {
   async loadForPeriod(
     clientCode: string,
     periodKey: string,
-    tab: 'daily' | 'weekly' | 'monthly',
+    tab: PeriodScopeTab,
     report: Report | null,
     filters: AnalysisOptions
   ): Promise<Trade[]> {
@@ -150,18 +150,27 @@ export class LazyTradeLoaderService {
     const cached = this.lists().get(key);
     if (cached) return cached;
 
-    const periodRange = periodDateRange(periodKey, tab);
     const effective = this.effectiveFilters(report, filters);
-    const mergedFilters: AnalysisOptions = {
-      ...filters,
-      startDate: intersectStart(periodRange.start, effective.startDate ?? ''),
-      endDate: intersectEnd(periodRange.end, effective.endDate ?? ''),
-    };
+    const mergedFilters: AnalysisOptions =
+      tab === 'weekday'
+        ? { ...filters, startDate: effective.startDate, endDate: effective.endDate }
+        : (() => {
+            const periodRange = periodDateRange(periodKey, tab);
+            return {
+              ...filters,
+              startDate: intersectStart(periodRange.start, effective.startDate ?? ''),
+              endDate: intersectEnd(periodRange.end, effective.endDate ?? ''),
+            };
+          })();
+
+    const weekdayFilter =
+      tab === 'weekday' ? (trade: Trade) => tradeWeekday(trade) === Number(periodKey) : null;
 
     if (report?.trades?.length) {
-      const trades = this.filterTradesByOptions(report.trades, mergedFilters);
-      this.setCache(key, trades);
-      return trades;
+      let trades = this.filterTradesByOptions(report.trades, mergedFilters);
+      if (weekdayFilter) trades = trades.filter(weekdayFilter);
+      this.setCache(key, sortTradesBySellDateDesc(trades));
+      return this.lists().get(key)!;
     }
 
     this.loadingKey.set(key);
@@ -172,9 +181,10 @@ export class LazyTradeLoaderService {
         mergedFilters.endDate!,
         mergedFilters
       );
-      const trades = sortTradesBySellDateDesc(rows.map(storedTradeToTrade));
-      this.setCache(key, trades);
-      return trades;
+      let trades = rows.map(storedTradeToTrade);
+      if (weekdayFilter) trades = trades.filter(weekdayFilter);
+      this.setCache(key, sortTradesBySellDateDesc(trades));
+      return this.lists().get(key)!;
     } finally {
       this.loadingKey.set(null);
     }
@@ -239,6 +249,12 @@ function intersectStart(periodStart: string, filterStart: string): string {
 function intersectEnd(periodEnd: string, filterEnd: string): string {
   if (!filterEnd) return periodEnd;
   return filterEnd < periodEnd ? filterEnd : periodEnd;
+}
+
+export type PeriodScopeTab = 'daily' | 'weekly' | 'monthly' | 'weekday';
+
+function tradeWeekday(trade: Trade): number {
+  return new Date(`${trade.sellDate}T12:00:00`).getDay();
 }
 
 export function periodDateRange(
