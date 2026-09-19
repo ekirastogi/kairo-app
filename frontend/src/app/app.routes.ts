@@ -14,6 +14,11 @@ export const routes: Routes = [
     children: [
       {
         path: '',
+        redirectTo: 'analytics',
+        pathMatch: 'full',
+      },
+      {
+        path: 'signals',
         component: SignalsComponent,
         data: { title: 'Signals', subtitle: 'Trade recommendations from your engine' },
       },
@@ -131,7 +136,6 @@ export const routes: Routes = [
           import('./components/stock-detail/stock-detail.component').then((m) => m.StockDetailComponent),
         data: { title: 'Stock', subtitle: '' },
       },
-      { path: 'signals', redirectTo: '', pathMatch: 'full' },
       { path: 'heatmap', redirectTo: 'analytics', pathMatch: 'full' },
       {
         path: 'settings',

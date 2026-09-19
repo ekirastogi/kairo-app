@@ -1,13 +1,19 @@
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { BRAND } from '../../../constants/brand';
 
 @Component({
   selector: 'app-brand-logo',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterLink],
   template: `
-    <div class="flex items-center" [class]="compact ? 'gap-2' : 'gap-3'">
+    <a
+      routerLink="/"
+      class="flex items-center outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-kairo-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+      [class]="compact ? 'gap-2' : 'gap-3'"
+      [attr.aria-label]="BRAND.name + ' home'"
+    >
       <div
         class="flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-kairo-400 to-kairo-600 shadow-lg shadow-kairo-500/20"
         [class]="compact ? 'h-8 w-8' : 'h-10 w-10'"
@@ -33,7 +39,7 @@ import { BRAND } from '../../../constants/brand';
           }
         </div>
       }
-    </div>
+    </a>
   `,
 })
 export class BrandLogoComponent {
