@@ -102,8 +102,8 @@ export class CorporateActionService {
   /** Ensure Mindtree + TV18 seeds exist (idempotent by from→to symbol pair). */
   async ensureSeeded(): Promise<CorporateAction[]> {
     const existing = await this.listAll();
-    const byPair = new Map(
-      existing.map((a) => [`${normalizeSymbol(a.fromSymbol)}->${normalizeSymbol(a.toSymbol)}`, a] as const)
+    const byPair = new Map<string, CorporateAction>(
+      existing.map((a) => [`${normalizeSymbol(a.fromSymbol)}->${normalizeSymbol(a.toSymbol)}`, a])
     );
     for (const seed of SEEDED_CORPORATE_ACTIONS) {
       const key = `${normalizeSymbol(seed.fromSymbol)}->${normalizeSymbol(seed.toSymbol)}`;
