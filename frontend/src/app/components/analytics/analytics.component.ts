@@ -17,7 +17,7 @@ import { FilteredStockService } from '../../services/filtered-stock.service';
 import { LazyTradeLoaderService } from '../../services/lazy-trade-loader.service';
 import { CustomStockListService } from '../../services/custom-stock-list.service';
 import { AnalysisService } from '../../services/analysis.service';
-import { TRADE_TYPE_LABELS, TradeType } from '../../models/trade.models';
+import { PeriodBucket, TRADE_TYPE_LABELS, TradeType } from '../../models/trade.models';
 import { formatCompactCurrency, formatCurrency, formatDate, pnlClass } from '../../utils/format.utils';
 import { holdingsTotals } from '../../utils/holdings.utils';
 import { stockIdentityKey } from '../../utils/stock-identity.utils';
@@ -55,8 +55,10 @@ import {
 } from '../../utils/stock-scenario.utils';
 import {
   CalendarBucket,
+  PeriodAnalysisStats,
   aggregateByWeekday,
   aggregateByDayOfMonth,
+  analysePeriods,
   avgNetPerTrade,
   heatClass,
   pickExtremeBucket,
@@ -577,6 +579,64 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   topDailyLosses = computed(() =>
     [...(this.analysis()?.daily ?? [])].sort((a, b) => a.netPnL - b.netPnL).slice(0, 5)
   );
+
+  sortedWeekly = computed(() =>
+    [...(this.analysis()?.weekly ?? [])].sort((a, b) => a.period.localeCompare(b.period))
+  );
+
+  sortedMonthly = computed(() =>
+    [...(this.analysis()?.monthly ?? [])].sort((a, b) => a.period.localeCompare(b.period))
+  );
+
+  dailyPeriodStats = computed((): PeriodAnalysisStats | null =>
+    analysePeriods(this.sortedDaily())
+  );
+
+  weeklyPeriodStats = computed((): PeriodAnalysisStats | null =>
+    analysePeriods(this.sortedWeekly())
+  );
+
+  monthlyPeriodStats = computed((): PeriodAnalysisStats | null =>
+    analysePeriods(this.sortedMonthly())
+  );
+
+  topWeeklyWins = computed(() =>
+    [...(this.analysis()?.weekly ?? [])].sort((a, b) => b.netPnL - a.netPnL).slice(0, 5)
+  );
+
+  topWeeklyLosses = computed(() =>
+    [...(this.analysis()?.weekly ?? [])].sort((a, b) => a.netPnL - b.netPnL).slice(0, 5)
+  );
+
+  topMonthlyWins = computed(() =>
+    [...(this.analysis()?.monthly ?? [])].sort((a, b) => b.netPnL - a.netPnL).slice(0, 5)
+  );
+
+  topMonthlyLosses = computed(() =>
+    [...(this.analysis()?.monthly ?? [])].sort((a, b) => a.netPnL - b.netPnL).slice(0, 5)
+  );
+
+  dailyVolumeChartConfig = computed(() => this.buildVolumeChart(this.sortedDaily()));
+  weeklyVolumeChartConfig = computed(() => this.buildVolumeChart(this.sortedWeekly()));
+  monthlyVolumeChartConfig = computed(() => this.buildVolumeChart(this.sortedMonthly()));
+
+  dailyWinRateChartConfig = computed(() => this.buildWinRateOverlayChart(this.sortedDaily()));
+  weeklyWinRateChartConfig = computed(() => this.buildWinRateOverlayChart(this.sortedWeekly()));
+  monthlyWinRateChartConfig = computed(() => this.buildWinRateOverlayChart(this.sortedMonthly()));
+
+  dailyChargesChartConfig = computed(() => this.buildChargesChart(this.sortedDaily()));
+  weeklyChargesChartConfig = computed(() => this.buildChargesChart(this.sortedWeekly()));
+  monthlyChargesChartConfig = computed(() => this.buildChargesChart(this.sortedMonthly()));
+
+  weeklyCumulativeChartConfig = computed(() => this.buildCumulativePeriodChart(this.sortedWeekly()));
+  monthlyCumulativeChartConfig = computed(() => this.buildCumulativePeriodChart(this.sortedMonthly()));
+
+  dailyAvgNetTradeChartConfig = computed(() => this.buildAvgNetPerTradeChart(this.sortedDaily()));
+  weeklyAvgNetTradeChartConfig = computed(() => this.buildAvgNetPerTradeChart(this.sortedWeekly()));
+  monthlyAvgNetTradeChartConfig = computed(() => this.buildAvgNetPerTradeChart(this.sortedMonthly()));
+
+  weeklyWinLossChartConfig = computed(() => this.buildWinLossCountChart(this.sortedWeekly()));
+  monthlyWinLossChartConfig = computed(() => this.buildWinLossCountChart(this.sortedMonthly()));
 
   bestWorstTrades = computed(() => {
     const trades = this.analysis()?.filteredTrades ?? [];
@@ -1221,6 +1281,181 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
 
   onFiltersChanged(): void {
     this.chartVersion.update((v) => v + 1);
+  }
+
+  private buildVolumeChart(buckets: PeriodBucket[]): ChartConfiguration | null {
+    this.chartVersion();
+    if (!buckets.length) return null;
+    const mobile = isMobileChart();
+    return withDecimation({
+      type: 'bar',
+      data: {
+        labels: buckets.map((d) => abbreviateLabel(d.label, mobile ? 8 : 14)),
+        datasets: [{
+          label: 'Trades',
+          data: buckets.map((d) => d.tradeCount),
+          backgroundColor: CHART_COLORS.secondary,
+          hoverBackgroundColor: '#4f46e5',
+          borderRadius: 6,
+          maxBarThickness: 48,
+        }],
+      },
+      options: countBarChartOptions(''),
+    });
+  }
+
+  private buildWinRateOverlayChart(buckets: PeriodBucket[]): ChartConfiguration | null {
+    this.chartVersion();
+    const rows = buckets.filter((d) => d.tradeCount > 0);
+    if (!rows.length) return null;
+    const mobile = isMobileChart();
+    return withDecimation({
+      type: 'bar',
+      data: {
+        labels: rows.map((d) => abbreviateLabel(d.label, mobile ? 8 : 14)),
+        datasets: [
+          {
+            ...buildPnLBarDataset('Net P&L', rows.map((d) => d.netPnL)),
+            type: 'bar',
+            yAxisID: 'yPnL',
+            order: 2,
+          },
+          {
+            ...buildLineDataset('Win Rate', rows.map((d) => d.winRate), CHART_COLORS.primary),
+            type: 'line',
+            yAxisID: 'yWin',
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            borderWidth: 2,
+            order: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index' as const, intersect: false },
+        plugins: {
+          ...baseLegendPublic(true),
+          title: { display: false },
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: mobile ? 6 : 12 },
+          },
+          yPnL: {
+            position: 'left' as const,
+            grid: { color: 'rgba(148,163,184,0.15)' },
+            ticks: {
+              callback: (v) => formatCompactCurrency(Number(v)),
+            },
+          },
+          yWin: {
+            position: 'right' as const,
+            min: 0,
+            max: 100,
+            grid: { drawOnChartArea: false },
+            ticks: {
+              callback: (v) => `${v}%`,
+            },
+          },
+        },
+      },
+    });
+  }
+
+  private buildChargesChart(buckets: PeriodBucket[]): ChartConfiguration | null {
+    this.chartVersion();
+    if (!buckets.length) return null;
+    const mobile = isMobileChart();
+    return withDecimation({
+      type: 'bar',
+      data: {
+        labels: buckets.map((d) => abbreviateLabel(d.label, mobile ? 8 : 12)),
+        datasets: [
+          {
+            label: 'Realised P&L',
+            data: buckets.map((d) => d.realisedPnL),
+            backgroundColor: CHART_COLORS.successSoft,
+            borderRadius: 6,
+            maxBarThickness: 40,
+          },
+          {
+            label: 'Charges',
+            data: buckets.map((d) => d.allocatedCharges),
+            backgroundColor: CHART_COLORS.dangerSoft,
+            borderRadius: 6,
+            maxBarThickness: 40,
+          },
+        ],
+      },
+      options: groupedBarChartOptions(''),
+    });
+  }
+
+  private buildCumulativePeriodChart(buckets: PeriodBucket[]): ChartConfiguration | null {
+    this.chartVersion();
+    if (!buckets.length) return null;
+    const mobile = isMobileChart();
+    let cumulative = 0;
+    const cumData = buckets.map((d) => {
+      cumulative += d.netPnL;
+      return cumulative;
+    });
+    return withDecimation({
+      type: 'line',
+      data: {
+        labels: buckets.map((d) => abbreviateLabel(d.label, mobile ? 8 : 12)),
+        datasets: [buildZeroSplitLineDataset('Cumulative net', cumData)],
+      },
+      options: lineChartOptions(''),
+    });
+  }
+
+  private buildAvgNetPerTradeChart(buckets: PeriodBucket[]): ChartConfiguration | null {
+    this.chartVersion();
+    const rows = buckets.filter((d) => d.tradeCount > 0);
+    if (!rows.length) return null;
+    const mobile = isMobileChart();
+    const values = rows.map((d) => d.netPnL / d.tradeCount);
+    return withDecimation({
+      type: 'bar',
+      data: {
+        labels: rows.map((d) => abbreviateLabel(d.label, mobile ? 8 : 14)),
+        datasets: [buildPnLBarDataset('Avg net / trade', values)],
+      },
+      options: barChartOptions(''),
+    });
+  }
+
+  private buildWinLossCountChart(buckets: PeriodBucket[]): ChartConfiguration | null {
+    this.chartVersion();
+    if (!buckets.length) return null;
+    const mobile = isMobileChart();
+    return withDecimation({
+      type: 'bar',
+      data: {
+        labels: buckets.map((d) => abbreviateLabel(d.label, mobile ? 8 : 14)),
+        datasets: [
+          {
+            label: 'Winning trades',
+            data: buckets.map((d) => d.winningTrades),
+            backgroundColor: 'rgba(16,185,129,0.82)',
+            borderRadius: 4,
+            maxBarThickness: 24,
+          },
+          {
+            label: 'Losing trades',
+            data: buckets.map((d) => d.losingTrades),
+            backgroundColor: 'rgba(239,68,68,0.82)',
+            borderRadius: 4,
+            maxBarThickness: 24,
+          },
+        ],
+      },
+      options: groupedBarChartOptions(''),
+    });
   }
 
   private buildPeriodChart(): ChartConfiguration | null {

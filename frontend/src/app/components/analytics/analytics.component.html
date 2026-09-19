@@ -137,6 +137,67 @@
 
       <!-- DAILY -->
       @if (activeTab() === 'daily') {
+        @if (dailyPeriodStats(); as stats) {
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Green days</p>
+              <p class="mt-1 text-lg font-bold tabular-nums text-slate-900">{{ stats.greenCount }}/{{ stats.periodCount }}</p>
+              <p class="text-xs text-slate-500">{{ stats.greenRate | number:'1.0-0' }}% profitable</p>
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Avg net / day</p>
+              <p class="mt-1 text-lg font-bold tabular-nums" [class]="pnlClass(stats.avgNetPerPeriod)">{{ formatCurrency(stats.avgNetPerPeriod) }}</p>
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Avg net / trade</p>
+              <p class="mt-1 text-lg font-bold tabular-nums" [class]="pnlClass(stats.avgNetPerTrade)">{{ formatCurrency(stats.avgNetPerTrade) }}</p>
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Avg win rate</p>
+              <p class="mt-1 text-lg font-bold tabular-nums text-slate-900">{{ stats.avgWinRate | number:'1.0-0' }}%</p>
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Profit factor</p>
+              <p class="mt-1 text-lg font-bold tabular-nums text-slate-900">{{ stats.profitFactor == null ? '∞' : (stats.profitFactor | number:'1.2-2') }}</p>
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Charges</p>
+              <p class="mt-1 text-lg font-bold tabular-nums text-red-600">{{ formatCurrency(stats.totalCharges) }}</p>
+            </div>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div class="insight-card insight-card-best">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Best win streak</p>
+              @if (stats.bestStreak; as streak) {
+                <p class="mt-1 font-bold text-slate-900">{{ streak.length }} days</p>
+                <p class="text-xs text-slate-500">{{ streak.startLabel }} → {{ streak.endLabel }}</p>
+                <p class="text-sm font-semibold text-emerald-600">{{ formatCurrency(streak.netPnL) }}</p>
+              } @else {
+                <p class="mt-1 text-sm text-slate-400">—</p>
+              }
+            </div>
+            <div class="insight-card insight-card-worst">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-red-700">Worst loss streak</p>
+              @if (stats.worstStreak; as streak) {
+                <p class="mt-1 font-bold text-slate-900">{{ streak.length }} days</p>
+                <p class="text-xs text-slate-500">{{ streak.startLabel }} → {{ streak.endLabel }}</p>
+                <p class="text-sm font-semibold text-red-600">{{ formatCurrency(streak.netPnL) }}</p>
+              } @else {
+                <p class="mt-1 text-sm text-slate-400">—</p>
+              }
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Current streak</p>
+              @if (stats.currentStreak; as streak) {
+                <p class="mt-1 font-bold text-slate-900">{{ streak.length }} {{ streak.kind === 'win' ? 'green' : 'red' }} days</p>
+                <p class="text-sm font-semibold" [class]="pnlClass(streak.netPnL)">{{ formatCurrency(streak.netPnL) }}</p>
+              } @else {
+                <p class="mt-1 text-sm text-slate-400">—</p>
+              }
+            </div>
+          </div>
+        }
+
         <div class="grid gap-4">
           <app-chart-card
             [config]="dailyNetPnLChartConfig()"
@@ -144,11 +205,34 @@
             subtitle="Day-by-day profit and loss with cumulative curve"
             size="lg"
           />
-          <app-chart-card
-            [config]="winLossByDateChartConfig()"
-            title="Winning vs losing trades per day"
-            subtitle="Daily trade outcome count"
-          />
+          <div class="grid gap-4 lg:grid-cols-2">
+            <app-chart-card
+              [config]="winLossByDateChartConfig()"
+              title="Winning vs losing trades"
+              subtitle="Daily trade outcome count"
+            />
+            <app-chart-card
+              [config]="dailyWinRateChartConfig()"
+              title="Win rate vs net P&amp;L"
+              subtitle="Daily win rate overlaid on net P&amp;L"
+            />
+            <app-chart-card
+              [config]="dailyVolumeChartConfig()"
+              title="Trade volume"
+              subtitle="How active each trading day was"
+            />
+            <app-chart-card
+              [config]="dailyAvgNetTradeChartConfig()"
+              title="Avg net per trade"
+              subtitle="Efficiency of each trading day"
+            />
+            <app-chart-card
+              [config]="dailyChargesChartConfig()"
+              title="P&amp;L vs charges"
+              subtitle="How much charges eat into daily realised P&amp;L"
+              class="lg:col-span-2"
+            />
+          </div>
         </div>
 
         @if (selectedDay(); as day) {
@@ -252,9 +336,76 @@
 
       <!-- WEEKLY -->
       @if (activeTab() === 'weekly') {
+        @if (weeklyPeriodStats(); as stats) {
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Green weeks</p>
+              <p class="mt-1 text-lg font-bold tabular-nums text-slate-900">{{ stats.greenCount }}/{{ stats.periodCount }}</p>
+              <p class="text-xs text-slate-500">{{ stats.greenRate | number:'1.0-0' }}% profitable</p>
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Avg net / week</p>
+              <p class="mt-1 text-lg font-bold tabular-nums" [class]="pnlClass(stats.avgNetPerPeriod)">{{ formatCurrency(stats.avgNetPerPeriod) }}</p>
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Avg net / trade</p>
+              <p class="mt-1 text-lg font-bold tabular-nums" [class]="pnlClass(stats.avgNetPerTrade)">{{ formatCurrency(stats.avgNetPerTrade) }}</p>
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Avg win rate</p>
+              <p class="mt-1 text-lg font-bold tabular-nums text-slate-900">{{ stats.avgWinRate | number:'1.0-0' }}%</p>
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Profit factor</p>
+              <p class="mt-1 text-lg font-bold tabular-nums text-slate-900">{{ stats.profitFactor == null ? '∞' : (stats.profitFactor | number:'1.2-2') }}</p>
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Charges</p>
+              <p class="mt-1 text-lg font-bold tabular-nums text-red-600">{{ formatCurrency(stats.totalCharges) }}</p>
+            </div>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div class="insight-card insight-card-best">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Best win streak</p>
+              @if (stats.bestStreak; as streak) {
+                <p class="mt-1 font-bold text-slate-900">{{ streak.length }} weeks</p>
+                <p class="text-xs text-slate-500">{{ streak.startLabel }} → {{ streak.endLabel }}</p>
+                <p class="text-sm font-semibold text-emerald-600">{{ formatCurrency(streak.netPnL) }}</p>
+              } @else {
+                <p class="mt-1 text-sm text-slate-400">—</p>
+              }
+            </div>
+            <div class="insight-card insight-card-worst">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-red-700">Worst loss streak</p>
+              @if (stats.worstStreak; as streak) {
+                <p class="mt-1 font-bold text-slate-900">{{ streak.length }} weeks</p>
+                <p class="text-xs text-slate-500">{{ streak.startLabel }} → {{ streak.endLabel }}</p>
+                <p class="text-sm font-semibold text-red-600">{{ formatCurrency(streak.netPnL) }}</p>
+              } @else {
+                <p class="mt-1 text-sm text-slate-400">—</p>
+              }
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Current streak</p>
+              @if (stats.currentStreak; as streak) {
+                <p class="mt-1 font-bold text-slate-900">{{ streak.length }} {{ streak.kind === 'win' ? 'green' : 'red' }} weeks</p>
+                <p class="text-sm font-semibold" [class]="pnlClass(streak.netPnL)">{{ formatCurrency(streak.netPnL) }}</p>
+              } @else {
+                <p class="mt-1 text-sm text-slate-400">—</p>
+              }
+            </div>
+          </div>
+        }
+
         <div class="grid gap-4 lg:grid-cols-2">
           <app-chart-card [config]="weeklyChartConfig()" title="Weekly net P&amp;L" subtitle="Performance by trading week" size="lg" />
+          <app-chart-card [config]="weeklyCumulativeChartConfig()" title="Cumulative weekly net" subtitle="How weekly results compound over time" size="lg" />
           <app-chart-card [config]="weekdayChartConfig()" title="Weekday pattern" subtitle="Aggregate P&amp;L by day of week (Mon–Sun)" size="lg" />
+          <app-chart-card [config]="weeklyWinRateChartConfig()" title="Win rate vs net P&amp;L" subtitle="Weekly win rate overlaid on net P&amp;L" />
+          <app-chart-card [config]="weeklyVolumeChartConfig()" title="Trade volume" subtitle="Activity by week" />
+          <app-chart-card [config]="weeklyAvgNetTradeChartConfig()" title="Avg net per trade" subtitle="Weekly trading efficiency" />
+          <app-chart-card [config]="weeklyWinLossChartConfig()" title="Winning vs losing trades" subtitle="Outcomes by week" />
+          <app-chart-card [config]="weeklyChargesChartConfig()" title="P&amp;L vs charges" subtitle="Charge drag on weekly realised P&amp;L" />
         </div>
 
         <div class="card p-4">
@@ -291,13 +442,121 @@
             <p class="text-sm font-semibold text-red-600">{{ worstWeek() ? formatCurrency(worstWeek()!.netPnL) : '—' }}</p>
           </div>
         </div>
+
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div class="card overflow-hidden">
+            <div class="border-b border-slate-100 px-4 py-3">
+              <h3 class="text-sm font-semibold text-slate-900">Best weeks</h3>
+              <p class="text-xs text-slate-500">Top 5 weeks by net P&amp;L</p>
+            </div>
+            <div class="divide-y divide-slate-100">
+              @for (week of topWeeklyWins(); track week.period) {
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p class="font-medium text-slate-900">{{ week.label }}</p>
+                    <p class="text-xs text-slate-500">{{ week.tradeCount }} trades · {{ week.winRate | number:'1.0-0' }}% win</p>
+                  </div>
+                  <p class="font-bold tabular-nums text-emerald-600">{{ formatCurrency(week.netPnL) }}</p>
+                </div>
+              } @empty {
+                <p class="px-4 py-6 text-center text-sm text-slate-400">No weekly data</p>
+              }
+            </div>
+          </div>
+          <div class="card overflow-hidden">
+            <div class="border-b border-slate-100 px-4 py-3">
+              <h3 class="text-sm font-semibold text-slate-900">Worst weeks</h3>
+              <p class="text-xs text-slate-500">Bottom 5 weeks by net P&amp;L</p>
+            </div>
+            <div class="divide-y divide-slate-100">
+              @for (week of topWeeklyLosses(); track week.period) {
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p class="font-medium text-slate-900">{{ week.label }}</p>
+                    <p class="text-xs text-slate-500">{{ week.tradeCount }} trades · {{ week.winRate | number:'1.0-0' }}% win</p>
+                  </div>
+                  <p class="font-bold tabular-nums text-red-600">{{ formatCurrency(week.netPnL) }}</p>
+                </div>
+              } @empty {
+                <p class="px-4 py-6 text-center text-sm text-slate-400">No weekly data</p>
+              }
+            </div>
+          </div>
+        </div>
       }
 
       <!-- MONTHLY -->
       @if (activeTab() === 'monthly') {
-        <div class="grid gap-4">
-          <app-chart-card [config]="monthlyChartConfig()" title="Monthly net P&amp;L" subtitle="Month-by-month performance" size="lg" />
+        @if (monthlyPeriodStats(); as stats) {
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Green months</p>
+              <p class="mt-1 text-lg font-bold tabular-nums text-slate-900">{{ stats.greenCount }}/{{ stats.periodCount }}</p>
+              <p class="text-xs text-slate-500">{{ stats.greenRate | number:'1.0-0' }}% profitable</p>
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Avg net / month</p>
+              <p class="mt-1 text-lg font-bold tabular-nums" [class]="pnlClass(stats.avgNetPerPeriod)">{{ formatCurrency(stats.avgNetPerPeriod) }}</p>
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Avg net / trade</p>
+              <p class="mt-1 text-lg font-bold tabular-nums" [class]="pnlClass(stats.avgNetPerTrade)">{{ formatCurrency(stats.avgNetPerTrade) }}</p>
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Avg win rate</p>
+              <p class="mt-1 text-lg font-bold tabular-nums text-slate-900">{{ stats.avgWinRate | number:'1.0-0' }}%</p>
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Profit factor</p>
+              <p class="mt-1 text-lg font-bold tabular-nums text-slate-900">{{ stats.profitFactor == null ? '∞' : (stats.profitFactor | number:'1.2-2') }}</p>
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Charges</p>
+              <p class="mt-1 text-lg font-bold tabular-nums text-red-600">{{ formatCurrency(stats.totalCharges) }}</p>
+            </div>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div class="insight-card insight-card-best">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Best win streak</p>
+              @if (stats.bestStreak; as streak) {
+                <p class="mt-1 font-bold text-slate-900">{{ streak.length }} months</p>
+                <p class="text-xs text-slate-500">{{ streak.startLabel }} → {{ streak.endLabel }}</p>
+                <p class="text-sm font-semibold text-emerald-600">{{ formatCurrency(streak.netPnL) }}</p>
+              } @else {
+                <p class="mt-1 text-sm text-slate-400">—</p>
+              }
+            </div>
+            <div class="insight-card insight-card-worst">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-red-700">Worst loss streak</p>
+              @if (stats.worstStreak; as streak) {
+                <p class="mt-1 font-bold text-slate-900">{{ streak.length }} months</p>
+                <p class="text-xs text-slate-500">{{ streak.startLabel }} → {{ streak.endLabel }}</p>
+                <p class="text-sm font-semibold text-red-600">{{ formatCurrency(streak.netPnL) }}</p>
+              } @else {
+                <p class="mt-1 text-sm text-slate-400">—</p>
+              }
+            </div>
+            <div class="insight-card">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Current streak</p>
+              @if (stats.currentStreak; as streak) {
+                <p class="mt-1 font-bold text-slate-900">{{ streak.length }} {{ streak.kind === 'win' ? 'green' : 'red' }} months</p>
+                <p class="text-sm font-semibold" [class]="pnlClass(streak.netPnL)">{{ formatCurrency(streak.netPnL) }}</p>
+              } @else {
+                <p class="mt-1 text-sm text-slate-400">—</p>
+              }
+            </div>
+          </div>
+        }
+
+        <div class="grid gap-4 lg:grid-cols-2">
+          <app-chart-card [config]="monthlyChartConfig()" title="Monthly net P&amp;L" subtitle="Month-by-month performance" size="lg" class="lg:col-span-2" />
+          <app-chart-card [config]="monthlyCumulativeChartConfig()" title="Cumulative monthly net" subtitle="How months compound over time" size="lg" />
           <app-chart-card [config]="dayOfMonthChartConfig()" title="Day-of-month pattern" subtitle="Which dates in the month tend to be profitable" />
+          <app-chart-card [config]="monthlyWinRateChartConfig()" title="Win rate vs net P&amp;L" subtitle="Monthly win rate overlaid on net P&amp;L" />
+          <app-chart-card [config]="monthlyVolumeChartConfig()" title="Trade volume" subtitle="Activity by month" />
+          <app-chart-card [config]="monthlyAvgNetTradeChartConfig()" title="Avg net per trade" subtitle="Monthly trading efficiency" />
+          <app-chart-card [config]="monthlyWinLossChartConfig()" title="Winning vs losing trades" subtitle="Outcomes by month" />
+          <app-chart-card [config]="monthlyChargesChartConfig()" title="P&amp;L vs charges" subtitle="Charge drag on monthly realised P&amp;L" class="lg:col-span-2" />
         </div>
 
         <div class="card p-4">
@@ -335,6 +594,47 @@
             <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Worst date of month</p>
             <p class="mt-1 font-bold text-slate-900">{{ worstDayOfMonth() ? 'Day ' + worstDayOfMonth()!.label : '—' }}</p>
             <p class="text-sm font-semibold text-red-600">{{ worstDayOfMonth() ? formatCurrency(worstDayOfMonth()!.netPnL) : '—' }}</p>
+          </div>
+        </div>
+
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div class="card overflow-hidden">
+            <div class="border-b border-slate-100 px-4 py-3">
+              <h3 class="text-sm font-semibold text-slate-900">Best months</h3>
+              <p class="text-xs text-slate-500">Top 5 months by net P&amp;L</p>
+            </div>
+            <div class="divide-y divide-slate-100">
+              @for (month of topMonthlyWins(); track month.period) {
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p class="font-medium text-slate-900">{{ month.label }}</p>
+                    <p class="text-xs text-slate-500">{{ month.tradeCount }} trades · {{ month.winRate | number:'1.0-0' }}% win</p>
+                  </div>
+                  <p class="font-bold tabular-nums text-emerald-600">{{ formatCurrency(month.netPnL) }}</p>
+                </div>
+              } @empty {
+                <p class="px-4 py-6 text-center text-sm text-slate-400">No monthly data</p>
+              }
+            </div>
+          </div>
+          <div class="card overflow-hidden">
+            <div class="border-b border-slate-100 px-4 py-3">
+              <h3 class="text-sm font-semibold text-slate-900">Worst months</h3>
+              <p class="text-xs text-slate-500">Bottom 5 months by net P&amp;L</p>
+            </div>
+            <div class="divide-y divide-slate-100">
+              @for (month of topMonthlyLosses(); track month.period) {
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p class="font-medium text-slate-900">{{ month.label }}</p>
+                    <p class="text-xs text-slate-500">{{ month.tradeCount }} trades · {{ month.winRate | number:'1.0-0' }}% win</p>
+                  </div>
+                  <p class="font-bold tabular-nums text-red-600">{{ formatCurrency(month.netPnL) }}</p>
+                </div>
+              } @empty {
+                <p class="px-4 py-6 text-center text-sm text-slate-400">No monthly data</p>
+              }
+            </div>
           </div>
         </div>
       }

@@ -138,3 +138,137 @@ export function heatClass(value: number, maxAbs: number): string {
   if (intensity > 0.33) return 'heat-neg-mid';
   return 'heat-neg-soft';
 }
+
+export interface PeriodStreak {
+  kind: 'win' | 'loss';
+  length: number;
+  netPnL: number;
+  startLabel: string;
+  endLabel: string;
+}
+
+export interface PeriodAnalysisStats {
+  periodCount: number;
+  greenCount: number;
+  redCount: number;
+  flatCount: number;
+  /** Share of periods with net P&L > 0. */
+  greenRate: number;
+  totalNetPnL: number;
+  totalCharges: number;
+  totalTrades: number;
+  avgNetPerPeriod: number;
+  avgNetPerTrade: number;
+  avgWinRate: number;
+  /** Gross green-period P&L / abs(gross red-period P&L). */
+  profitFactor: number | null;
+  bestStreak: PeriodStreak | null;
+  worstStreak: PeriodStreak | null;
+  currentStreak: PeriodStreak | null;
+}
+
+function streakFromRun(
+  kind: 'win' | 'loss',
+  run: PeriodBucket[]
+): PeriodStreak | null {
+  if (!run.length) return null;
+  return {
+    kind,
+    length: run.length,
+    netPnL: run.reduce((sum, row) => sum + row.netPnL, 0),
+    startLabel: run[0].label,
+    endLabel: run[run.length - 1].label,
+  };
+}
+
+/**
+ * Consistency / streak stats for daily, weekly, or monthly period buckets.
+ * Expects buckets in chronological order.
+ */
+export function analysePeriods(buckets: PeriodBucket[]): PeriodAnalysisStats | null {
+  if (!buckets.length) return null;
+
+  let greenCount = 0;
+  let redCount = 0;
+  let flatCount = 0;
+  let totalNetPnL = 0;
+  let totalCharges = 0;
+  let totalTrades = 0;
+  let winRateWeighted = 0;
+  let grossGreen = 0;
+  let grossRed = 0;
+
+  let bestStreak: PeriodStreak | null = null;
+  let worstStreak: PeriodStreak | null = null;
+  let run: PeriodBucket[] = [];
+  let runKind: 'win' | 'loss' | null = null;
+
+  const flushRun = () => {
+    const streak = runKind ? streakFromRun(runKind, run) : null;
+    if (!streak) return;
+    if (streak.kind === 'win') {
+      if (!bestStreak || streak.length > bestStreak.length ||
+          (streak.length === bestStreak.length && streak.netPnL > bestStreak.netPnL)) {
+        bestStreak = streak;
+      }
+    } else if (!worstStreak || streak.length > worstStreak.length ||
+        (streak.length === worstStreak.length && streak.netPnL < worstStreak.netPnL)) {
+      worstStreak = streak;
+    }
+  };
+
+  for (const row of buckets) {
+    totalNetPnL += row.netPnL;
+    totalCharges += row.allocatedCharges;
+    totalTrades += row.tradeCount;
+    winRateWeighted += row.winRate * row.tradeCount;
+
+    if (row.netPnL > 0) {
+      greenCount++;
+      grossGreen += row.netPnL;
+    } else if (row.netPnL < 0) {
+      redCount++;
+      grossRed += Math.abs(row.netPnL);
+    } else {
+      flatCount++;
+    }
+
+    const kind: 'win' | 'loss' | null =
+      row.netPnL > 0 ? 'win' : row.netPnL < 0 ? 'loss' : null;
+    if (!kind) {
+      flushRun();
+      run = [];
+      runKind = null;
+      continue;
+    }
+    if (runKind === kind) {
+      run.push(row);
+    } else {
+      flushRun();
+      runKind = kind;
+      run = [row];
+    }
+  }
+  flushRun();
+
+  const currentStreak = runKind ? streakFromRun(runKind, run) : null;
+
+  return {
+    periodCount: buckets.length,
+    greenCount,
+    redCount,
+    flatCount,
+    greenRate: buckets.length ? (greenCount / buckets.length) * 100 : 0,
+    totalNetPnL,
+    totalCharges,
+    totalTrades,
+    avgNetPerPeriod: totalNetPnL / buckets.length,
+    avgNetPerTrade: totalTrades ? totalNetPnL / totalTrades : 0,
+    avgWinRate: totalTrades ? winRateWeighted / totalTrades : 0,
+    profitFactor: grossRed > 0 ? grossGreen / grossRed : grossGreen > 0 ? null : 0,
+    bestStreak,
+    worstStreak,
+    currentStreak,
+  };
+}
+
