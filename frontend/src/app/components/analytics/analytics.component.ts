@@ -17,7 +17,7 @@ import { FilteredStockService } from '../../services/filtered-stock.service';
 import { LazyTradeLoaderService } from '../../services/lazy-trade-loader.service';
 import { CustomStockListService } from '../../services/custom-stock-list.service';
 import { AnalysisService } from '../../services/analysis.service';
-import { PeriodBucket, TRADE_TYPE_LABELS, TradeType } from '../../models/trade.models';
+import { PeriodBucket, StockSummary, TRADE_TYPE_LABELS, Trade, TradeType } from '../../models/trade.models';
 import { formatCompactCurrency, formatCurrency, formatDate, pnlClass } from '../../utils/format.utils';
 import { holdingsTotals } from '../../utils/holdings.utils';
 import { stockIdentityKey } from '../../utils/stock-identity.utils';
@@ -261,6 +261,22 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
       b.period.localeCompare(a.period)
     )[0];
     if (latest) this.focusDailyCalendarOn(latest.period);
+
+    const latestWeek = [...(this.analysis()?.weekly ?? [])].sort((a, b) =>
+      b.period.localeCompare(a.period)
+    )[0];
+    if (latestWeek) {
+      const year = Number(latestWeek.period.slice(0, 4));
+      if (year) this.weeklyCalendarYear.set(year);
+    }
+
+    const latestMonth = [...(this.analysis()?.monthly ?? [])].sort((a, b) =>
+      b.period.localeCompare(a.period)
+    )[0];
+    if (latestMonth) {
+      const year = Number(latestMonth.period.slice(0, 4));
+      if (year) this.monthlyCalendarYear.set(year);
+    }
   }
 
   private syncTabFromUrl(): void {
@@ -299,8 +315,12 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   }
 
   selectedDate = signal<string | null>(null);
+  selectedWeek = signal<string | null>(null);
+  selectedMonth = signal<string | null>(null);
   dailyCalendarYear = signal(new Date().getFullYear());
   dailyCalendarMonth = signal(new Date().getMonth() + 1);
+  weeklyCalendarYear = signal(new Date().getFullYear());
+  monthlyCalendarYear = signal(new Date().getFullYear());
 
   /** Click a date to open its per-stock breakdown; clicking the open one closes it. */
   toggleDate(period: string): void {
@@ -308,7 +328,27 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     this.selectedDate.set(next);
     if (next) {
       this.focusDailyCalendarOn(next);
-      void this.loadSelectedDayTrades(next);
+      void this.loadSelectedPeriodTrades('daily', next);
+    }
+  }
+
+  toggleWeek(period: string): void {
+    const next = this.selectedWeek() === period ? null : period;
+    this.selectedWeek.set(next);
+    if (next) {
+      const year = Number(period.slice(0, 4));
+      if (year) this.weeklyCalendarYear.set(year);
+      void this.loadSelectedPeriodTrades('weekly', next);
+    }
+  }
+
+  toggleMonth(period: string): void {
+    const next = this.selectedMonth() === period ? null : period;
+    this.selectedMonth.set(next);
+    if (next) {
+      const year = Number(period.slice(0, 4));
+      if (year) this.monthlyCalendarYear.set(year);
+      void this.loadSelectedPeriodTrades('monthly', next);
     }
   }
 
@@ -319,14 +359,17 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     this.dailyCalendarMonth.set(Number(match[2]));
   }
 
-  private async loadSelectedDayTrades(period: string): Promise<void> {
+  private async loadSelectedPeriodTrades(
+    tab: 'daily' | 'weekly' | 'monthly',
+    period: string
+  ): Promise<void> {
     const report = this.state.report();
     const clientCode = report?.summary.clientCode;
     if (!clientCode || !report) return;
     await this.lazyTrades.loadForPeriod(
       clientCode,
       period,
-      'daily',
+      tab,
       report,
       this.state.analysisOptions()
     );
@@ -336,11 +379,45 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     () => this.analysis()?.daily.find((d) => d.period === this.selectedDate()) ?? null
   );
 
+  selectedWeekBucket = computed(
+    () => this.analysis()?.weekly.find((d) => d.period === this.selectedWeek()) ?? null
+  );
+
+  selectedMonthBucket = computed(
+    () => this.analysis()?.monthly.find((d) => d.period === this.selectedMonth()) ?? null
+  );
+
   isSelectedDayLoading = computed(() => {
     const date = this.selectedDate();
     if (!date) return false;
     return this.lazyTrades.isLoading(this.lazyTrades.cacheKeyForPeriod('daily', date));
   });
+
+  isSelectedWeekLoading = computed(() => {
+    const period = this.selectedWeek();
+    if (!period) return false;
+    return this.lazyTrades.isLoading(this.lazyTrades.cacheKeyForPeriod('weekly', period));
+  });
+
+  isSelectedMonthLoading = computed(() => {
+    const period = this.selectedMonth();
+    if (!period) return false;
+    return this.lazyTrades.isLoading(this.lazyTrades.cacheKeyForPeriod('monthly', period));
+  });
+
+  private stocksForPeriodTrades(
+    tab: 'daily' | 'weekly' | 'monthly',
+    period: string | null,
+    embeddedTrades: Trade[] | undefined
+  ): StockSummary[] {
+    if (!period) return [];
+    if (embeddedTrades?.length) {
+      return this.analysisSvc.aggregateByStock(embeddedTrades, this.chargeRatio());
+    }
+    const trades = this.lazyTrades.tradesForKey(this.lazyTrades.cacheKeyForPeriod(tab, period));
+    if (!trades.length) return [];
+    return this.analysisSvc.aggregateByStock(trades, this.chargeRatio());
+  }
 
   dailyByDate = computed(() => {
     const map = new Map<string, PeriodBucket>();
@@ -451,21 +528,91 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   }
 
   /** Same per-stock rows the dashboard shows, narrowed to the selected day's trades. */
-  selectedDateStocks = computed(() => {
-    const date = this.selectedDate();
-    if (!date) return [];
+  selectedDateStocks = computed(() =>
+    this.stocksForPeriodTrades('daily', this.selectedDate(), this.selectedDay()?.trades)
+  );
 
-    const dayTrades = this.selectedDay()?.trades ?? [];
-    if (dayTrades.length) {
-      return this.analysisSvc.aggregateByStock(dayTrades, this.chargeRatio());
-    }
+  selectedWeekStocks = computed(() =>
+    this.stocksForPeriodTrades('weekly', this.selectedWeek(), this.selectedWeekBucket()?.trades)
+  );
 
-    const trades = this.lazyTrades.tradesForKey(
-      this.lazyTrades.cacheKeyForPeriod('daily', date)
-    );
-    if (!trades.length) return [];
-    return this.analysisSvc.aggregateByStock(trades, this.chargeRatio());
+  selectedMonthStocks = computed(() =>
+    this.stocksForPeriodTrades('monthly', this.selectedMonth(), this.selectedMonthBucket()?.trades)
+  );
+
+  weeksInCalendarYear = computed(() => {
+    const year = this.weeklyCalendarYear();
+    return [...(this.analysis()?.weekly ?? [])]
+      .filter((w) => w.period.startsWith(`${year}-`))
+      .sort((a, b) => b.period.localeCompare(a.period));
   });
+
+  monthsInCalendarYear = computed(() => {
+    const year = this.monthlyCalendarYear();
+    const byKey = new Map((this.analysis()?.monthly ?? []).map((m) => [m.period, m]));
+    return Array.from({ length: 12 }, (_, i) => {
+      const key = `${year}-${String(i + 1).padStart(2, '0')}`;
+      return { key, label: new Date(year, i, 1).toLocaleDateString('en-IN', { month: 'short' }), bucket: byKey.get(key) ?? null };
+    });
+  });
+
+  weeklyYearSummary = computed(() => {
+    const weeks = this.weeksInCalendarYear();
+    if (!weeks.length) return null;
+    return this.summarisePeriodBuckets(weeks);
+  });
+
+  monthlyYearSummary = computed(() => {
+    const months = this.monthsInCalendarYear()
+      .map((m) => m.bucket)
+      .filter((b): b is PeriodBucket => !!b);
+    if (!months.length) return null;
+    return this.summarisePeriodBuckets(months);
+  });
+
+  monthlyYearMaxAbs = computed(() =>
+    Math.max(...this.monthsInCalendarYear().map((m) => Math.abs(m.bucket?.netPnL ?? 0)), 1)
+  );
+
+  weeklyYearMaxAbs = computed(() =>
+    Math.max(...this.weeksInCalendarYear().map((w) => Math.abs(w.netPnL)), 1)
+  );
+
+  private summarisePeriodBuckets(buckets: PeriodBucket[]) {
+    const tradeCount = buckets.reduce((sum, d) => sum + d.tradeCount, 0);
+    const realisedPnL = buckets.reduce((sum, d) => sum + d.realisedPnL, 0);
+    const allocatedCharges = buckets.reduce((sum, d) => sum + d.allocatedCharges, 0);
+    const netPnL = buckets.reduce((sum, d) => sum + d.netPnL, 0);
+    const winningTrades = buckets.reduce((sum, d) => sum + d.winningTrades, 0);
+    const green = buckets.filter((d) => d.netPnL > 0).length;
+    const red = buckets.filter((d) => d.netPnL < 0).length;
+    return {
+      periodCount: buckets.length,
+      green,
+      red,
+      tradeCount,
+      realisedPnL,
+      allocatedCharges,
+      netPnL,
+      winRate: tradeCount ? (winningTrades / tradeCount) * 100 : 0,
+    };
+  }
+
+  prevWeeklyCalendarYear(): void {
+    this.weeklyCalendarYear.update((y) => y - 1);
+  }
+
+  nextWeeklyCalendarYear(): void {
+    this.weeklyCalendarYear.update((y) => y + 1);
+  }
+
+  prevMonthlyCalendarYear(): void {
+    this.monthlyCalendarYear.update((y) => y - 1);
+  }
+
+  nextMonthlyCalendarYear(): void {
+    this.monthlyCalendarYear.update((y) => y + 1);
+  }
 
   /** Stock summaries for charts — filtered query with fallback to analysis stocks. */
   visibleStocks = computed(() => {

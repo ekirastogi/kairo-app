@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { StockSummary, TRADE_TYPE_LABELS, Trade, TradeType } from '../../../models/trade.models';
@@ -61,6 +61,12 @@ export class ExpandableStocksTableComponent {
   expandable = input(true);
   /** Subset of columns to show; defaults to the analytics set. */
   columns = input<ExpandableStockColumn[] | null>(null);
+  /**
+   * When set with periodKey, expanded stock trades are clipped to that
+   * daily / weekly / monthly bucket — never the full filter window.
+   */
+  periodTab = input<'daily' | 'weekly' | 'monthly' | null>(null);
+  periodKey = input<string | null>(null);
 
   sortColumn = signal<ExpandableStockColumn>('netPnL');
   sortDirection = signal<SortDir>('desc');
@@ -230,12 +236,22 @@ export class ExpandableStocksTableComponent {
     }
   }
 
+  /** Drop open rows when the parent switches day/week/month. */
+  private readonly _resetOnPeriodChange = effect(() => {
+    this.periodTab();
+    this.periodKey();
+    untracked(() => {
+      this.expandedStockKey.set(null);
+      this.expandedDayKey.set(null);
+    });
+  });
+
   isStockTradesLoading(stock: StockSummary): boolean {
-    return this.lazyTrades.isLoading(this.lazyTrades.cacheKeyForStock(stock));
+    return this.lazyTrades.isLoading(this.tradesCacheKey(stock));
   }
 
   tradesForStock(stock: StockSummary): Trade[] {
-    return this.lazyTrades.tradesForKey(this.lazyTrades.cacheKeyForStock(stock));
+    return this.lazyTrades.tradesForKey(this.tradesCacheKey(stock));
   }
 
   dayRowKey(stock: StockSummary, date: string): string {
@@ -268,6 +284,15 @@ export class ExpandableStocksTableComponent {
     return this.visibleColumns().length + (this.expandable() ? 2 : 1);
   }
 
+  private tradesCacheKey(stock: StockSummary): string {
+    const tab = this.periodTab();
+    const period = this.periodKey();
+    if (tab && period) {
+      return this.lazyTrades.cacheKeyForStockInPeriod(stock, tab, period);
+    }
+    return this.lazyTrades.cacheKeyForStock(stock);
+  }
+
   private clientCode(): string | null {
     return this.state.activeClientCode() ?? this.state.report()?.summary.clientCode ?? null;
   }
@@ -275,6 +300,19 @@ export class ExpandableStocksTableComponent {
   private async ensureStockTradesLoaded(stock: StockSummary): Promise<void> {
     const clientCode = this.clientCode();
     if (!clientCode) return;
+    const tab = this.periodTab();
+    const period = this.periodKey();
+    if (tab && period) {
+      await this.lazyTrades.loadForStockInPeriod(
+        clientCode,
+        stock,
+        tab,
+        period,
+        this.state.report(),
+        this.state.analysisOptions()
+      );
+      return;
+    }
     await this.lazyTrades.loadForStock(
       clientCode,
       stock,

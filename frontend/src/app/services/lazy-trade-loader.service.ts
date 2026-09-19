@@ -57,6 +57,14 @@ export class LazyTradeLoaderService {
     return `stock:${stockIdentityKey(stock)}:${this.filterKey()}`;
   }
 
+  cacheKeyForStockInPeriod(
+    stock: StockSummary,
+    tab: 'daily' | 'weekly' | 'monthly',
+    periodKey: string
+  ): string {
+    return `stock:${stockIdentityKey(stock)}:${tab}:${periodKey}:${this.filterKey()}`;
+  }
+
   cacheKeyForPeriod(tab: 'daily' | 'weekly' | 'monthly', periodKey: string): string {
     return `period:${tab}:${periodKey}:${this.filterKey()}`;
   }
@@ -105,6 +113,30 @@ export class LazyTradeLoaderService {
     } finally {
       this.loadingKey.set(null);
     }
+  }
+
+  /**
+   * Trades for one stock, clipped to a daily/weekly/monthly bucket.
+   * Reuses the period cache when present so we never pull outside that window.
+   */
+  async loadForStockInPeriod(
+    clientCode: string,
+    stock: StockSummary,
+    tab: 'daily' | 'weekly' | 'monthly',
+    periodKey: string,
+    report: Report | null,
+    filters: AnalysisOptions
+  ): Promise<Trade[]> {
+    const key = this.cacheKeyForStockInPeriod(stock, tab, periodKey);
+    const cached = this.lists().get(key);
+    if (cached) return cached;
+
+    const periodTrades = await this.loadForPeriod(clientCode, periodKey, tab, report, filters);
+    const trades = sortTradesBySellDateDesc(
+      periodTrades.filter((trade) => this.tradeMatchesStock(trade, stock))
+    );
+    this.setCache(key, trades);
+    return trades;
   }
 
   async loadForPeriod(
