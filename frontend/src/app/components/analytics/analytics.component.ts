@@ -40,7 +40,6 @@ import {
   buildPnLBarDataset,
   buildLineDataset,
   buildZeroSplitLineDataset,
-  currencyBarLabelPlugin,
 } from '../../utils/chart-theme';
 import { FilterPanelComponent } from '../shared/filter-panel/filter-panel.component';
 import { TradeTypeFilterComponent } from '../shared/trade-type-filter/trade-type-filter.component';
@@ -151,6 +150,21 @@ const ANALYTICS_TABS: AnalyticsTab[] = [
     }
     .insight-card-worst {
       @apply border-red-200 bg-red-50/40;
+    }
+    .extremes-rail {
+      @apply relative mx-auto h-2 w-full max-w-3xl rounded-full bg-slate-200;
+    }
+    .extremes-zero {
+      @apply absolute top-1/2 z-10 h-4 w-0.5 -translate-x-1/2 -translate-y-1/2 bg-slate-500;
+    }
+    .extremes-marker {
+      @apply absolute top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center;
+    }
+    .extremes-dot {
+      @apply h-3.5 w-3.5 rounded-full border-2 border-white shadow;
+    }
+    .extremes-label {
+      @apply absolute whitespace-nowrap text-xs font-bold tabular-nums sm:text-sm;
     }
     .heat-cell {
       @apply flex min-h-[2.75rem] flex-col items-center justify-center overflow-hidden rounded-lg border border-slate-200/80 px-0.5 py-1 text-center transition;
@@ -1575,12 +1589,10 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   });
 
   /**
-   * Running peak / trough of cumulative net P&L through the selected range:
-   * green bars = max profit attained so far, red bars = max loss so far,
-   * line = cumulative P&L.
+   * Peak / trough of cumulative net P&L in the selected range for the horizontal
+   * number-line: max loss left of 0, max profit right of 0.
    */
-  maxProfitLossChartConfig = computed(() => {
-    this.chartVersion();
+  cumulativeExtremes = computed(() => {
     const daily = [...(this.analysis()?.daily ?? [])].sort((a, b) =>
       a.period.localeCompare(b.period)
     );
@@ -1589,105 +1601,25 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     let cumulative = 0;
     let peak = 0;
     let trough = 0;
-    const cumSeries: number[] = [];
-    const maxProfitSeries: number[] = [];
-    const maxLossSeries: number[] = [];
-    const profitLabelIdx: number[] = [];
-    const lossLabelIdx: number[] = [];
-
-    daily.forEach((day, i) => {
+    for (const day of daily) {
       cumulative += day.netPnL;
-      cumSeries.push(cumulative);
+      if (cumulative > peak) peak = cumulative;
+      if (cumulative < trough) trough = cumulative;
+    }
 
-      if (cumulative > peak) {
-        peak = cumulative;
-        profitLabelIdx.push(i);
-      }
-      maxProfitSeries.push(peak > 0 ? peak : 0);
+    const maxProfit = peak > 0 ? peak : 0;
+    const maxLoss = trough < 0 ? trough : 0;
+    if (maxProfit <= 0 && maxLoss >= 0) return null;
 
-      if (cumulative < trough) {
-        trough = cumulative;
-        lossLabelIdx.push(i);
-      }
-      maxLossSeries.push(trough < 0 ? trough : 0);
-    });
-
-    if (peak <= 0 && trough >= 0) return null;
-
-    const mobile = isMobileChart();
-    const options = comboChartOptions('');
-
-    const peakMarkers = new Set([...profitLabelIdx, ...lossLabelIdx]);
-    const lineDataset = {
-      label: 'Cumulative P&L',
-      data: cumSeries,
-      borderColor: CHART_COLORS.secondary,
-      backgroundColor: 'transparent',
-      fill: false,
-      tension: 0.3,
-      borderWidth: 2.5,
-      order: 1,
-      type: 'line' as const,
-      pointRadius: cumSeries.map((_, i) => (peakMarkers.has(i) ? (mobile ? 4 : 5) : 0)),
-      pointHoverRadius: 5,
-      pointBackgroundColor: cumSeries.map((v, i) =>
-        peakMarkers.has(i) ? (v >= 0 ? CHART_COLORS.success : CHART_COLORS.danger) : '#fff'
-      ),
-      pointBorderColor: cumSeries.map((v) =>
-        v >= 0 ? CHART_COLORS.success : CHART_COLORS.danger
-      ),
-      pointBorderWidth: 2,
-      segment: {
-        borderColor: (ctx: { p0: { parsed: { y: number | null } }; p1: { parsed: { y: number | null } } }) =>
-          (ctx.p0.parsed.y ?? 0) < 0 || (ctx.p1.parsed.y ?? 0) < 0
-            ? CHART_COLORS.danger
-            : CHART_COLORS.success,
-      },
-    };
-
+    const span = Math.max(maxProfit, Math.abs(maxLoss), 1);
     return {
-      type: 'bar' as const,
-      data: {
-        labels: daily.map((d) => abbreviateLabel(d.label, mobile ? 6 : 10)),
-        datasets: [
-          {
-            label: 'Max profit',
-            data: maxProfitSeries,
-            backgroundColor: 'rgba(16, 185, 129, 0.4)',
-            hoverBackgroundColor: 'rgba(16, 185, 129, 0.65)',
-            borderRadius: 4,
-            borderSkipped: false,
-            maxBarThickness: mobile ? 18 : 28,
-            order: 2,
-            labelEveryPoint: false,
-            labelIndices: profitLabelIdx,
-          },
-          {
-            label: 'Max loss',
-            data: maxLossSeries,
-            backgroundColor: 'rgba(239, 68, 68, 0.4)',
-            hoverBackgroundColor: 'rgba(239, 68, 68, 0.65)',
-            borderRadius: 4,
-            borderSkipped: false,
-            maxBarThickness: mobile ? 18 : 28,
-            order: 2,
-            labelEveryPoint: false,
-            labelIndices: lossLabelIdx,
-          },
-          lineDataset,
-        ],
-      },
-      options: {
-        ...options,
-        layout: {
-          padding: { top: 18, right: 8, bottom: 0, left: 4 },
-        },
-        datasets: {
-          bar: { grouped: false },
-        },
-      },
-      plugins: [currencyBarLabelPlugin as never],
-    } as ChartConfiguration;
+      maxProfit,
+      maxLoss,
+      /** 0–100% position on a symmetric −span…+span rail. */
+      zeroPct: 50,
+      profitPct: 50 + (maxProfit / span) * 50,
+      lossPct: 50 + (maxLoss / span) * 50,
+    };
   });
 
   tradeVolumeChartConfig = computed(() => {

@@ -84,12 +84,52 @@
 
           <ng-container *ngTemplateOutlet="periodHeatmaps" />
 
-          <app-chart-card
-            [config]="maxProfitLossChartConfig()"
-            title="Max profit vs max loss"
-            subtitle="Running peak and trough of cumulative net P&amp;L — green up, red down, line is equity"
-            size="lg"
-          />
+          @if (cumulativeExtremes(); as extremes) {
+            <div class="insight-card">
+              <div class="mb-1 flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h3 class="text-sm font-semibold tracking-tight text-slate-900">Max profit vs max loss</h3>
+                  <p class="mt-0.5 text-xs text-slate-500">
+                    Peak and trough of cumulative net P&amp;L in the selected range
+                  </p>
+                </div>
+              </div>
+              <div class="relative mt-10 mb-8 px-2 sm:mt-12 sm:mb-10 sm:px-4">
+                <div class="extremes-rail">
+                  <div
+                    class="absolute inset-y-0 left-0 rounded-l-full bg-red-400/70"
+                    [style.width.%]="50 - extremes.lossPct"
+                    [style.left.%]="extremes.lossPct"
+                  ></div>
+                  <div
+                    class="absolute inset-y-0 rounded-r-full bg-emerald-400/70"
+                    [style.left.%]="50"
+                    [style.width.%]="extremes.profitPct - 50"
+                  ></div>
+                  <div class="extremes-zero" [style.left.%]="extremes.zeroPct"></div>
+                  @if (extremes.maxLoss < 0) {
+                    <div class="extremes-marker" [style.left.%]="extremes.lossPct">
+                      <span class="extremes-dot bg-red-500"></span>
+                      <span class="extremes-label top-full mt-2 text-red-600">
+                        −{{ formatCompactCurrency(extremes.maxLoss) }}
+                      </span>
+                    </div>
+                  }
+                  <div class="extremes-marker" [style.left.%]="extremes.zeroPct">
+                    <span class="extremes-label bottom-full mb-2 text-slate-500">0</span>
+                  </div>
+                  @if (extremes.maxProfit > 0) {
+                    <div class="extremes-marker" [style.left.%]="extremes.profitPct">
+                      <span class="extremes-dot bg-emerald-500"></span>
+                      <span class="extremes-label top-full mt-2 text-emerald-600">
+                        +{{ formatCompactCurrency(extremes.maxProfit) }}
+                      </span>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+          }
 
           <app-chart-card
             [config]="cumulativeChartConfig()"
