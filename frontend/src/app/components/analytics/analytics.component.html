@@ -90,7 +90,7 @@
                 <div>
                   <h3 class="text-sm font-semibold tracking-tight text-slate-900">Max profit vs max loss</h3>
                   <p class="mt-0.5 text-xs text-slate-500">
-                    Peak and trough of cumulative net P&amp;L in the selected range
+                    Highest cumulative P&amp;L vs largest drawdown from that peak
                   </p>
                 </div>
               </div>
@@ -110,7 +110,7 @@
                     class="absolute top-1/2 z-10 h-4 w-0.5 -translate-x-1/2 -translate-y-1/2 bg-slate-500"
                     [style.left.%]="extremes.zeroPct"
                   ></div>
-                  @if (extremes.maxLoss < 0) {
+                  @if (extremes.maxLoss > 0) {
                     <div
                       class="absolute top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
                       [style.left.%]="extremes.lossPct"

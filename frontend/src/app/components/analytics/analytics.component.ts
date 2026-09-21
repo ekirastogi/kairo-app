@@ -1574,8 +1574,8 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   });
 
   /**
-   * Peak / trough of cumulative net P&L in the selected range for the horizontal
-   * number-line: max loss left of 0, max profit right of 0.
+   * Peak equity and max drawdown from that peak over the selected range.
+   * current = running cumulative; maxProfit = highest current; maxLoss = max(peak - current).
    */
   cumulativeExtremes = computed(() => {
     const daily = [...(this.analysis()?.daily ?? [])].sort((a, b) =>
@@ -1583,27 +1583,25 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     );
     if (!daily.length) return null;
 
-    let cumulative = 0;
-    let peak = 0;
-    let trough = 0;
+    let current = 0;
+    let maxProfit = 0;
+    let maxLoss = 0;
     for (const day of daily) {
-      cumulative += day.netPnL;
-      if (cumulative > peak) peak = cumulative;
-      if (cumulative < trough) trough = cumulative;
+      current += day.netPnL;
+      maxProfit = Math.max(maxProfit, current);
+      maxLoss = Math.max(maxLoss, maxProfit - current);
     }
 
-    const maxProfit = peak > 0 ? peak : 0;
-    const maxLoss = trough < 0 ? trough : 0;
-    if (maxProfit <= 0 && maxLoss >= 0) return null;
+    if (maxProfit <= 0 && maxLoss <= 0) return null;
 
-    const span = Math.max(maxProfit, Math.abs(maxLoss), 1);
+    const span = Math.max(maxProfit, maxLoss, 1);
     return {
       maxProfit,
+      /** Stored positive (drawdown amount); rail plots it left of zero. */
       maxLoss,
-      /** 0–100% position on a symmetric −span…+span rail. */
       zeroPct: 50,
       profitPct: 50 + (maxProfit / span) * 50,
-      lossPct: 50 + (maxLoss / span) * 50,
+      lossPct: 50 - (maxLoss / span) * 50,
     };
   });
 
