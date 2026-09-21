@@ -95,9 +95,9 @@
                 </div>
               </div>
               <div class="relative mt-10 mb-8 px-2 sm:mt-12 sm:mb-10 sm:px-4">
-                <div class="extremes-rail">
+                <div class="relative mx-auto h-2 w-full max-w-3xl rounded-full bg-slate-200">
                   <div
-                    class="absolute inset-y-0 left-0 rounded-l-full bg-red-400/70"
+                    class="absolute inset-y-0 rounded-l-full bg-red-400/70"
                     [style.width.%]="50 - extremes.lossPct"
                     [style.left.%]="extremes.lossPct"
                   ></div>
@@ -106,22 +106,34 @@
                     [style.left.%]="50"
                     [style.width.%]="extremes.profitPct - 50"
                   ></div>
-                  <div class="extremes-zero" [style.left.%]="extremes.zeroPct"></div>
+                  <div
+                    class="absolute top-1/2 z-10 h-4 w-0.5 -translate-x-1/2 -translate-y-1/2 bg-slate-500"
+                    [style.left.%]="extremes.zeroPct"
+                  ></div>
                   @if (extremes.maxLoss < 0) {
-                    <div class="extremes-marker" [style.left.%]="extremes.lossPct">
-                      <span class="extremes-dot bg-red-500"></span>
-                      <span class="extremes-label top-full mt-2 text-red-600">
+                    <div
+                      class="absolute top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+                      [style.left.%]="extremes.lossPct"
+                    >
+                      <span class="h-3.5 w-3.5 rounded-full border-2 border-white bg-red-500 shadow"></span>
+                      <span class="absolute top-full mt-2 whitespace-nowrap text-xs font-bold tabular-nums text-red-600 sm:text-sm">
                         −{{ formatCompactCurrency(extremes.maxLoss) }}
                       </span>
                     </div>
                   }
-                  <div class="extremes-marker" [style.left.%]="extremes.zeroPct">
-                    <span class="extremes-label bottom-full mb-2 text-slate-500">0</span>
+                  <div
+                    class="absolute top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+                    [style.left.%]="extremes.zeroPct"
+                  >
+                    <span class="absolute bottom-full mb-2 whitespace-nowrap text-xs font-bold tabular-nums text-slate-500 sm:text-sm">0</span>
                   </div>
                   @if (extremes.maxProfit > 0) {
-                    <div class="extremes-marker" [style.left.%]="extremes.profitPct">
-                      <span class="extremes-dot bg-emerald-500"></span>
-                      <span class="extremes-label top-full mt-2 text-emerald-600">
+                    <div
+                      class="absolute top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+                      [style.left.%]="extremes.profitPct"
+                    >
+                      <span class="h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500 shadow"></span>
+                      <span class="absolute top-full mt-2 whitespace-nowrap text-xs font-bold tabular-nums text-emerald-600 sm:text-sm">
                         +{{ formatCompactCurrency(extremes.maxProfit) }}
                       </span>
                     </div>

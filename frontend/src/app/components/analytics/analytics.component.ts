@@ -151,21 +151,6 @@ const ANALYTICS_TABS: AnalyticsTab[] = [
     .insight-card-worst {
       @apply border-red-200 bg-red-50/40;
     }
-    .extremes-rail {
-      @apply relative mx-auto h-2 w-full max-w-3xl rounded-full bg-slate-200;
-    }
-    .extremes-zero {
-      @apply absolute top-1/2 z-10 h-4 w-0.5 -translate-x-1/2 -translate-y-1/2 bg-slate-500;
-    }
-    .extremes-marker {
-      @apply absolute top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center;
-    }
-    .extremes-dot {
-      @apply h-3.5 w-3.5 rounded-full border-2 border-white shadow;
-    }
-    .extremes-label {
-      @apply absolute whitespace-nowrap text-xs font-bold tabular-nums sm:text-sm;
-    }
     .heat-cell {
       @apply flex min-h-[2.75rem] flex-col items-center justify-center overflow-hidden rounded-lg border border-slate-200/80 px-0.5 py-1 text-center transition;
     }
