@@ -1,5 +1,5 @@
-import { ChartConfiguration, ChartOptions } from 'chart.js';
-import { formatCurrency } from './format.utils';
+import { ChartConfiguration, ChartOptions, Plugin } from 'chart.js';
+import { formatCompactCurrency, formatCurrency } from './format.utils';
 
 export const CHART_COLORS = {
   primary: '#00d09c',
@@ -501,6 +501,70 @@ export function buildPnLBarDataset(label: string, values: number[]) {
     backgroundColor: values.map((v) => pnlColor(v)),
     hoverBackgroundColor: values.map((v) => pnlColor(v, 1)),
     ...BAR_DATASET_DEFAULTS,
+  };
+}
+
+/**
+ * Draw compact currency labels at the end of each bar (right for gains, left for losses
+ * on horizontal charts; above/below on vertical).
+ */
+export const currencyBarLabelPlugin: Plugin<'bar'> = {
+  id: 'currencyBarLabels',
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    const mobile = isMobileChart();
+    const horizontal = chart.options.indexAxis === 'y';
+
+    ctx.save();
+    ctx.font = `700 ${mobile ? 10 : 12}px Inter, system-ui, sans-serif`;
+
+    chart.data.datasets.forEach((dataset, datasetIndex) => {
+      if (dataset.type && dataset.type !== 'bar') return;
+      const meta = chart.getDatasetMeta(datasetIndex);
+      if (meta.hidden) return;
+
+      meta.data.forEach((element, i) => {
+        const raw = Number(Array.isArray(dataset.data) ? dataset.data[i] : NaN);
+        if (!Number.isFinite(raw) || raw === 0) return;
+
+        const bar = element as unknown as { x: number; y: number; base?: number };
+        const signed = formatCurrency(raw);
+        const compact = `${raw >= 0 ? '+' : '−'}${formatCompactCurrency(raw)}`;
+        const text = mobile || Math.abs(raw) >= 1000 ? compact : signed;
+        const color = raw >= 0 ? CHART_COLORS.success : CHART_COLORS.danger;
+
+        ctx.fillStyle = color;
+        if (horizontal) {
+          const pointsRight = bar.x >= (bar.base ?? bar.x);
+          ctx.textAlign = pointsRight ? 'left' : 'right';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(text, bar.x + (pointsRight ? 6 : -6), bar.y);
+        } else {
+          const pointsUp = bar.y <= (bar.base ?? bar.y);
+          ctx.textAlign = 'center';
+          ctx.textBaseline = pointsUp ? 'bottom' : 'top';
+          ctx.fillText(text, bar.x, bar.y + (pointsUp ? -6 : 6));
+        }
+      });
+    });
+
+    ctx.restore();
+  },
+};
+
+/** Horizontal diverging P&amp;L bar options with room for end labels. */
+export function divergingPnLBarOptions(): ChartOptions {
+  const base = barChartOptions('', true);
+  return {
+    ...base,
+    indexAxis: 'y',
+    layout: {
+      padding: { top: 8, right: 56, bottom: 4, left: 56 },
+    },
+    plugins: {
+      ...base.plugins,
+      legend: { display: false },
+    },
   };
 }
 

@@ -85,6 +85,13 @@
           <ng-container *ngTemplateOutlet="periodHeatmaps" />
 
           <app-chart-card
+            [config]="maxProfitLossChartConfig()"
+            title="Max profit vs max loss"
+            subtitle="Best and worst trading day in the selected range — gains right, losses left"
+            size="sm"
+          />
+
+          <app-chart-card
             [config]="cumulativeChartConfig()"
             title="Equity curve"
             subtitle="Cumulative net P&amp;L over your trading history"

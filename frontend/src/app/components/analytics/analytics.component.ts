@@ -40,6 +40,8 @@ import {
   buildPnLBarDataset,
   buildLineDataset,
   buildZeroSplitLineDataset,
+  currencyBarLabelPlugin,
+  divergingPnLBarOptions,
 } from '../../utils/chart-theme';
 import { FilterPanelComponent } from '../shared/filter-panel/filter-panel.component';
 import { TradeTypeFilterComponent } from '../shared/trade-type-filter/trade-type-filter.component';
@@ -1571,6 +1573,55 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
       },
       options: lineChartOptions(''),
     });
+  });
+
+  /** Best and worst day in the filtered range as a diverging horizontal bar. */
+  maxProfitLossChartConfig = computed(() => {
+    this.chartVersion();
+    const daily = this.analysis()?.daily ?? [];
+    const best = pickExtremePeriod(daily, 'best');
+    const worst = pickExtremePeriod(daily, 'worst');
+    if (!best && !worst) return null;
+
+    // Prefer a true gain for max profit and a true loss for max loss; fall back if the
+    // range is all one-sided.
+    const profit = best && best.netPnL > 0 ? best : null;
+    const loss = worst && worst.netPnL < 0 ? worst : null;
+    if (!profit && !loss) return null;
+
+    const rows: { label: string; value: number }[] = [];
+    if (loss) {
+      rows.push({ label: `Max loss · ${loss.label}`, value: loss.netPnL });
+    }
+    if (profit) {
+      rows.push({ label: `Max profit · ${profit.label}`, value: profit.netPnL });
+    }
+
+    const values = rows.map((r) => r.value);
+    const maxAbs = Math.max(...values.map((v) => Math.abs(v)), 1);
+    const options = divergingPnLBarOptions();
+    const xScale = { ...(options.scales?.['x'] ?? {}) };
+    delete (xScale as { grace?: unknown }).grace;
+
+    return {
+      type: 'bar' as const,
+      data: {
+        labels: rows.map((r) => r.label),
+        datasets: [buildPnLBarDataset('Net P&L', values)],
+      },
+      options: {
+        ...options,
+        scales: {
+          ...options.scales,
+          x: {
+            ...xScale,
+            min: -maxAbs * 1.15,
+            max: maxAbs * 1.15,
+          },
+        },
+      },
+      plugins: [currencyBarLabelPlugin],
+    };
   });
 
   tradeVolumeChartConfig = computed(() => {
