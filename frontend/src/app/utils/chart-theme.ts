@@ -507,6 +507,8 @@ export function buildPnLBarDataset(label: string, values: number[]) {
 /**
  * Draw compact currency labels at the end of each bar (right for gains, left for losses
  * on horizontal charts; above/below on vertical).
+ * Dataset may set `labelEveryPoint: false` (default true) or `labelIndices: number[]`
+ * to limit which bars get a marker.
  */
 export const currencyBarLabelPlugin: Plugin<'bar'> = {
   id: 'currencyBarLabels',
@@ -523,9 +525,27 @@ export const currencyBarLabelPlugin: Plugin<'bar'> = {
       const meta = chart.getDatasetMeta(datasetIndex);
       if (meta.hidden) return;
 
+      const extras = dataset as {
+        labelEveryPoint?: boolean;
+        labelIndices?: number[];
+      };
+      const labelIndices = extras.labelIndices
+        ? new Set(extras.labelIndices)
+        : null;
+      const labelEvery = extras.labelEveryPoint !== false && !labelIndices;
+
       meta.data.forEach((element, i) => {
+        if (labelIndices && !labelIndices.has(i)) return;
+        if (!labelEvery && !labelIndices) return;
+
         const raw = Number(Array.isArray(dataset.data) ? dataset.data[i] : NaN);
         if (!Number.isFinite(raw) || raw === 0) return;
+
+        // Skip unchanged running extremes unless explicitly listed.
+        if (!labelIndices && extras.labelEveryPoint === false) {
+          const prev = Number(Array.isArray(dataset.data) ? dataset.data[i - 1] : NaN);
+          if (i > 0 && Number.isFinite(prev) && prev === raw) return;
+        }
 
         const bar = element as unknown as { x: number; y: number; base?: number };
         const signed = formatCurrency(raw);
