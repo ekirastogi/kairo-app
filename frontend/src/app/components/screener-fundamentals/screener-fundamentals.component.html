@@ -163,9 +163,26 @@
               <h3 class="screener-analysis-heading">Quarterly growth — last 5 periods</h3>
               <p class="screener-divergence-note">{{ analysis().divergenceNote }}</p>
 
-              @if (quarterMonths().length > 1) {
+              <div class="screener-growth-view-bar">
+                <span class="screener-quarter-picker-label">Compare</span>
+                <div class="screener-quarter-picker-chips" role="group" aria-label="Growth comparison mode">
+                  @for (mode of growthViewOptions(); track mode) {
+                    <button
+                      type="button"
+                      class="screener-quarter-chip-btn"
+                      [class.screener-quarter-chip-btn-active]="growthViewMode() === mode"
+                      [attr.aria-pressed]="growthViewMode() === mode"
+                      (click)="setGrowthView(mode)"
+                    >
+                      {{ growthViewLabel(mode) }}
+                    </button>
+                  }
+                </div>
+              </div>
+
+              @if (growthViewMode() === 'same-quarter' && quarterMonths().length > 1) {
                 <div class="screener-quarter-picker">
-                  <span class="screener-quarter-picker-label">Same-quarter chart</span>
+                  <span class="screener-quarter-picker-label">Quarter</span>
                   <div class="screener-quarter-picker-chips" role="group" aria-label="Select fiscal quarter">
                     @for (month of quarterMonths(); track month) {
                       <button
@@ -181,22 +198,18 @@
                   </div>
                 </div>
               }
-              @for (group of growthChartGroups(); track group.metric) {
-                <section class="screener-growth-metric-group">
-                  <h4 class="screener-growth-metric-heading">{{ group.metric }}</h4>
-                  <div class="screener-growth-charts-grid">
-                    @for (chart of group.charts; track chart.key) {
-                      <app-chart-card
-                        [config]="chart.config"
-                        [title]="chart.title"
-                        [subtitle]="chart.caption"
-                        [heightPx]="growthChartHeight()"
-                        emptyMessage="Not enough quarters to compare"
-                      />
-                    }
-                  </div>
-                </section>
-              }
+
+              <div class="screener-growth-single-grid">
+                @for (chart of growthCharts(); track chart.key) {
+                  <app-chart-card
+                    [config]="chart.config"
+                    [title]="chart.title"
+                    [subtitle]="chart.caption"
+                    [heightPx]="growthChartHeight()"
+                    emptyMessage="Not enough quarters to compare"
+                  />
+                }
+              </div>
             </section>
           }
 

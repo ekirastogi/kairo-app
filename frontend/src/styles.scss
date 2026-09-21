@@ -779,6 +779,14 @@
   @apply mt-3 text-xs leading-relaxed text-slate-600;
 }
 
+.screener-growth-view-bar {
+  @apply mt-3 flex flex-wrap items-center gap-x-3 gap-y-2;
+}
+
+.screener-growth-single-grid {
+  @apply mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3;
+}
+
 .screener-quarter-picker {
   @apply mt-3 flex flex-wrap items-center gap-x-3 gap-y-2;
 }

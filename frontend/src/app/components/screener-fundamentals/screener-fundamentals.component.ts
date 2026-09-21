@@ -14,8 +14,10 @@ import {
   formatPriceValue,
   GrowthComparisonRow,
   HoldingAnalysis,
+  MetricGrowthViewMode,
   priceRangeRawPct as calcPriceRangeRawPct,
   priceRangeDisplayPct as calcPriceRangeDisplayPct,
+  QuarterBar,
   QuarterlyMetricChart,
   trendDirection,
   VerdictTone,
@@ -25,14 +27,13 @@ type FinancialTab = 'analysis' | 'quarterly' | 'annual' | 'balance' | 'cashflow'
 
 interface GrowthChartView {
   key: string;
+  metric: string;
   title: string;
   caption: string;
+  basis: 'QoQ' | 'YoY';
+  bars: QuarterBar[];
   config: ChartConfiguration<'bar'>;
-}
-
-interface GrowthChartGroup {
-  metric: string;
-  charts: GrowthChartView[];
+  availableViews: MetricGrowthViewMode[];
 }
 
 const GROWTH_UP_FILL = 'rgba(16,185,129,0.85)';
@@ -101,7 +102,10 @@ export class ScreenerFundamentalsComponent {
     return isMobileChart() ? 235 : 270;
   });
 
-  /** Fiscal quarter chosen for the same-quarter charts; null follows the latest quarter. */
+  /** Shared cadence for Sales / PAT / OPM charts. */
+  growthViewMode = signal<MetricGrowthViewMode>('qoq');
+
+  /** Fiscal quarter chosen for the same-quarter view; null follows the latest quarter. */
   private pickedQuarter = signal<string | null>(null);
 
   quarterMonths = computed(() => this.analysis().quarterMonths);
@@ -115,47 +119,121 @@ export class ScreenerFundamentalsComponent {
 
   setQuarter(month: string): void {
     this.pickedQuarter.set(month);
+    this.growthViewMode.set('same-quarter');
   }
 
-  /** Growth charts grouped by metric so Sales, then PAT, then OPM stay together. */
-  growthChartGroups = computed<GrowthChartGroup[]>(() => {
+  setGrowthView(mode: MetricGrowthViewMode): void {
+    this.growthViewMode.set(mode);
+  }
+
+  growthViewOptions = computed<MetricGrowthViewMode[]>(() => {
+    const order: MetricGrowthViewMode[] = ['qoq', 'yoy', 'same-quarter', 'yearly'];
+    const available = new Set<MetricGrowthViewMode>();
+    for (const metric of this.analysis().quarterlyCharts) {
+      for (const view of this.availableViewsFor(metric)) available.add(view);
+    }
+    return order.filter((mode) => available.has(mode));
+  });
+
+  growthViewLabel(mode: MetricGrowthViewMode): string {
+    switch (mode) {
+      case 'qoq':
+        return 'QoQ';
+      case 'yoy':
+        return 'YoY';
+      case 'same-quarter':
+        return 'Same quarter';
+      case 'yearly':
+        return 'Yearly';
+    }
+  }
+
+  /** One chart per metric; bars resolve from the selected view. */
+  growthCharts = computed<GrowthChartView[]>(() => {
     this.viewportVersion();
+    const mode = this.growthViewMode();
     const quarter = this.activeQuarter();
-    const groups: GrowthChartGroup[] = [];
+    const charts: GrowthChartView[] = [];
 
-    for (const chart of this.analysis().quarterlyCharts) {
-      // The same-quarter chart swaps its bars based on the selected fiscal quarter.
-      const selected = quarter ? chart.quarterBars?.[quarter] : null;
-      const resolved = selected?.length ? { ...chart, bars: selected } : chart;
+    for (const metric of this.analysis().quarterlyCharts) {
+      const availableViews = this.availableViewsFor(metric);
+      const activeMode = availableViews.includes(mode) ? mode : availableViews[0] ?? 'qoq';
+      const resolved = this.resolveMetricView(metric, activeMode, quarter);
+      if (!resolved?.bars.length) continue;
 
-      const view: GrowthChartView = {
-        key: chart.key,
-        title: chart.quarterBars && quarter ? `${chart.metric} · ${quarter} quarter (YoY)` : chart.title,
-        caption:
-          chart.quarterBars && quarter
-            ? `${quarter} quarter each year · % vs previous year`
-            : chart.caption,
-        config: this.buildGrowthChartConfig(resolved),
-      };
-
-      const group = groups.find((g) => g.metric === chart.metric);
-      if (group) group.charts.push(view);
-      else groups.push({ metric: chart.metric, charts: [view] });
+      charts.push({
+        key: metric.key,
+        metric: metric.metric,
+        title: `${metric.metric} · ${this.growthViewLabel(activeMode)}${
+          activeMode === 'same-quarter' && quarter ? ` (${quarter})` : ''
+        }`,
+        caption: resolved.caption,
+        basis: resolved.basis,
+        bars: resolved.bars,
+        config: this.buildGrowthChartConfig({
+          metric: metric.metric,
+          basis: resolved.basis,
+          bars: resolved.bars,
+        }),
+        availableViews,
+      });
     }
 
-    return groups;
+    return charts;
   });
+
+  private availableViewsFor(metric: QuarterlyMetricChart): MetricGrowthViewMode[] {
+    const views: MetricGrowthViewMode[] = [];
+    if (metric.qoq.bars.length) views.push('qoq');
+    if (metric.yoy?.bars.length) views.push('yoy');
+    if (metric.sameQuarter && Object.keys(metric.sameQuarter.barsByMonth).length) {
+      views.push('same-quarter');
+    }
+    if (metric.yearly?.bars.length) views.push('yearly');
+    return views;
+  }
+
+  private resolveMetricView(
+    metric: QuarterlyMetricChart,
+    mode: MetricGrowthViewMode,
+    quarter: string | null
+  ): { bars: QuarterBar[]; caption: string; basis: 'QoQ' | 'YoY' } | null {
+    switch (mode) {
+      case 'qoq':
+        return metric.qoq.bars.length ? metric.qoq : null;
+      case 'yoy':
+        return metric.yoy;
+      case 'yearly':
+        return metric.yearly;
+      case 'same-quarter': {
+        const byMonth = metric.sameQuarter?.barsByMonth;
+        if (!byMonth) return null;
+        const bars =
+          (quarter ? byMonth[quarter] : null) ??
+          Object.values(byMonth)[0] ??
+          [];
+        if (!bars.length || !metric.sameQuarter) return null;
+        return {
+          bars,
+          caption: metric.sameQuarter.caption,
+          basis: metric.sameQuarter.basis,
+        };
+      }
+    }
+  }
 
   @HostListener('window:resize')
   onViewportResize(): void {
     this.viewportVersion.update((v) => v + 1);
   }
 
-  private buildGrowthChartConfig(chart: QuarterlyMetricChart): ChartConfiguration<'bar'> {
+  private buildGrowthChartConfig(chart: {
+    metric: string;
+    basis: 'QoQ' | 'YoY';
+    bars: QuarterBar[];
+  }): ChartConfiguration<'bar'> {
     const mobile = isMobileChart();
-    // Bars show the actual metric value; growth only drives the colour and the label.
     const values = chart.bars.map((b) => b.value);
-    // null = no preceding period, so the bar stays neutral rather than implying a gain.
     const growthUp = chart.bars.map((b) => (b.growthPct == null ? null : b.growthPct >= 0));
     const labelGutter = mobile ? 18 : 22;
     const hasNegativeBar = values.some((v) => (v ?? 0) < 0);
@@ -181,7 +259,6 @@ export class ScreenerFundamentalsComponent {
             ),
             borderWidth: 1.5,
             borderRadius: 3,
-            // Bars sit flush against each other.
             categoryPercentage: 1,
             barPercentage: 1,
           } as ChartConfiguration<'bar'>['data']['datasets'][number],
@@ -190,7 +267,6 @@ export class ScreenerFundamentalsComponent {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        // Gutters so the % labels at the bar ends are never clipped.
         layout: {
           padding: { top: labelGutter, right: 2, bottom: hasNegativeBar ? labelGutter : 0, left: 0 },
         },
@@ -225,14 +301,12 @@ export class ScreenerFundamentalsComponent {
               font: { size: mobile ? 9 : 10 },
               color: CHART_COLORS.muted,
               autoSkip: false,
-              // Two lines per tick: the period, then its actual value.
               callback: (_value, index) => {
                 const bar = chart.bars[index];
                 return bar ? [bar.shortLabel, bar.compactValue] : '';
               },
             },
           },
-          // Values are printed under each bar, so the axis itself is redundant.
           y: { display: false, grace: '12%' },
         },
       },
