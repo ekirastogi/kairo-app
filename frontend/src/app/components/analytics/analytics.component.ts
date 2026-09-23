@@ -1592,20 +1592,25 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
       maxLoss = Math.max(maxLoss, maxProfit - current);
     }
 
-    if (maxProfit <= 0 && maxLoss <= 0) return null;
+    if (maxProfit <= 0 && maxLoss <= 0 && current === 0) return null;
 
-    const span = Math.max(maxProfit, maxLoss, 1);
+    const span = Math.max(maxProfit, maxLoss, Math.abs(current), 1);
     // Keep markers inset from the card edges so labels aren't clipped.
     const sidePad = 8;
     const half = (100 - sidePad * 2) / 2;
     const zeroPct = 50;
+    const currentPct = zeroPct + (current / span) * half;
     return {
       maxProfit,
       /** Stored positive (drawdown amount); rail plots it left of zero. */
       maxLoss,
+      current,
       zeroPct,
+      currentPct,
       profitPct: zeroPct + (maxProfit / span) * half,
       lossPct: zeroPct - (maxLoss / span) * half,
+      /** Hide the 0 tag when current sits on top of it. */
+      showZeroLabel: Math.abs(currentPct - zeroPct) > 5,
     };
   });
 

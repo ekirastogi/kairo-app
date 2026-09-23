@@ -125,7 +125,22 @@
                     class="absolute top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
                     [style.left.%]="extremes.zeroPct"
                   >
-                    <span class="absolute bottom-full mb-2 whitespace-nowrap text-xs font-bold tabular-nums text-slate-500 sm:text-sm">0</span>
+                    @if (extremes.showZeroLabel) {
+                      <span class="absolute bottom-full mb-2 whitespace-nowrap text-xs font-bold tabular-nums text-slate-500 sm:text-sm">0</span>
+                    }
+                  </div>
+                  <div
+                    class="absolute top-1/2 z-30 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+                    [style.left.%]="extremes.currentPct"
+                    [title]="'Current P&L ' + formatCurrency(extremes.current)"
+                  >
+                    <span class="h-4 w-4 rounded-full border-2 border-white shadow" [class]="extremes.current >= 0 ? 'bg-indigo-500' : 'bg-indigo-700'"></span>
+                    <span
+                      class="absolute bottom-full mb-2 whitespace-nowrap text-xs font-bold tabular-nums sm:text-sm"
+                      [class]="extremes.current >= 0 ? 'text-indigo-600' : 'text-indigo-700'"
+                    >
+                      Now {{ extremes.current >= 0 ? '+' : '−' }}{{ formatCompactCurrency(extremes.current) }}
+                    </span>
                   </div>
                   @if (extremes.maxProfit > 0) {
                     <div
