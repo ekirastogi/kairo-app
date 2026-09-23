@@ -31,10 +31,7 @@ import {
 import { TradeTypeFilterComponent } from '../shared/trade-type-filter/trade-type-filter.component';
 import { DateRangeFilterComponent } from '../shared/date-range-filter/date-range-filter.component';
 import { HoldingsTableComponent } from '../shared/holdings-table/holdings-table.component';
-import {
-  ExpandableStockColumn,
-  ExpandableStocksTableComponent,
-} from '../shared/expandable-stocks-table/expandable-stocks-table.component';
+import { ExpandableStocksTableComponent } from '../shared/expandable-stocks-table/expandable-stocks-table.component';
 import { StockScenarioPanelComponent } from '../shared/stock-scenario-panel/stock-scenario-panel.component';
 import { TierSummaryBarComponent } from '../shared/tier-summary-bar/tier-summary-bar.component';
 import {
@@ -189,10 +186,6 @@ export class DashboardComponent implements OnInit {
 
   visibleStockColumnList = computed(() =>
     this.stockColumns.filter((col) => this.visibleStockColumns().has(col.key))
-  );
-
-  expandableStockColumns = computed((): ExpandableStockColumn[] =>
-    this.visibleStockColumnList().map((col) => col.key as ExpandableStockColumn)
   );
 
   stockEmptyMessage = computed(() => {

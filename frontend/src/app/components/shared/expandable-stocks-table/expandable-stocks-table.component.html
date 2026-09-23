@@ -1,4 +1,38 @@
-<div class="overflow-x-auto">
+<div>
+  @if (showColumnPicker()) {
+    <div class="mb-3 flex flex-wrap items-center justify-end gap-2">
+      <button
+        type="button"
+        class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+        (click)="toggleColumnsPanel()"
+      >
+        Columns
+        <svg class="h-3.5 w-3.5 transition" [class.rotate-180]="columnsPanelOpen()" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+    </div>
+    @if (columnsPanelOpen()) {
+      <div class="mb-3 flex flex-wrap gap-2">
+        @for (col of allColumns; track col.key) {
+          <button
+            type="button"
+            class="chip"
+            [class.chip-active]="isColumnVisible(col.key)"
+            [class.chip-inactive]="!isColumnVisible(col.key)"
+            [class.opacity-60]="col.required"
+            [disabled]="col.required"
+            (click)="toggleColumn(col.key)"
+          >
+            {{ col.label }}
+            @if (col.required) {
+              <span class="ml-1 text-[10px] opacity-70">(always)</span>
+            }
+          </button>
+        }
+      </div>
+    }
+  }
+
+  <div class="overflow-x-auto">
   <table class="stock-table">
     <thead>
       <tr>
@@ -223,4 +257,5 @@
       </tfoot>
     }
   </table>
+  </div>
 </div>

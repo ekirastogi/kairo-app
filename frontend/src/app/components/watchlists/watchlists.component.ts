@@ -28,10 +28,7 @@ import { TradeTypeFilterComponent } from '../shared/trade-type-filter/trade-type
 import { DateRangeFilterComponent } from '../shared/date-range-filter/date-range-filter.component';
 import { FILTER_QUERY_KEYS, readWatchlistFilters } from '../../utils/filter-url.utils';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
-import {
-  ExpandableStockColumn,
-  ExpandableStocksTableComponent,
-} from '../shared/expandable-stocks-table/expandable-stocks-table.component';
+import { ExpandableStocksTableComponent } from '../shared/expandable-stocks-table/expandable-stocks-table.component';
 import { StockScenarioPanelComponent } from '../shared/stock-scenario-panel/stock-scenario-panel.component';
 import { TierSummaryBarComponent } from '../shared/tier-summary-bar/tier-summary-bar.component';
 import {
@@ -134,19 +131,6 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   ];
 
   readonly allSubtabId = ALL_SUBTAB_ID;
-
-  readonly stockColumns: ExpandableStockColumn[] = [
-    'stockName',
-    'tradeCount',
-    'quantity',
-    'buyValue',
-    'sellValue',
-    'realisedPnL',
-    'realisedPnLPct',
-    'allocatedCharges',
-    'netPnL',
-    'winRate',
-  ];
 
   activeTab = signal<WatchlistTab>('losing');
   book = signal<PnLBook>('realised');

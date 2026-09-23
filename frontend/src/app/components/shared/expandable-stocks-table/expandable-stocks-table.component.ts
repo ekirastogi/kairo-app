@@ -28,8 +28,8 @@ export type ExpandableStockColumn =
 
 type SortDir = 'asc' | 'desc';
 
-const ALL_COLUMNS: { key: ExpandableStockColumn; label: string }[] = [
-  { key: 'stockName', label: 'Stock' },
+export const EXPANDABLE_STOCK_COLUMNS: { key: ExpandableStockColumn; label: string; required?: boolean }[] = [
+  { key: 'stockName', label: 'Stock', required: true },
   { key: 'tradeCount', label: 'Trades' },
   { key: 'quantity', label: 'Qty' },
   { key: 'buyValue', label: 'Buy Value' },
@@ -40,6 +40,23 @@ const ALL_COLUMNS: { key: ExpandableStockColumn; label: string }[] = [
   { key: 'netPnL', label: 'Net P&L' },
   { key: 'winRate', label: 'Win %' },
 ];
+
+/** History-style default: hide Buy, Sell, and P&L %. */
+export const DEFAULT_EXPANDABLE_STOCK_COLUMNS: ExpandableStockColumn[] = [
+  'stockName',
+  'tradeCount',
+  'quantity',
+  'realisedPnL',
+  'allocatedCharges',
+  'netPnL',
+];
+
+const MOBILE_ALWAYS_VISIBLE = new Set<ExpandableStockColumn>([
+  'stockName',
+  'realisedPnL',
+  'allocatedCharges',
+  'netPnL',
+]);
 
 /**
  * Analytics-style stock columns with dashboard/watchlist day→trades accordion.
@@ -59,8 +76,13 @@ export class ExpandableStocksTableComponent {
   emptyMessage = input('No stock data for current filters');
   showFooter = input(true);
   expandable = input(true);
-  /** Subset of columns to show; defaults to the analytics set. */
+  /**
+   * Optional initial column set. When omitted, History defaults apply
+   * (Stock, Trades, Qty, P&L, Charges, Net — no Buy / Sell / P&L %).
+   */
   columns = input<ExpandableStockColumn[] | null>(null);
+  /** Show the History-style Columns chip picker above the table. */
+  showColumnPicker = input(true);
   /**
    * When set with periodKey, expanded stock trades are clipped to that
    * daily / weekly / monthly / weekday bucket — never the full filter window.
@@ -74,17 +96,27 @@ export class ExpandableStocksTableComponent {
   sortDirection = signal<SortDir>('desc');
   expandedStockKey = signal<string | null>(null);
   expandedDayKey = signal<string | null>(null);
+  columnsPanelOpen = signal(false);
+  selectedColumns = signal<Set<ExpandableStockColumn>>(new Set(DEFAULT_EXPANDABLE_STOCK_COLUMNS));
 
   readonly formatCurrency = formatCurrency;
   readonly formatPct = formatPct;
   readonly formatDate = formatDate;
   readonly pnlClass = pnlClass;
+  readonly allColumns = EXPANDABLE_STOCK_COLUMNS;
+
+  private readonly _syncColumnInput = effect(() => {
+    const keys = this.columns();
+    untracked(() => {
+      this.selectedColumns.set(
+        new Set(keys?.length ? keys : DEFAULT_EXPANDABLE_STOCK_COLUMNS)
+      );
+    });
+  });
 
   visibleColumns = computed(() => {
-    const keys = this.columns();
-    if (!keys?.length) return ALL_COLUMNS;
-    const set = new Set(keys);
-    return ALL_COLUMNS.filter((col) => set.has(col.key));
+    const selected = this.selectedColumns();
+    return EXPANDABLE_STOCK_COLUMNS.filter((col) => selected.has(col.key));
   });
 
   chargeRatio = computed(() => this.state.analysis()?.summary.chargeRatio ?? 0);
@@ -185,10 +217,37 @@ export class ExpandableStocksTableComponent {
     return stockIdentityKey(stock);
   }
 
+  /** Mobile accordion row: Stock, P&L, Charges, Net. Extra columns appear from sm/lg. */
   responsiveClass(key: ExpandableStockColumn): string {
-    if (key === 'stockName' || key === 'netPnL') return '';
-    if (key === 'tradeCount' || key === 'realisedPnL') return 'hidden sm:table-cell';
+    if (MOBILE_ALWAYS_VISIBLE.has(key)) return '';
+    if (key === 'tradeCount' || key === 'quantity') return 'hidden sm:table-cell';
     return 'hidden lg:table-cell';
+  }
+
+  toggleColumnsPanel(): void {
+    this.columnsPanelOpen.update((open) => !open);
+  }
+
+  isColumnVisible(key: ExpandableStockColumn): boolean {
+    return this.selectedColumns().has(key);
+  }
+
+  isColumnRequired(key: ExpandableStockColumn): boolean {
+    return EXPANDABLE_STOCK_COLUMNS.find((col) => col.key === key)?.required ?? false;
+  }
+
+  toggleColumn(key: ExpandableStockColumn): void {
+    if (this.isColumnRequired(key)) return;
+    this.selectedColumns.update((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        if (next.size <= 1) return current;
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
   }
 
   cellClass(key: ExpandableStockColumn, stock: StockSummary): string {

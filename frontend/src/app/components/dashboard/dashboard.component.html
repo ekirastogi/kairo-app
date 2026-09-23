@@ -377,43 +377,11 @@
                 Showing {{ stockScenarioStats().shown }} of {{ stockScenarioStats().total }} stocks
               </span>
 
-              <div class="flex flex-wrap items-center gap-2 sm:ml-auto">
-                <button
-                  type="button"
-                  class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-                  (click)="toggleStockColumnsPanel()"
-                >
-                  Columns
-                  <svg class="h-3.5 w-3.5 transition" [class.rotate-180]="stockColumnsPanelOpen()" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                </button>
-              </div>
             </div>
-
-            @if (stockColumnsPanelOpen()) {
-              <div class="flex flex-wrap gap-2">
-                @for (col of stockColumns; track col.key) {
-                  <button
-                    type="button"
-                    class="chip"
-                    [class.chip-active]="isStockColumnVisible(col.key)"
-                    [class.chip-inactive]="!isStockColumnVisible(col.key)"
-                    [class.opacity-60]="col.required"
-                    [disabled]="col.required"
-                    (click)="toggleStockColumn(col.key)"
-                  >
-                    {{ col.label }}
-                    @if (col.required) {
-                      <span class="ml-1 text-[10px] opacity-70">(always)</span>
-                    }
-                  </button>
-                }
-              </div>
-            }
           </div>
 
           <app-expandable-stocks-table
             [stocks]="sortedStockData()"
-            [columns]="expandableStockColumns()"
             [emptyMessage]="stockEmptyMessage()"
           />
         }
