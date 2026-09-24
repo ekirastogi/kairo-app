@@ -285,7 +285,7 @@
   }
 
   .mobile-tab-item {
-    @apply relative flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium text-slate-400 transition-colors;
+    @apply relative flex flex-1 touch-manipulation flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium text-slate-400 transition-colors;
   }
 
   .mobile-tab-item-active {

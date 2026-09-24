@@ -253,6 +253,25 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Programmatic nav so a filter-URL rewrite cannot cancel the tap, and so
+   * SVG icon hits still route (the native <a> + routerLink combo was erroring).
+   */
+  onMobileNav(event: Event, route: string): void {
+    event.preventDefault();
+    this.onNavigate();
+    void this.router.navigate([route], { queryParamsHandling: 'preserve' });
+  }
+
+  /** Heroicons-style icons sometimes concatenate two `d` values; SVG needs one path each. */
+  iconPaths(icon: string): string[] {
+    const parts = icon
+      .split(/(?<=[zZ])\s*(?=[mM])/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    return parts.length ? parts : [icon];
+  }
+
   async logout(): Promise<void> {
     // Drop cached trade data before signing out: the report history lives under a fixed,
     // uid-independent storage key, so leaving it behind exposes one account's P&L to the

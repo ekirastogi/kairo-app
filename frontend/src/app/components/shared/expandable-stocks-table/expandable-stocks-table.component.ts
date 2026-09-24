@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { Component, computed, effect, HostListener, inject, input, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { StockSummary, TRADE_TYPE_LABELS, Trade, TradeType } from '../../../models/trade.models';
@@ -41,7 +41,7 @@ export const EXPANDABLE_STOCK_COLUMNS: { key: ExpandableStockColumn; label: stri
   { key: 'winRate', label: 'Win %' },
 ];
 
-/** History-style default: hide Buy, Sell, and P&L %. */
+/** History-style desktop default: hide Buy, Sell, and P&L %. */
 export const DEFAULT_EXPANDABLE_STOCK_COLUMNS: ExpandableStockColumn[] = [
   'stockName',
   'tradeCount',
@@ -51,12 +51,27 @@ export const DEFAULT_EXPANDABLE_STOCK_COLUMNS: ExpandableStockColumn[] = [
   'netPnL',
 ];
 
-const MOBILE_ALWAYS_VISIBLE = new Set<ExpandableStockColumn>([
+/** Phone/tablet default: name + net only. Desktop defaults stay unchanged. */
+export const MOBILE_DEFAULT_EXPANDABLE_STOCK_COLUMNS: ExpandableStockColumn[] = [
   'stockName',
-  'realisedPnL',
-  'allocatedCharges',
   'netPnL',
-]);
+];
+
+const DESKTOP_BREAKPOINT = 1024;
+
+function defaultColumnsForViewport(width?: number): ExpandableStockColumn[] {
+  const w = width ?? (typeof window !== 'undefined' ? window.innerWidth : DESKTOP_BREAKPOINT);
+  return w < DESKTOP_BREAKPOINT
+    ? MOBILE_DEFAULT_EXPANDABLE_STOCK_COLUMNS
+    : DEFAULT_EXPANDABLE_STOCK_COLUMNS;
+}
+
+function sameColumnSet(
+  current: Set<ExpandableStockColumn>,
+  next: readonly ExpandableStockColumn[]
+): boolean {
+  return current.size === next.length && next.every((key) => current.has(key));
+}
 
 /**
  * Analytics-style stock columns with dashboard/watchlist day→trades accordion.
@@ -77,8 +92,8 @@ export class ExpandableStocksTableComponent {
   showFooter = input(true);
   expandable = input(true);
   /**
-   * Optional initial column set. When omitted, History defaults apply
-   * (Stock, Trades, Qty, P&L, Charges, Net — no Buy / Sell / P&L %).
+   * Optional initial column set. When omitted, desktop uses History defaults
+   * (Stock, Trades, Qty, P&L, Charges, Net) and mobile uses Stock + Net P&L.
    */
   columns = input<ExpandableStockColumn[] | null>(null);
   /** Show the History-style Columns chip picker above the table. */
@@ -97,7 +112,9 @@ export class ExpandableStocksTableComponent {
   expandedStockKey = signal<string | null>(null);
   expandedDayKey = signal<string | null>(null);
   columnsPanelOpen = signal(false);
-  selectedColumns = signal<Set<ExpandableStockColumn>>(new Set(DEFAULT_EXPANDABLE_STOCK_COLUMNS));
+  selectedColumns = signal<Set<ExpandableStockColumn>>(new Set(defaultColumnsForViewport()));
+  /** Once the user toggles Columns, viewport resizes must not wipe their set. */
+  private columnsCustomized = false;
 
   readonly formatCurrency = formatCurrency;
   readonly formatPct = formatPct;
@@ -108,11 +125,19 @@ export class ExpandableStocksTableComponent {
   private readonly _syncColumnInput = effect(() => {
     const keys = this.columns();
     untracked(() => {
-      this.selectedColumns.set(
-        new Set(keys?.length ? keys : DEFAULT_EXPANDABLE_STOCK_COLUMNS)
-      );
+      this.columnsCustomized = false;
+      this.selectedColumns.set(new Set(keys?.length ? keys : defaultColumnsForViewport()));
     });
   });
+
+  @HostListener('window:resize')
+  onResize(): void {
+    if (this.columnsCustomized || this.columns()?.length) return;
+    const next = defaultColumnsForViewport();
+    if (!sameColumnSet(this.selectedColumns(), next)) {
+      this.selectedColumns.set(new Set(next));
+    }
+  }
 
   visibleColumns = computed(() => {
     const selected = this.selectedColumns();
@@ -217,11 +242,9 @@ export class ExpandableStocksTableComponent {
     return stockIdentityKey(stock);
   }
 
-  /** Mobile accordion row: Stock, P&L, Charges, Net. Extra columns appear from sm/lg. */
-  responsiveClass(key: ExpandableStockColumn): string {
-    if (MOBILE_ALWAYS_VISIBLE.has(key)) return '';
-    if (key === 'tradeCount' || key === 'quantity') return 'hidden sm:table-cell';
-    return 'hidden lg:table-cell';
+  /** Visibility is the Columns picker — selected columns stay visible at every breakpoint. */
+  responsiveClass(_key: ExpandableStockColumn): string {
+    return '';
   }
 
   toggleColumnsPanel(): void {
@@ -238,6 +261,7 @@ export class ExpandableStocksTableComponent {
 
   toggleColumn(key: ExpandableStockColumn): void {
     if (this.isColumnRequired(key)) return;
+    this.columnsCustomized = true;
     this.selectedColumns.update((current) => {
       const next = new Set(current);
       if (next.has(key)) {

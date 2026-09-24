@@ -45,8 +45,10 @@
                 class="nav-link"
                 (click)="onNavigate()"
               >
-                <svg class="h-[1.125rem] w-[1.125rem] shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" [attr.d]="item.icon" />
+                <svg class="pointer-events-none h-[1.125rem] w-[1.125rem] shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  @for (d of iconPaths(item.icon); track d) {
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" [attr.d]="d" />
+                  }
                 </svg>
                 {{ item.label }}
               </a>
@@ -123,13 +125,16 @@
     @for (item of mobileNavItems; track item.route) {
       <a
         [routerLink]="item.route"
+        queryParamsHandling="preserve"
         routerLinkActive="mobile-tab-item-active"
         [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
         class="mobile-tab-item"
-        (click)="onNavigate()"
+        (click)="onMobileNav($event, item.route)"
       >
-        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" [attr.d]="item.icon" />
+        <svg class="pointer-events-none h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          @for (d of iconPaths(item.icon); track d) {
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" [attr.d]="d" />
+          }
         </svg>
         <span>{{ item.label }}</span>
       </a>

@@ -1,6 +1,7 @@
 import { Injectable, inject, effect, untracked } from '@angular/core';
-import { NavigationEnd, Router } from '@angular/router';
-import { filter } from 'rxjs/operators';
+import { NavigationCancel, NavigationEnd, NavigationError, Router } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { filter, take } from 'rxjs/operators';
 import { ReportStateService } from './report-state.service';
 import { TradeType } from '../models/trade.models';
 import {
@@ -234,6 +235,23 @@ export class FilterUrlService {
       while (this.pendingPatch) {
         const patch = this.pendingPatch;
         this.pendingPatch = null;
+        // Writing the current URL while a tab tap is in flight cancels that
+        // navigation (and can surface as a router NavigationError on mobile).
+        if (this.router.getCurrentNavigation()) {
+          this.pendingPatch = { ...patch, ...(this.pendingPatch ?? {}) };
+          await firstValueFrom(
+            this.router.events.pipe(
+              filter(
+                (event): event is NavigationEnd | NavigationCancel | NavigationError =>
+                  event instanceof NavigationEnd ||
+                  event instanceof NavigationCancel ||
+                  event instanceof NavigationError
+              ),
+              take(1)
+            )
+          );
+          continue;
+        }
         const tree = this.router.parseUrl(this.router.url);
         for (const [key, value] of Object.entries(patch)) {
           if (value === null || value === '') {
