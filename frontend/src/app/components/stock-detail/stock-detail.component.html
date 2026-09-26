@@ -62,7 +62,7 @@
             [class.text-emerald-600]="price.fromMarket && price.change != null && price.change >= 0"
             [class.text-red-600]="price.fromMarket && price.change != null && price.change < 0"
           >
-            {{ fmt(price.value) }}
+            {{ fmtPrice(price.value) }}
           </div>
           @if (price.fromMarket && price.change != null && price.changePct != null) {
             <div
@@ -121,8 +121,8 @@
     @if (s.week52High && s.week52Low) {
       <div class="stock-detail-52w">
         <div class="stock-detail-52w-labels">
-          <span>52W Low {{ fmt(s.week52Low) }}</span>
-          <span>52W High {{ fmt(s.week52High) }}</span>
+          <span>52W Low {{ fmtPrice(s.week52Low) }}</span>
+          <span>52W High {{ fmtPrice(s.week52High) }}</span>
         </div>
         <div class="stock-detail-52w-track">
           <div class="stock-detail-52w-fill" [style.width.%]="week52Position()"></div>
@@ -250,7 +250,7 @@
           @for (level of (s.supportLevels ?? []).slice(0, 3); track $index) {
             <div class="stock-detail-level-row">
               <span>S{{ $index + 1 }}</span>
-              <span class="font-mono text-emerald-600">{{ fmt(level) }}</span>
+              <span class="font-mono text-emerald-600">{{ fmtPrice(level) }}</span>
             </div>
           }
         </div>
@@ -259,7 +259,7 @@
           @for (level of (s.resistanceLevels ?? []).slice(0, 3); track $index) {
             <div class="stock-detail-level-row">
               <span>R{{ $index + 1 }}</span>
-              <span class="font-mono text-red-600">{{ fmt(level) }}</span>
+              <span class="font-mono text-red-600">{{ fmtPrice(level) }}</span>
             </div>
           }
         </div>
@@ -283,7 +283,7 @@
           <div>
             <h4 class="mb-2 text-xs font-semibold uppercase text-slate-500">Your supports</h4>
             @for (l of userLevels()?.supports ?? []; track l.id) {
-              <div class="stock-detail-level-row"><span>{{ l.label }}</span><span class="font-mono text-emerald-600">{{ fmt(l.price) }}</span></div>
+              <div class="stock-detail-level-row"><span>{{ l.label }}</span><span class="font-mono text-emerald-600">{{ fmtPrice(l.price) }}</span></div>
             } @empty {
               <p class="text-xs text-slate-400">None yet</p>
             }
@@ -291,7 +291,7 @@
           <div>
             <h4 class="mb-2 text-xs font-semibold uppercase text-slate-500">Your resistances</h4>
             @for (l of userLevels()?.resistances ?? []; track l.id) {
-              <div class="stock-detail-level-row"><span>{{ l.label }}</span><span class="font-mono text-red-600">{{ fmt(l.price) }}</span></div>
+              <div class="stock-detail-level-row"><span>{{ l.label }}</span><span class="font-mono text-red-600">{{ fmtPrice(l.price) }}</span></div>
             } @empty {
               <p class="text-xs text-slate-400">None yet</p>
             }
@@ -408,11 +408,11 @@
                           <td class="text-right">{{ trade.quantity | number }}</td>
                           <td class="text-right">
                             <div class="text-xs text-slate-500">{{ formatDate(trade.buyDate) }}</div>
-                            <div>{{ fmt(trade.buyPrice) }}</div>
+                            <div>{{ fmtPrice(trade.buyPrice) }}</div>
                           </td>
                           <td class="text-right">
                             <div class="text-xs text-slate-500">{{ formatDate(trade.sellDate) }}</div>
-                            <div>{{ fmt(trade.sellPrice) }}</div>
+                            <div>{{ fmtPrice(trade.sellPrice) }}</div>
                           </td>
                           <td class="text-right hidden sm:table-cell" [class]="pnlClass(trade.realisedPnL)">{{ fmt(trade.realisedPnL) }}</td>
                           <td class="text-right hidden text-red-600 md:table-cell">{{ fmt(tradeAllocatedCharge(trade)) }}</td>
@@ -474,8 +474,8 @@
                   <td>{{ planDateLabel(plan) }}</td>
                   <td class="capitalize">{{ plan.segment }} {{ plan.direction }}</td>
                   <td class="text-right tabular-nums">{{ plan.quantity | number }}</td>
-                  <td class="text-right tabular-nums">{{ fmt(plan.entryPrice) }}</td>
-                  <td class="text-right tabular-nums">{{ fmt(plan.targetPrice) }}</td>
+                  <td class="text-right tabular-nums">{{ fmtPrice(plan.entryPrice) }}</td>
+                  <td class="text-right tabular-nums">{{ fmtPrice(plan.targetPrice) }}</td>
                   <td class="text-right tabular-nums" [class]="pnlClass(plan.realizedPnL ?? plan.estimatedPnL)">
                     {{ fmt(plan.realizedPnL ?? plan.estimatedPnL) }}
                   </td>

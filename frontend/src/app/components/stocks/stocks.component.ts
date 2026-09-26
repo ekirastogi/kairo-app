@@ -5,7 +5,7 @@ import { RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { StockFirestoreService } from '../../services/stock-firestore.service';
 import { StockSnapshot } from '../../models/market.models';
-import { formatCurrency, pnlClass } from '../../utils/format.utils';
+import { formatPrice, pnlClass } from '../../utils/format.utils';
 import { TableSortState } from '../../utils/table-sort.utils';
 
 @Component({
@@ -21,7 +21,7 @@ export class StocksComponent {
   search = signal('');
   readonly tableSort = new TableSortState('symbol', 'asc');
 
-  readonly fmt = formatCurrency;
+  readonly fmtPrice = formatPrice;
   readonly pnlClass = pnlClass;
 
   readonly columns = [

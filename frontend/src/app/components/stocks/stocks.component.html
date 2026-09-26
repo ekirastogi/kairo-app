@@ -65,7 +65,7 @@
               <tr class="cursor-pointer" [routerLink]="['/stock', s.symbol]">
                 <td class="font-semibold text-kairo-700">{{ s.symbol }}</td>
                 <td class="col-name max-w-[12rem] truncate text-slate-700">{{ s.name || s.symbol }}</td>
-                <td class="text-right font-medium tabular-nums">{{ fmt(s.ltp) }}</td>
+                <td class="text-right font-medium tabular-nums">{{ fmtPrice(s.ltp) }}</td>
                 <td class="text-right tabular-nums" [class]="pnlClass(s.changePct)">
                   {{ s.changePct >= 0 ? '+' : '' }}{{ s.changePct.toFixed(2) }}%
                 </td>

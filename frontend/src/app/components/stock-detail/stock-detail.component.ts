@@ -21,7 +21,7 @@ import { HoldingsTableComponent } from '../shared/holdings-table/holdings-table.
 import { TradePlanFormComponent } from '../trade-plans/trade-plan-form.component';
 import { PlannedTrade, RegistryStock } from '../../models/trading-journal.models';
 import { StockSnapshot } from '../../models/market.models';
-import { formatCurrency, formatDate, formatPct, pnlClass } from '../../utils/format.utils';
+import { formatCurrency, formatDate, formatPct, formatPrice, pnlClass } from '../../utils/format.utils';
 import { formatDataAge, formatFetchedAt } from '../../utils/data-age.utils';
 import { TRADE_TYPE_LABELS, Trade, TradeType } from '../../models/trade.models';
 import { summariseTradesByDay, TradeDaySummary } from '../../utils/trade-day-summary.utils';
@@ -132,6 +132,7 @@ export class StockDetailComponent implements OnInit {
 
   activeTab = signal<'market' | 'fundamentals' | 'holdings' | 'my-trades' | 'trade-plan'>('fundamentals');
   fmt = formatCurrency;
+  fmtPrice = formatPrice;
   fmtPct = formatPct;
 
   hasMarketData = computed(() => !!(this.stock() || this.isinMarketStock()));

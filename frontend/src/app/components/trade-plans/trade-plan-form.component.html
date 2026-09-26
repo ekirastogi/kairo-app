@@ -86,7 +86,7 @@
         }
         <label class="block text-sm">
           <span class="text-slate-500">CMP (current price) *</span>
-          <input class="input-field mt-1 w-full" type="number" [(ngModel)]="form.cmp" />
+          <input class="input-field mt-1 w-full" type="number" step="0.01" inputmode="decimal" [(ngModel)]="form.cmp" />
           @if (needsCmpFetch()) {
             <button
               type="button"

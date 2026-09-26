@@ -16,7 +16,7 @@ import {
   LabelFilterOption,
   LabelFilterSelectComponent,
 } from '../stock-labels/label-filter-select.component';
-import { formatCurrency } from '../../utils/format.utils';
+import { formatCurrency, formatPrice as formatInrPrice } from '../../utils/format.utils';
 import { formatDataAge } from '../../utils/data-age.utils';
 import { TableSortState } from '../../utils/table-sort.utils';
 import { ScreenerFundamentalsComponent } from '../screener-fundamentals/screener-fundamentals.component';
@@ -396,8 +396,8 @@ export class StockRegistryComponent implements OnInit {
   }
 
   formatPrice(price: number | undefined): string {
-    if (price == null || price === 0) return '—';
-    return this.fmt(price);
+    if (price == null || !Number.isFinite(price) || price === 0) return '—';
+    return formatInrPrice(price);
   }
 
   private sortValue(stock: RegistryStock, col: string): string | number {

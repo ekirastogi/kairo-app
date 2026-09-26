@@ -132,56 +132,56 @@
         </label>
         <label class="block text-sm">
           <span class="text-slate-500">Current price</span>
-          <input class="input-field mt-1 w-full" type="number" [(ngModel)]="form.currentPrice" placeholder="Optional" />
+          <input class="input-field mt-1 w-full" type="number" step="0.01" inputmode="decimal" [(ngModel)]="form.currentPrice" placeholder="Optional" />
         </label>
         <label class="block text-sm">
           <span class="text-slate-500">Market cap</span>
-          <input class="input-field mt-1 w-full" type="number" [(ngModel)]="form.marketCap" />
+          <input class="input-field mt-1 w-full" type="number" step="any" inputmode="decimal" [(ngModel)]="form.marketCap" />
         </label>
         <label class="block text-sm">
           <span class="text-slate-500">P/E</span>
-          <input class="input-field mt-1 w-full" type="number" [(ngModel)]="form.pe" />
+          <input class="input-field mt-1 w-full" type="number" step="any" inputmode="decimal" [(ngModel)]="form.pe" />
         </label>
         <label class="block text-sm">
           <span class="text-slate-500">RSI</span>
-          <input class="input-field mt-1 w-full" type="number" [(ngModel)]="form.rsi" />
+          <input class="input-field mt-1 w-full" type="number" step="any" inputmode="decimal" [(ngModel)]="form.rsi" />
         </label>
         <label class="block text-sm">
           <span class="text-slate-500">MACD</span>
-          <input class="input-field mt-1 w-full" type="number" [(ngModel)]="form.macd" />
+          <input class="input-field mt-1 w-full" type="number" step="any" inputmode="decimal" [(ngModel)]="form.macd" />
         </label>
         <label class="block text-sm">
           <span class="text-slate-500">MACD signal</span>
-          <input class="input-field mt-1 w-full" type="number" [(ngModel)]="form.macdSignal" />
+          <input class="input-field mt-1 w-full" type="number" step="any" inputmode="decimal" [(ngModel)]="form.macdSignal" />
         </label>
         <label class="block text-sm">
           <span class="text-slate-500">MACD hist</span>
-          <input class="input-field mt-1 w-full" type="number" [(ngModel)]="form.macdHist" />
+          <input class="input-field mt-1 w-full" type="number" step="any" inputmode="decimal" [(ngModel)]="form.macdHist" />
         </label>
         <label class="block text-sm">
           <span class="text-slate-500">SMA 20</span>
-          <input class="input-field mt-1 w-full" type="number" [(ngModel)]="form.sma20" />
+          <input class="input-field mt-1 w-full" type="number" step="0.01" inputmode="decimal" [(ngModel)]="form.sma20" />
         </label>
         <label class="block text-sm">
           <span class="text-slate-500">SMA 50</span>
-          <input class="input-field mt-1 w-full" type="number" [(ngModel)]="form.sma50" />
+          <input class="input-field mt-1 w-full" type="number" step="0.01" inputmode="decimal" [(ngModel)]="form.sma50" />
         </label>
       </div>
       <div class="mt-4 grid gap-3 sm:grid-cols-3">
         <div>
           <p class="mb-2 text-xs font-semibold uppercase text-slate-500">Supports</p>
           <div class="space-y-2">
-            <input class="input-field w-full" type="number" placeholder="S1" [(ngModel)]="form.support1" />
-            <input class="input-field w-full" type="number" placeholder="S2" [(ngModel)]="form.support2" />
-            <input class="input-field w-full" type="number" placeholder="S3" [(ngModel)]="form.support3" />
+            <input class="input-field w-full" type="number" step="0.01" inputmode="decimal" placeholder="S1" [(ngModel)]="form.support1" />
+            <input class="input-field w-full" type="number" step="0.01" inputmode="decimal" placeholder="S2" [(ngModel)]="form.support2" />
+            <input class="input-field w-full" type="number" step="0.01" inputmode="decimal" placeholder="S3" [(ngModel)]="form.support3" />
           </div>
         </div>
         <div>
           <p class="mb-2 text-xs font-semibold uppercase text-slate-500">Resistances</p>
           <div class="space-y-2">
-            <input class="input-field w-full" type="number" placeholder="R1" [(ngModel)]="form.resistance1" />
-            <input class="input-field w-full" type="number" placeholder="R2" [(ngModel)]="form.resistance2" />
-            <input class="input-field w-full" type="number" placeholder="R3" [(ngModel)]="form.resistance3" />
+            <input class="input-field w-full" type="number" step="0.01" inputmode="decimal" placeholder="R1" [(ngModel)]="form.resistance1" />
+            <input class="input-field w-full" type="number" step="0.01" inputmode="decimal" placeholder="R2" [(ngModel)]="form.resistance2" />
+            <input class="input-field w-full" type="number" step="0.01" inputmode="decimal" placeholder="R3" [(ngModel)]="form.resistance3" />
           </div>
         </div>
         <div>
