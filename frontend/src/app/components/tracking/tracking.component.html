@@ -1,27 +1,28 @@
 <div class="plan-page">
+  <div class="pill-tabs" role="tablist" aria-label="Trade plan views">
+    <button
+      type="button"
+      role="tab"
+      class="pill-tab"
+      [class.pill-tab-active]="activeTab() === 'open'"
+      [attr.aria-selected]="activeTab() === 'open'"
+      (click)="setTab('open')"
+    >
+      Open
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="pill-tab"
+      [class.pill-tab-active]="activeTab() === 'history'"
+      [attr.aria-selected]="activeTab() === 'history'"
+      (click)="setTab('history')"
+    >
+      History
+    </button>
+  </div>
+
   <div class="plan-toolbar">
-    <div class="plan-tabs" role="tablist" aria-label="Trade plan views">
-      <button
-        type="button"
-        role="tab"
-        class="pill-tab"
-        [class.pill-tab-active]="activeTab() === 'open'"
-        [attr.aria-selected]="activeTab() === 'open'"
-        (click)="setTab('open')"
-      >
-        Open
-      </button>
-      <button
-        type="button"
-        role="tab"
-        class="pill-tab"
-        [class.pill-tab-active]="activeTab() === 'history'"
-        [attr.aria-selected]="activeTab() === 'history'"
-        (click)="setTab('history')"
-      >
-        History
-      </button>
-    </div>
     <input
       class="plan-search"
       type="search"
@@ -234,54 +235,45 @@
   @if (activeTab() === 'open') {
   <div class="plan-list">
     <table class="plan-blotter">
-      <colgroup>
-        <col class="col-stock" />
-        <col class="col-side" />
-        <col class="col-trigger" />
-        <col class="col-cmp" />
-        <col class="col-diff" />
-        <col class="col-net" />
-        <col class="col-chevron" />
-      </colgroup>
       <thead>
         <tr>
-          <th>
+          <th class="col-stock">
             <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('symbol')" (click)="toggleSort('symbol', $event)">
               Stock <span>{{ tableSort.indicator('symbol') }}</span>
             </button>
           </th>
-          <th class="desk">
+          <th class="desk col-side">
             <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('action')" (click)="toggleSort('action', $event)">
               Side <span>{{ tableSort.indicator('action') }}</span>
             </button>
           </th>
-          <th class="num">
+          <th class="num col-trigger">
             <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('targetPrice')" (click)="toggleSort('targetPrice', $event)">
               Trigger <span>{{ tableSort.indicator('targetPrice') }}</span>
             </button>
           </th>
-          <th class="desk num">
+          <th class="desk num col-cmp">
             <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('cmp')" (click)="toggleSort('cmp', $event)">
               CMP <span>{{ tableSort.indicator('cmp') }}</span>
             </button>
           </th>
-          <th class="num">
+          <th class="num col-diff">
             <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('diff')" (click)="toggleSort('diff', $event)">
               Dist. <span>{{ tableSort.indicator('diff') }}</span>
             </button>
           </th>
-          <th class="desk num">
+          <th class="desk num col-net">
             <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('netPnL')" (click)="toggleSort('netPnL', $event)">
               Net <span>{{ tableSort.indicator('netPnL') }}</span>
             </button>
           </th>
-          <th></th>
+          <th class="col-chevron"></th>
         </tr>
       </thead>
       <tbody>
         @for (row of rows(); track row.id) {
           <tr [class]="rowClass(row)" (click)="toggleExpanded(row)">
-            <td class="stock">
+            <td class="stock col-stock">
               <a
                 class="sym"
                 [routerLink]="['/stock', row.symbol]"
@@ -289,26 +281,26 @@
               >{{ row.symbol }}</a>
               <span class="name">{{ row.stockName || row.isin || row.symbol }}</span>
             </td>
-            <td class="desk">
+            <td class="desk col-side">
               <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
             </td>
-            <td class="num trigger">{{ formatPrice(row.targetPrice) }}</td>
-            <td class="desk num">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</td>
-            <td class="num">
+            <td class="num trigger col-trigger">{{ formatPrice(row.targetPrice) }}</td>
+            <td class="desk num col-cmp">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</td>
+            <td class="num col-diff">
               @if (row.diffPct != null) {
                 <span [class]="proximityClass(row)">{{ formatPctSigned(row.diffPct) }}</span>
               } @else {
                 <span class="mute">—</span>
               }
             </td>
-            <td class="desk num">
+            <td class="desk num col-net">
               @if (row.economics) {
                 <span class="font-semibold" [class]="pnlClass(row.economics.netPnL)">{{ formatCurrency(row.economics.netPnL) }}</span>
               } @else {
                 <span class="mute">—</span>
               }
             </td>
-            <td class="chevron">
+            <td class="chevron col-chevron">
               <svg class="h-3.5 w-3.5 transition" [class.rotate-180]="isExpanded(row)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
               </svg>
@@ -469,51 +461,42 @@
       </dl>
       <div class="plan-list">
         <table class="plan-blotter">
-          <colgroup>
-            <col class="col-stock" />
-            <col class="col-side" />
-            <col class="col-trigger" />
-            <col class="col-cmp" />
-            <col class="col-diff" />
-            <col class="col-net" />
-            <col class="col-chevron" />
-          </colgroup>
           <thead>
             <tr>
-              <th>
+              <th class="col-stock">
                 <button type="button" class="sort-btn" [class.sort-btn-active]="historySort.isActive('symbol')" (click)="historySort.toggle('symbol', $event)">
                   Stock <span>{{ historySort.indicator('symbol') }}</span>
                 </button>
               </th>
-              <th class="desk">Side</th>
-              <th class="num">Entry</th>
-              <th class="desk num">Exit</th>
-              <th class="num">Win %</th>
-              <th class="desk num">
+              <th class="desk col-side">Side</th>
+              <th class="num col-trigger">Entry</th>
+              <th class="desk num col-cmp">Exit</th>
+              <th class="num col-diff">Win %</th>
+              <th class="desk num col-net">
                 <button type="button" class="sort-btn" [class.sort-btn-active]="historySort.isActive('netPnL')" (click)="historySort.toggle('netPnL', $event)">
                   Net <span>{{ historySort.indicator('netPnL') }}</span>
                 </button>
               </th>
-              <th></th>
+              <th class="col-chevron"></th>
             </tr>
           </thead>
           <tbody>
             @for (row of historyRows(); track row.id) {
               <tr class="plan-row" [class.plan-row-hot]="row.netPnL > 0" (click)="toggleExpanded(row)">
-                <td class="stock">
+                <td class="stock col-stock">
                   <a class="sym" [routerLink]="['/stock', row.symbol]" (click)="$event.stopPropagation()">{{ row.symbol }}</a>
                   <span class="name">{{ row.stockName || row.symbol }}{{ row.executedAt ? ' · ' + (row.executedAt | date:'d MMM') : '' }}</span>
                 </td>
-                <td class="desk"><span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span></td>
-                <td class="num trigger">{{ formatPrice(row.entry) }}</td>
-                <td class="desk num">{{ formatPrice(row.exit) }}</td>
-                <td class="num" [class]="proximityClass({ proximity: row.netPnL > 0 ? 'hot' : row.netPnL < 0 ? 'near' : null, diffPct: row.winPct })">
+                <td class="desk col-side"><span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span></td>
+                <td class="num trigger col-trigger">{{ formatPrice(row.entry) }}</td>
+                <td class="desk num col-cmp">{{ formatPrice(row.exit) }}</td>
+                <td class="num col-diff" [class]="proximityClass({ proximity: row.netPnL > 0 ? 'hot' : row.netPnL < 0 ? 'near' : null, diffPct: row.winPct })">
                   {{ formatPctSigned(row.winPct) }}
                 </td>
-                <td class="desk num">
+                <td class="desk num col-net">
                   <span class="font-semibold" [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</span>
                 </td>
-                <td class="chevron">
+                <td class="chevron col-chevron">
                   <svg class="ml-auto h-3.5 w-3.5 transition" [class.rotate-180]="isExpanded(row)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                   </svg>

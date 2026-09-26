@@ -571,16 +571,16 @@
     @apply w-full max-w-none space-y-2;
   }
 
-  .plan-toolbar {
-    @apply flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-1;
+  .plan-page .pill-tabs .pill-tab {
+    @apply flex-1 text-center sm:flex-none;
   }
 
-  .plan-tabs {
-    @apply flex shrink-0 gap-1;
+  .plan-toolbar {
+    @apply flex flex-wrap items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-1 sm:gap-2;
   }
 
   .plan-search {
-    @apply min-w-[8rem] flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-900;
+    @apply min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-900;
   }
 
   .plan-count {
@@ -588,11 +588,11 @@
   }
 
   .plan-auto {
-    @apply inline-flex shrink-0 cursor-pointer items-center gap-1.5 px-2 text-sm text-slate-600;
+    @apply inline-flex shrink-0 cursor-pointer items-center gap-1.5 px-1.5 text-xs text-slate-600 sm:px-2 sm:text-sm;
   }
 
   .plan-tool-btn {
-    @apply shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 disabled:opacity-50;
+    @apply shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 disabled:opacity-50 sm:px-3 sm:py-2 sm:text-sm;
   }
 
   .plan-tool-btn-primary {
@@ -698,7 +698,15 @@
   }
 
   .plan-blotter th {
-    @apply bg-slate-50 px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500;
+    @apply bg-slate-50 px-1.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500;
+  }
+
+  .plan-blotter th,
+  .plan-blotter td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
   }
 
   .plan-blotter th.num,
@@ -707,37 +715,27 @@
   }
 
   .plan-blotter td {
-    @apply border-t border-slate-100 px-2 py-2.5 text-sm text-slate-700;
+    @apply border-t border-slate-100 px-1.5 py-2.5 text-xs text-slate-700;
   }
 
   .plan-blotter .col-stock {
-    width: 42%;
-  }
-
-  .plan-blotter .col-side,
-  .plan-blotter .col-cmp,
-  .plan-blotter .col-net {
-    width: 0;
+    width: 40%;
   }
 
   .plan-blotter .col-trigger {
-    width: 26%;
+    width: 28%;
   }
 
   .plan-blotter .col-diff {
-    width: 22%;
+    width: 24%;
   }
 
   .plan-blotter .col-chevron {
-    width: 10%;
+    width: 8%;
   }
 
   .plan-blotter .desk {
     display: none;
-  }
-
-  .plan-blotter td.stock {
-    overflow: hidden;
   }
 
   .plan-blotter .sym {
@@ -813,7 +811,9 @@
   }
 
   .plan-expand > td {
-    @apply whitespace-normal bg-white p-0;
+    overflow: visible;
+    white-space: normal;
+    @apply bg-white p-0;
   }
 
   .ticket {
@@ -887,6 +887,10 @@
 
     .plan-blotter .desk {
       display: table-cell;
+    }
+
+    .plan-blotter td {
+      @apply text-sm;
     }
 
     .plan-blotter .col-stock {
