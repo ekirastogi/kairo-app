@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, of, switchMap } from 'rxjs';
-import { TradeSegment } from '../models/trading-journal.models';
+import { ExecutionLeg, TradeSegment } from '../models/trading-journal.models';
+import { TradePlanService } from './trade-plan.service';
 import { AuthService } from './auth.service';
 import { MarketQuote, MarketQuoteSource } from './market-quote.service';
 import { objectToSnake, rowToCamel, SupabaseService } from './supabase.service';
@@ -27,6 +28,11 @@ export interface PriceTracker {
   entryPrice?: number;
   stopLoss?: number;
   targets?: TrackerTarget[];
+  status?: 'open' | 'executed';
+  executedAt?: number;
+  buyLegs?: ExecutionLeg[];
+  sellLegs?: ExecutionLeg[];
+  realizedPnL?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -58,12 +64,20 @@ export class PriceTrackerService {
     return this.auth.user$.pipe(
       switchMap((user) => {
         if (!user) return of([]);
-        return this.supabase.watchTable('price_trackers', () => this.listAll(), 0, 'price_trackers');
+        return this.supabase.watchTable('price_trackers-open', () => this.listOpen(), 0, 'price_trackers');
       })
     );
   }
 
-  async listAll(): Promise<PriceTracker[]> {
+  async listOpen(): Promise<PriceTracker[]> {
+    return this.listByStatus('open', 'updated_at');
+  }
+
+  async listExecuted(): Promise<PriceTracker[]> {
+    return this.listByStatus('executed', 'executed_at');
+  }
+
+  private async listByStatus(status: 'open' | 'executed', orderCol: 'updated_at' | 'executed_at'): Promise<PriceTracker[]> {
     await this.auth.whenReady();
     const uid = await this.auth.getDataUserId();
     if (!uid) return [];
@@ -71,7 +85,8 @@ export class PriceTrackerService {
       .from('price_trackers')
       .select('*')
       .eq('user_id', uid)
-      .order('updated_at', { ascending: false });
+      .eq('status', status)
+      .order(orderCol, { ascending: false });
     if (error) throw error;
     return (data ?? []).map((row) => rowToPriceTracker(row));
   }
@@ -110,7 +125,7 @@ export class PriceTrackerService {
       stopLoss,
       targets,
       updatedAt: now,
-      ...(id ? {} : { createdAt: now }),
+      ...(id ? {} : { createdAt: now, status: 'open' }),
     });
 
     if (id) {
@@ -153,7 +168,50 @@ export class PriceTrackerService {
         })
       )
       .eq('user_id', uid)
-      .eq('symbol', symbol.toUpperCase());
+      .eq('symbol', symbol.toUpperCase())
+      .eq('status', 'open');
+    if (error) throw error;
+  }
+
+  async execute(id: string, buyLegs: ExecutionLeg[], sellLegs: ExecutionLeg[]): Promise<void> {
+    const uid = await this.auth.getDataUserId();
+    if (!uid) throw new Error('Sign in to close a plan');
+    const validation = TradePlanService.validateExecutionLegs(buyLegs, sellLegs);
+    if (validation) throw new Error(validation);
+    const { error } = await this.supabase.client
+      .from('price_trackers')
+      .update(
+        objectToSnake({
+          status: 'executed',
+          executedAt: Date.now(),
+          buyLegs,
+          sellLegs,
+          realizedPnl: TradePlanService.realizedPnLFromLegs(buyLegs, sellLegs),
+          updatedAt: Date.now(),
+        })
+      )
+      .eq('id', id)
+      .eq('user_id', uid);
+    if (error) throw error;
+  }
+
+  async reopen(id: string): Promise<void> {
+    const uid = await this.auth.getDataUserId();
+    if (!uid) throw new Error('Sign in to reopen a plan');
+    const { error } = await this.supabase.client
+      .from('price_trackers')
+      .update(
+        objectToSnake({
+          status: 'open',
+          executedAt: null,
+          buyLegs: [],
+          sellLegs: [],
+          realizedPnl: null,
+          updatedAt: Date.now(),
+        })
+      )
+      .eq('id', id)
+      .eq('user_id', uid);
     if (error) throw error;
   }
 }
@@ -189,7 +247,28 @@ function rowToPriceTracker(row: Record<string, unknown>): PriceTracker {
     entryPrice: optionalPositive(camel['entryPrice']),
     stopLoss: optionalPositive(camel['stopLoss']),
     targets,
+    status: camel['status'] === 'executed' ? 'executed' : 'open',
+    executedAt: camel['executedAt'] == null ? undefined : Number(camel['executedAt']),
+    buyLegs: parseLegs(camel['buyLegs']),
+    sellLegs: parseLegs(camel['sellLegs']),
+    realizedPnL: camel['realizedPnl'] == null && camel['realizedPnL'] == null
+      ? undefined
+      : Number(camel['realizedPnl'] ?? camel['realizedPnL']),
     createdAt: Number(camel['createdAt'] ?? 0),
     updatedAt: Number(camel['updatedAt'] ?? 0),
   };
+}
+
+function parseLegs(raw: unknown): ExecutionLeg[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const rec = item as Record<string, unknown>;
+      const quantity = Number(rec['quantity']);
+      const price = Number(rec['price']);
+      if (!(quantity > 0) || !(price > 0)) return null;
+      return { quantity, price };
+    })
+    .filter((leg): leg is ExecutionLeg => !!leg);
 }

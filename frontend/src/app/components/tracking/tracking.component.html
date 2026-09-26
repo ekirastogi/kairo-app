@@ -29,16 +29,29 @@
       </span>
       Auto
     </label>
-    <button
-      type="button"
-      class="plan-tool-btn"
-      (click)="refreshAll()"
-      [disabled]="refreshBusy() || busy() || !trackers().length"
-    >
-      {{ refreshBusy() ? refreshLabel() : 'Refresh' }}
+    @if (activeTab() === 'open') {
+      <button
+        type="button"
+        class="plan-tool-btn"
+        (click)="refreshAll()"
+        [disabled]="refreshBusy() || busy() || !trackers().length"
+      >
+        {{ refreshBusy() ? refreshLabel() : 'Refresh' }}
+      </button>
+    }
+    @if (activeTab() === 'open') {
+      <button type="button" class="plan-tool-btn plan-tool-btn-primary" (click)="onAddClick()" [disabled]="busy()">
+        {{ formOpen() && !editingId() ? 'Close' : 'Add' }}
+      </button>
+    }
+  </div>
+
+  <div class="pill-tabs plan-tabs">
+    <button type="button" class="pill-tab" [class.pill-tab-active]="activeTab() === 'open'" (click)="setTab('open')">
+      Open
     </button>
-    <button type="button" class="plan-tool-btn plan-tool-btn-primary" (click)="onAddClick()" [disabled]="busy()">
-      {{ formOpen() && !editingId() ? 'Close' : 'Add' }}
+    <button type="button" class="pill-tab" [class.pill-tab-active]="activeTab() === 'history'" (click)="setTab('history')">
+      History
     </button>
   </div>
 
@@ -205,6 +218,7 @@
     </section>
   }
 
+  @if (activeTab() === 'open') {
   <div class="plan-list">
     <table class="plan-blotter">
       <colgroup>
@@ -350,10 +364,58 @@
                       <p class="mute">Size the trade to see P&amp;L.</p>
                     }
                     <div class="ticket-actions">
+                      <button type="button" class="plan-link" (click)="startExecute(row); $event.stopPropagation()">Close trade</button>
                       <button type="button" class="plan-link" (click)="openEdit(row); $event.stopPropagation()">Edit</button>
                       <button type="button" class="plan-link text-red-600" (click)="remove(row); $event.stopPropagation()">Delete</button>
                     </div>
                   </div>
+
+                  @if (executingId() === row.id) {
+                    <div class="plan-exec" (click)="$event.stopPropagation()">
+                      <p class="plan-size-head"><strong>Record fills</strong><span>Buy qty must match sell qty</span></p>
+                      <div class="plan-exec-cols">
+                        <div>
+                          <div class="plan-exec-label">
+                            Buy
+                            <button type="button" class="plan-link" (click)="addExecLeg('buy')">+</button>
+                          </div>
+                          @for (leg of execBuy(); track $index) {
+                            <div class="plan-inline">
+                              <input class="input-field !py-1.5 min-w-0 flex-1" type="number" inputmode="numeric" placeholder="Qty" [(ngModel)]="leg.quantity" />
+                              <input class="input-field !py-1.5 min-w-0 flex-1" type="number" step="0.01" inputmode="decimal" placeholder="Price" [(ngModel)]="leg.price" />
+                              <button type="button" class="plan-link" (click)="removeExecLeg('buy', $index)">✕</button>
+                            </div>
+                          }
+                        </div>
+                        <div>
+                          <div class="plan-exec-label">
+                            Sell
+                            <button type="button" class="plan-link" (click)="addExecLeg('sell')">+</button>
+                          </div>
+                          @for (leg of execSell(); track $index) {
+                            <div class="plan-inline">
+                              <input class="input-field !py-1.5 min-w-0 flex-1" type="number" inputmode="numeric" placeholder="Qty" [(ngModel)]="leg.quantity" />
+                              <input class="input-field !py-1.5 min-w-0 flex-1" type="number" step="0.01" inputmode="decimal" placeholder="Price" [(ngModel)]="leg.price" />
+                              <button type="button" class="plan-link" (click)="removeExecLeg('sell', $index)">✕</button>
+                            </div>
+                          }
+                        </div>
+                      </div>
+                      @if (execPreview(row); as preview) {
+                        <p class="ticket-pnl">
+                          <span>Gross <b [class]="pnlClass(preview.gross)">{{ formatCurrency(preview.gross) }}</b></span>
+                          <span>Chg <b class="text-red-600">−{{ formatPrice(preview.charges) }}</b></span>
+                          <span>Net <b [class]="pnlClass(preview.net)">{{ formatCurrency(preview.net) }}</b></span>
+                        </p>
+                      }
+                      <div class="ticket-actions">
+                        <button type="button" class="plan-tool-btn plan-tool-btn-primary" [disabled]="busy()" (click)="saveExecute(row)">
+                          {{ busy() ? 'Saving…' : 'Mark closed' }}
+                        </button>
+                        <button type="button" class="plan-link" (click)="executingId.set(null)">Cancel</button>
+                      </div>
+                    </div>
+                  }
                 </div>
               </td>
             </tr>
@@ -366,4 +428,119 @@
       </tbody>
     </table>
   </div>
+  } @else {
+    @if (historyBusy()) {
+      <p class="empty">Loading history…</p>
+    } @else {
+      <dl class="plan-summary">
+        <div>
+          <dt>Trades</dt>
+          <dd>{{ historySummary().count }}</dd>
+        </div>
+        <div>
+          <dt>Win %</dt>
+          <dd>{{ historySummary().winRate | number:'1.0-0' }}%</dd>
+        </div>
+        <div>
+          <dt>Gross</dt>
+          <dd [class]="pnlClass(historySummary().gross)">{{ formatCurrency(historySummary().gross) }}</dd>
+        </div>
+        <div>
+          <dt>Charges</dt>
+          <dd class="text-red-600">−{{ formatPrice(historySummary().charges) }}</dd>
+        </div>
+        <div>
+          <dt>Net</dt>
+          <dd [class]="pnlClass(historySummary().netPnL)">{{ formatCurrency(historySummary().netPnL) }}</dd>
+        </div>
+      </dl>
+      <div class="plan-list">
+        <table class="plan-blotter">
+          <colgroup>
+            <col class="col-stock" />
+            <col class="col-side" />
+            <col class="col-trigger" />
+            <col class="col-cmp" />
+            <col class="col-diff" />
+            <col class="col-net" />
+            <col class="col-chevron" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>
+                <button type="button" class="sort-btn" [class.sort-btn-active]="historySort.isActive('symbol')" (click)="historySort.toggle('symbol', $event)">
+                  Stock <span>{{ historySort.indicator('symbol') }}</span>
+                </button>
+              </th>
+              <th class="desk">Side</th>
+              <th class="num">Entry</th>
+              <th class="desk num">Exit</th>
+              <th class="num">Win %</th>
+              <th class="desk num">
+                <button type="button" class="sort-btn" [class.sort-btn-active]="historySort.isActive('netPnL')" (click)="historySort.toggle('netPnL', $event)">
+                  Net <span>{{ historySort.indicator('netPnL') }}</span>
+                </button>
+              </th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of historyRows(); track row.id) {
+              <tr class="plan-row" [class.plan-row-hot]="row.netPnL > 0" (click)="toggleExpanded(row)">
+                <td class="stock">
+                  <a class="sym" [routerLink]="['/stock', row.symbol]" (click)="$event.stopPropagation()">{{ row.symbol }}</a>
+                  <span class="name">{{ row.stockName || row.symbol }}{{ row.executedAt ? ' · ' + (row.executedAt | date:'d MMM') : '' }}</span>
+                </td>
+                <td class="desk"><span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span></td>
+                <td class="num trigger">{{ formatPrice(row.entry) }}</td>
+                <td class="desk num">{{ formatPrice(row.exit) }}</td>
+                <td class="num" [class]="proximityClass({ proximity: row.netPnL > 0 ? 'hot' : row.netPnL < 0 ? 'near' : null, diffPct: row.winPct })">
+                  {{ formatPctSigned(row.winPct) }}
+                </td>
+                <td class="desk num">
+                  <span class="font-semibold" [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</span>
+                </td>
+                <td class="chevron">
+                  <svg class="ml-auto h-3.5 w-3.5 transition" [class.rotate-180]="isExpanded(row)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </td>
+              </tr>
+              @if (isExpanded(row)) {
+                <tr class="plan-expand">
+                  <td colspan="7">
+                    <div class="ticket">
+                      <p class="ticket-meta">
+                        <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
+                        <span>{{ row.closedQty | number }} qty</span>
+                        <span>Entry {{ formatPrice(row.entry) }}</span>
+                        <span>Exit {{ formatPrice(row.exit) }}</span>
+                        @if (row.segment) {
+                          <span>{{ row.segment === 'intraday' ? 'Intraday' : 'Delivery' }}</span>
+                        }
+                      </p>
+                      <p class="ticket-pnl">
+                        <span>Gross <b [class]="pnlClass(row.gross)">{{ formatCurrency(row.gross) }}</b></span>
+                        <span>Charges <b class="text-red-600">−{{ formatPrice(row.charges) }}</b></span>
+                        <span>Net <b [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</b></span>
+                        <span>Win <b [class]="pnlClass(row.winPct)">{{ formatPctSigned(row.winPct) }}</b></span>
+                      </p>
+                      <div class="ticket-actions">
+                        <button type="button" class="plan-link" (click)="reopen(row); $event.stopPropagation()">Reopen</button>
+                        <button type="button" class="plan-link text-red-600" (click)="remove(row); $event.stopPropagation()">Delete</button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              }
+            } @empty {
+              <tr>
+                <td colspan="7" class="empty">No closed trades yet. Close a plan from Open to see it here.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
 </div>

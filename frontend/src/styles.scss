@@ -564,7 +564,11 @@
   }
 
   .plan-page {
-    @apply mx-auto max-w-5xl space-y-2;
+    @apply w-full max-w-none space-y-2;
+  }
+
+  .plan-tabs {
+    @apply !justify-start;
   }
 
   .plan-toolbar {
@@ -699,7 +703,7 @@
   }
 
   .plan-blotter td {
-    @apply border-t border-slate-100 px-2 py-2 text-xs text-slate-700;
+    @apply border-t border-slate-100 px-2 py-2.5 text-sm text-slate-700;
   }
 
   .plan-blotter .col-stock {
@@ -805,47 +809,71 @@
   }
 
   .plan-expand > td {
-    @apply whitespace-normal bg-slate-50 p-0;
+    @apply whitespace-normal bg-white p-0;
   }
 
   .ticket {
-    @apply space-y-2 px-2.5 py-2;
+    @apply space-y-3 border-t-2 border-kairo-500 bg-white px-4 py-4;
   }
 
   .ticket-meta {
-    @apply flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-600;
+    @apply flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600;
   }
 
   .ticket-notes {
-    @apply text-[11px] leading-snug text-slate-500;
+    @apply text-sm leading-relaxed text-slate-500;
   }
 
   .ticket-foot {
-    @apply flex flex-wrap items-center justify-between gap-2;
+    @apply flex flex-wrap items-center justify-between gap-3;
   }
 
   .ticket-pnl {
-    @apply flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-500;
+    @apply flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500;
   }
 
   .ticket-pnl b {
-    @apply font-semibold tabular-nums;
+    @apply text-base font-semibold tabular-nums;
   }
 
   .ticket-actions {
-    @apply flex gap-3;
+    @apply flex gap-3 text-sm;
   }
 
   .levels {
-    @apply w-full text-[11px] tabular-nums;
+    @apply w-full text-sm tabular-nums;
   }
 
   .levels td {
-    @apply border-t border-slate-200/80 px-0 py-1 text-slate-700;
+    @apply border-t border-slate-200 px-0 py-2 text-slate-700;
   }
 
   .levels tr.next td {
     @apply text-slate-400;
+  }
+
+  .plan-exec {
+    @apply space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3;
+  }
+
+  .plan-exec-cols {
+    @apply grid gap-3 sm:grid-cols-2;
+  }
+
+  .plan-exec-label {
+    @apply mb-1.5 flex items-center justify-between text-sm font-semibold text-slate-700;
+  }
+
+  .plan-summary {
+    @apply grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm sm:grid-cols-5;
+  }
+
+  .plan-summary dt {
+    @apply text-[11px] font-semibold uppercase tracking-wide text-slate-400;
+  }
+
+  .plan-summary dd {
+    @apply text-base font-semibold tabular-nums text-slate-900;
   }
 
   @screen md {
@@ -891,7 +919,7 @@
     }
 
     .ticket {
-      @apply px-3 py-2.5;
+      @apply px-5 py-5;
     }
   }
 

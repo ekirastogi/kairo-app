@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { RegistryStock, TradeSegment } from '../../models/trading-journal.models';
+import { ExecutionLeg, RegistryStock, TradeSegment } from '../../models/trading-journal.models';
+import { TradePlanService } from '../../services/trade-plan.service';
 import { ChargesService } from '../../services/charges.service';
 import { MarketQuoteService } from '../../services/market-quote.service';
 import { PriceTracker, PriceTrackerService } from '../../services/price-tracker.service';
@@ -57,6 +58,16 @@ interface TrackerRow extends PriceTracker {
   economics: TrackerEconomics | null;
 }
 
+interface HistoryRow extends PriceTracker {
+  closedQty: number;
+  entry: number;
+  exit: number;
+  winPct: number;
+  gross: number;
+  charges: number;
+  netPnL: number;
+}
+
 @Component({
   selector: 'app-tracking',
   standalone: true,
@@ -86,6 +97,14 @@ export class TrackingComponent implements OnInit, OnDestroy {
   private autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
   tableSort = new TableSortState('diff', 'asc');
+  historySort = new TableSortState('executedAt', 'desc');
+  activeTab = signal<'open' | 'history'>('open');
+  history = signal<PriceTracker[]>([]);
+  historyLoaded = signal(false);
+  historyBusy = signal(false);
+  executingId = signal<string | null>(null);
+  execBuy = signal<Array<{ quantity: string; price: string }>>([{ quantity: '', price: '' }]);
+  execSell = signal<Array<{ quantity: string; price: string }>>([{ quantity: '', price: '' }]);
   readonly actionPresets = ACTION_PRESETS;
   readonly segmentPresets = SEGMENT_PRESETS;
   readonly formatPrice = formatPrice;
@@ -154,6 +173,47 @@ export class TrackingComponent implements OnInit, OnDestroy {
   nearCount = computed(() => this.rows().filter((r) => r.proximity === 'near').length);
   hotCount = computed(() => this.rows().filter((r) => r.proximity === 'hot').length);
   sizedCount = computed(() => this.rows().filter((r) => r.sized).length);
+
+  historyRows = computed(() => {
+    this.charges.rates();
+    const q = this.searchQuery().trim().toLowerCase();
+    const mapped = this.history()
+      .map((plan) => this.toHistoryRow(plan))
+      .filter((row): row is HistoryRow => row != null);
+    const filtered = q
+      ? mapped.filter(
+          (row) =>
+            row.symbol.toLowerCase().includes(q) ||
+            (row.stockName ?? '').toLowerCase().includes(q) ||
+            this.displayAction(row.action).toLowerCase().includes(q)
+        )
+      : mapped;
+    return this.historySort.sort(filtered, (row, column) => {
+      switch (column) {
+        case 'symbol':
+          return row.symbol;
+        case 'netPnL':
+          return row.netPnL;
+        case 'charges':
+          return row.charges;
+        default:
+          return row.executedAt ?? row.updatedAt;
+      }
+    });
+  });
+
+  historySummary = computed(() => {
+    const rows = this.historyRows();
+    const wins = rows.filter((row) => row.netPnL > 0).length;
+    return {
+      count: rows.length,
+      wins,
+      winRate: rows.length ? (wins / rows.length) * 100 : 0,
+      gross: rows.reduce((sum, row) => sum + row.gross, 0),
+      charges: rows.reduce((sum, row) => sum + row.charges, 0),
+      netPnL: rows.reduce((sum, row) => sum + row.netPnL, 0),
+    };
+  });
 
   refreshLabel = computed(() => {
     if (!this.refreshBusy()) return 'Refresh CMP';
@@ -300,7 +360,7 @@ export class TrackingComponent implements OnInit, OnDestroy {
     return this.displayAction(action) === 'Short' ? 'side-short' : 'side-long';
   }
 
-  proximityClass(row: TrackerRow): string {
+  proximityClass(row: { proximity: 'hot' | 'near' | null; diffPct?: number | null }): string {
     if (row.proximity === 'hot') return 'text-emerald-700';
     if (row.proximity === 'near') return 'text-amber-700';
     return this.pnlClass(row.diffPct ?? 0);
@@ -310,12 +370,166 @@ export class TrackingComponent implements OnInit, OnDestroy {
     return economics.netPnL + economics.charges;
   }
 
-  isExpanded(row: TrackerRow): boolean {
+  isExpanded(row: PriceTracker): boolean {
     return this.expandedId() === row.id;
   }
 
-  toggleExpanded(row: TrackerRow): void {
-    this.expandedId.set(this.expandedId() === row.id ? null : row.id);
+  toggleExpanded(row: PriceTracker): void {
+    const next = this.expandedId() === row.id ? null : row.id;
+    this.expandedId.set(next);
+    if (this.executingId() !== next) this.executingId.set(null);
+  }
+
+  setTab(tab: 'open' | 'history'): void {
+    this.activeTab.set(tab);
+    this.expandedId.set(null);
+    this.executingId.set(null);
+    this.formOpen.set(false);
+    if (tab === 'history') void this.ensureHistory();
+  }
+
+  async ensureHistory(): Promise<void> {
+    if (this.historyLoaded() || this.historyBusy()) return;
+    this.historyBusy.set(true);
+    try {
+      this.history.set(await this.trackerSvc.listExecuted());
+      this.historyLoaded.set(true);
+    } catch (e) {
+      this.toast.error(e instanceof Error ? e.message : 'Failed to load history');
+    } finally {
+      this.historyBusy.set(false);
+    }
+  }
+
+  startExecute(row: TrackerRow): void {
+    this.executingId.set(row.id);
+    const qty = row.quantity ? String(row.quantity) : '';
+    const entry = this.entryFor(row);
+    const exit = row.targets?.[0]?.price;
+    const entryPrice = entry ? String(entry) : '';
+    const exitPrice = exit ? String(exit) : '';
+    if (this.displayAction(row.action) === 'Short') {
+      this.execSell.set([{ quantity: qty, price: entryPrice }]);
+      this.execBuy.set([{ quantity: qty, price: exitPrice }]);
+    } else {
+      this.execBuy.set([{ quantity: qty, price: entryPrice }]);
+      this.execSell.set([{ quantity: qty, price: exitPrice }]);
+    }
+  }
+
+  addExecLeg(side: 'buy' | 'sell'): void {
+    const blank = { quantity: '', price: '' };
+    if (side === 'buy') this.execBuy.update((legs) => [...legs, blank]);
+    else this.execSell.update((legs) => [...legs, blank]);
+  }
+
+  removeExecLeg(side: 'buy' | 'sell', index: number): void {
+    if (side === 'buy') {
+      this.execBuy.update((legs) => (legs.length > 1 ? legs.filter((_, i) => i !== index) : legs));
+    } else {
+      this.execSell.update((legs) => (legs.length > 1 ? legs.filter((_, i) => i !== index) : legs));
+    }
+  }
+
+  async saveExecute(row: TrackerRow): Promise<void> {
+    const buyLegs = this.parseExecLegs(this.execBuy());
+    const sellLegs = this.parseExecLegs(this.execSell());
+    const invalid = TradePlanService.validateExecutionLegs(buyLegs, sellLegs);
+    if (invalid) {
+      this.toast.error(invalid);
+      return;
+    }
+    this.busy.set(true);
+    try {
+      await this.trackerSvc.execute(row.id, buyLegs, sellLegs);
+      this.executingId.set(null);
+      this.expandedId.set(null);
+      if (this.historyLoaded()) {
+        const closed = {
+          ...row,
+          status: 'executed' as const,
+          buyLegs,
+          sellLegs,
+          realizedPnL: TradePlanService.realizedPnLFromLegs(buyLegs, sellLegs),
+          executedAt: Date.now(),
+        };
+        this.history.update((rows) => [closed, ...rows.filter((item) => item.id !== row.id)]);
+      }
+      this.toast.success(`Closed ${row.symbol}`);
+    } catch (e) {
+      this.toast.error(e instanceof Error ? e.message : 'Failed to close plan');
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  async reopen(row: PriceTracker): Promise<void> {
+    this.busy.set(true);
+    try {
+      await this.trackerSvc.reopen(row.id);
+      this.history.update((rows) => rows.filter((item) => item.id !== row.id));
+      this.expandedId.set(null);
+      this.toast.success(`Reopened ${row.symbol}`);
+    } catch (e) {
+      this.toast.error(e instanceof Error ? e.message : 'Failed to reopen plan');
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  execPreview(row: TrackerRow): { qty: number; gross: number; charges: number; net: number } | null {
+    const buyLegs = this.parseExecLegs(this.execBuy());
+    const sellLegs = this.parseExecLegs(this.execSell());
+    if (TradePlanService.validateExecutionLegs(buyLegs, sellLegs)) return null;
+    return this.realizedEconomics(row, buyLegs, sellLegs, TradePlanService.realizedPnLFromLegs(buyLegs, sellLegs));
+  }
+
+  private parseExecLegs(legs: Array<{ quantity: string; price: string }>): ExecutionLeg[] {
+    return legs
+      .map((leg) => ({ quantity: parseFloat(leg.quantity), price: parseFloat(leg.price) }))
+      .filter((leg) => leg.quantity > 0 && leg.price > 0);
+  }
+
+  private toHistoryRow(plan: PriceTracker): HistoryRow | null {
+    const summary = TradePlanService.executionSummary(plan);
+    if (!summary) return null;
+    const stats = this.realizedEconomics(plan, summary.buyLegs, summary.sellLegs, summary.realizedPnL);
+    if (!stats) return null;
+    const short = this.displayAction(plan.action) === 'Short';
+    const entry = short ? summary.avgSellPrice : summary.avgBuyPrice;
+    const exit = short ? summary.avgBuyPrice : summary.avgSellPrice;
+    const winPct = entry > 0 ? ((exit - entry) / entry) * 100 * (short ? -1 : 1) : 0;
+    return {
+      ...plan,
+      closedQty: stats.qty,
+      entry,
+      exit,
+      winPct,
+      gross: stats.gross,
+      charges: stats.charges,
+      netPnL: stats.net,
+    };
+  }
+
+  private realizedEconomics(
+    plan: Pick<PriceTracker, 'action' | 'segment'>,
+    buyLegs: ExecutionLeg[],
+    sellLegs: ExecutionLeg[],
+    gross: number
+  ): { qty: number; gross: number; charges: number; net: number } | null {
+    const qty = TradePlanService.legTotalQty(buyLegs);
+    const avgBuy = TradePlanService.weightedAvgPrice(buyLegs);
+    const avgSell = TradePlanService.weightedAvgPrice(sellLegs);
+    if (!(qty > 0) || !(avgBuy > 0) || !(avgSell > 0)) return null;
+    const short = this.displayAction(plan.action) === 'Short';
+    const trip = this.charges.roundTrip({
+      segment: trackerSegment(plan),
+      direction: trackerDirection(plan.action),
+      quantity: qty,
+      entryPrice: short ? avgSell : avgBuy,
+      exitPrice: short ? avgBuy : avgSell,
+    });
+    return { qty, gross, charges: trip.charges, net: trip.netPnL };
   }
 
   entryFor(row: TrackerRow): number {
