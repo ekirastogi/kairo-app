@@ -267,8 +267,12 @@
     @apply flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1.5;
   }
 
+  .watchlist-tab-panel {
+    @apply space-y-1.5;
+  }
+
   .watchlist-filters-collapsed {
-    @apply hidden lg:flex;
+    @apply hidden lg:block;
   }
 
   .watchlist-tier-tabs {

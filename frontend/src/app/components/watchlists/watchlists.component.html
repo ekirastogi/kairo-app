@@ -18,23 +18,6 @@
 } @else if (state.hasReport()) {
   <div class="watchlist-page space-y-3" [class.watchlist-embedded]="embedded()">
     <div class="watchlist-sticky-toolbar">
-      <div class="watchlist-desk">
-        <div class="watchlist-desk-group" role="tablist" aria-label="Side">
-          @for (tab of mainTabs; track tab.id) {
-            <button
-              type="button"
-              role="tab"
-              class="watchlist-desk-tab"
-              [class.watchlist-desk-tab-active]="activeTab() === tab.id"
-              [attr.aria-selected]="activeTab() === tab.id"
-              (click)="setTab(tab.id)"
-            >
-              {{ tab.label }}
-            </button>
-          }
-        </div>
-      </div>
-
       <button
         type="button"
         class="watchlist-filter-toggle lg:hidden"
@@ -48,76 +31,40 @@
         </svg>
       </button>
 
-      <div
-        class="filter-toolbar"
-        [class.watchlist-filters-collapsed]="!mobileFiltersOpen()"
-      >
-        <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span class="filter-toolbar-label">Book</span>
-          <div class="period-track" role="radiogroup" aria-label="Realised or unrealised">
-            @for (tab of bookTabs; track tab.id) {
+      <div class="watchlist-tab-panel" [class.watchlist-filters-collapsed]="!mobileFiltersOpen()">
+        <div class="watchlist-desk">
+          <div class="watchlist-desk-group" role="tablist" aria-label="Side">
+            @for (tab of mainTabs; track tab.id) {
               <button
                 type="button"
-                role="radio"
-                class="period-seg"
-                [class.period-seg-active]="book() === tab.id"
-                [attr.aria-checked]="book() === tab.id"
-                (click)="setBook(tab.id)"
+                role="tab"
+                class="watchlist-desk-tab"
+                [class.watchlist-desk-tab-active]="activeTab() === tab.id"
+                [attr.aria-selected]="activeTab() === tab.id"
+                (click)="setTab(tab.id)"
               >
                 {{ tab.label }}
               </button>
             }
           </div>
         </div>
-        @if (!embedded() && book() !== 'holdings') {
-          <span class="filter-toolbar-rule" aria-hidden="true"></span>
-          <app-trade-type-filter [compact]="true" [hiddenTypes]="hiddenTradeTypes" />
-          <span class="filter-toolbar-rule" aria-hidden="true"></span>
-          <app-date-range-filter />
-        }
-        <span class="filter-toolbar-rule" aria-hidden="true"></span>
-        <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span class="filter-toolbar-label">Bands</span>
-          <div class="period-track" role="radiogroup" aria-label="Band mode">
-            <button
-              type="button"
-              role="radio"
-              class="period-seg"
-              [class.period-seg-active]="tierMode() === 'cumulative'"
-              [attr.aria-checked]="tierMode() === 'cumulative'"
-              (click)="setTierMode('cumulative')"
-            >
-              Cumulative
-            </button>
-            <button
-              type="button"
-              role="radio"
-              class="period-seg"
-              [class.period-seg-active]="tierMode() === 'band'"
-              [attr.aria-checked]="tierMode() === 'band'"
-              (click)="setTierMode('band')"
-            >
-              Exclusive
-            </button>
-          </div>
-        </div>
-      </div>
 
-      <div class="watchlist-tier-tabs">
-        <div class="period-track" role="tablist" aria-label="P&amp;L bands">
-          @for (tab of visibleAutoTierTabs(); track tab.watchlist.id) {
-            <button
-              type="button"
-              role="tab"
-              class="period-seg"
-              [class.period-seg-active]="activeAutoWatchlist()?.id === tab.watchlist.id"
-              [attr.aria-selected]="activeAutoWatchlist()?.id === tab.watchlist.id"
-              [attr.title]="tab.fullLabel"
-              (click)="selectAutoTier(tab.watchlist.id)"
-            >
-              {{ tierTabLabel(tab) }}
-            </button>
-          }
+        <div class="watchlist-tier-tabs">
+          <div class="period-track" role="tablist" aria-label="P&amp;L tiers">
+            @for (tab of visibleAutoTierTabs(); track tab.watchlist.id) {
+              <button
+                type="button"
+                role="tab"
+                class="period-seg"
+                [class.period-seg-active]="activeAutoWatchlist()?.id === tab.watchlist.id"
+                [attr.aria-selected]="activeAutoWatchlist()?.id === tab.watchlist.id"
+                [attr.title]="tab.fullLabel"
+                (click)="selectAutoTier(tab.watchlist.id)"
+              >
+                {{ tierTabLabel(tab) }}
+              </button>
+            }
+          </div>
         </div>
       </div>
     </div>
@@ -125,7 +72,7 @@
     <div class="card overflow-hidden">
       <app-expandable-stocks-table
         [stocks]="tierStocks()"
-        [expandable]="book() !== 'holdings'"
+        [expandable]="true"
         [emptyMessage]="emptyMessage()"
       >
         <div stocksToolbar class="flex flex-wrap items-center gap-2">
