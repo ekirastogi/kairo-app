@@ -62,6 +62,26 @@ interface TrackerRow extends PriceTracker {
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './tracking.component.html',
+  styles: `
+    .plan-row {
+      cursor: pointer;
+    }
+    .plan-row-hot {
+      box-shadow: inset 3px 0 0 #10b981;
+    }
+    .plan-row-near {
+      box-shadow: inset 3px 0 0 #f59e0b;
+    }
+    .plan-row-open {
+      background: rgb(248 250 252);
+    }
+    .side-long {
+      @apply bg-emerald-50 text-emerald-700 ring-emerald-200;
+    }
+    .side-short {
+      @apply bg-red-50 text-red-700 ring-red-200;
+    }
+  `,
 })
 export class TrackingComponent implements OnInit, OnDestroy {
   private trackerSvc = inject(PriceTrackerService);
@@ -289,10 +309,19 @@ export class TrackingComponent implements OnInit, OnDestroy {
   }
 
   rowClass(row: TrackerRow): string {
-    const open = this.isExpanded(row) ? ' bg-slate-50' : '';
-    if (row.proximity === 'hot') return `cursor-pointer bg-emerald-100/80${open}`;
-    if (row.proximity === 'near') return `cursor-pointer bg-yellow-100/80${open}`;
-    return `cursor-pointer${open}`;
+    const parts = ['plan-row'];
+    if (this.isExpanded(row)) parts.push('plan-row-open');
+    if (row.proximity === 'hot') parts.push('plan-row-hot');
+    if (row.proximity === 'near') parts.push('plan-row-near');
+    return parts.join(' ');
+  }
+
+  sideClass(action: string): string {
+    return this.displayAction(action) === 'Short' ? 'side-short' : 'side-long';
+  }
+
+  grossPnL(economics: TrackerEconomics): number {
+    return economics.netPnL + economics.charges;
   }
 
   isExpanded(row: TrackerRow): boolean {
@@ -328,7 +357,7 @@ export class TrackingComponent implements OnInit, OnDestroy {
     const action = this.normalizeAction(this.form.action);
     const targetPrice = parseFloat(this.form.targetPrice);
     if (!(targetPrice > 0)) {
-      this.toast.error('Enter a wait price');
+      this.toast.error('Enter a trigger price');
       return;
     }
 
@@ -363,30 +392,30 @@ export class TrackingComponent implements OnInit, OnDestroy {
         },
         this.editingId() ?? undefined
       );
-      this.toast.success(this.editingId() ? `Updated ${picked.symbol}` : `Tracking ${picked.symbol}`);
+      this.toast.success(this.editingId() ? `Updated ${picked.symbol}` : `Added ${picked.symbol}`);
       this.cancelForm();
     } catch (e) {
-      this.toast.error(e instanceof Error ? e.message : 'Failed to save tracker');
+      this.toast.error(e instanceof Error ? e.message : 'Failed to save plan');
     } finally {
       this.busy.set(false);
     }
   }
 
   async remove(tracker: PriceTracker): Promise<void> {
-    if (!confirm(`Stop tracking ${tracker.symbol} at ${formatPrice(tracker.targetPrice)}?`)) return;
+    if (!confirm(`Remove ${tracker.symbol} at ${formatPrice(tracker.targetPrice)}?`)) return;
     try {
       await this.trackerSvc.remove(tracker.id);
       if (this.editingId() === tracker.id) this.cancelForm();
       this.toast.success(`Removed ${tracker.symbol}`);
     } catch (e) {
-      this.toast.error(e instanceof Error ? e.message : 'Failed to remove tracker');
+      this.toast.error(e instanceof Error ? e.message : 'Failed to remove plan');
     }
   }
 
   async refreshAll(opts: { silent?: boolean } = {}): Promise<void> {
     const symbols = [...new Set(this.trackers().map((t) => t.symbol))];
     if (!symbols.length) {
-      if (!opts.silent) this.toast.success('Nothing to refresh yet. Add a tracker first.');
+      if (!opts.silent) this.toast.success('Nothing to refresh yet. Add a plan first.');
       return;
     }
 

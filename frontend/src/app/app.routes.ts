@@ -100,7 +100,7 @@ export const routes: Routes = [
           import('./components/tracking/tracking.component').then((m) => m.TrackingComponent),
         data: {
           title: 'Trade plans',
-          subtitle: 'Watch a stock, then add size and exits for charges and net P&L',
+          subtitle: 'Trigger, size, and exits with live CMP and net P&L',
         },
       },
       { path: 'tracking', redirectTo: 'trade-plans', pathMatch: 'full' },
