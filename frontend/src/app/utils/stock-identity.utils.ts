@@ -19,6 +19,11 @@ export function normalizeIsin(isin?: string | null): string {
   return (isin ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
+/** 12-character ISIN, e.g. INE022Q01020. */
+export function looksLikeIsin(value?: string | null): boolean {
+  return /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(normalizeIsin(value));
+}
+
 /** Display/routing ticker derived from a company name when no exchange symbol is known yet. */
 export function normalizeSymbol(stockName: string): string {
   return stockName

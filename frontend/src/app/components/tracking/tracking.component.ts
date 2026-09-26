@@ -426,9 +426,11 @@ export class TrackingComponent implements OnInit, OnDestroy {
       this.refreshTotal.set(symbols.length);
       for (const [index, symbol] of symbols.entries()) {
         this.refreshDone.set(index);
-        const name = this.trackers().find((t) => t.symbol === symbol)?.stockName;
+        const plan = this.trackers().find((t) => t.symbol === symbol);
         try {
-          const quote = await this.quotes.quote(symbol, name);
+          const quote = await this.quotes.quote(symbol, {
+            isin: plan?.isin || this.findRegistry(symbol)?.isin,
+          });
           await this.trackerSvc.applyQuote(symbol, quote);
           const registry = this.findRegistry(symbol);
           if (registry) {

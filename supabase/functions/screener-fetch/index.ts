@@ -94,36 +94,18 @@ async function fetchText(url: string): Promise<string> {
   return res.text();
 }
 
-async function resolveCompanyUrl(symbol: string, hintName?: string): Promise<{ url: string; name?: string }> {
-  const queries = searchQueries(symbol, hintName);
-  for (const query of queries) {
-    const hit = await searchCompany(query, symbol);
-    if (hit) return hit;
-  }
-  return { url: `https://www.screener.in/company/${encodeURIComponent(symbol)}/consolidated/` };
+function isIsin(value: string): boolean {
+  return /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(value);
 }
 
-function searchQueries(symbol: string, hintName?: string): string[] {
-  const out = new Set<string>();
-  const sym = symbol.trim().toUpperCase();
-  if (sym) out.add(sym);
-  const name = hintName?.trim();
-  if (name) {
-    out.add(name);
-    const firstWord = name.split(/\s+/)[0];
-    if (firstWord && firstWord.length >= 4) out.add(firstWord);
+async function resolveCompanyUrl(symbol: string, isin?: string): Promise<{ url: string; name?: string }> {
+  const ticker = symbol && !isIsin(symbol) ? symbol : '';
+  if (ticker) {
+    const hit = await searchCompany(ticker, ticker);
+    if (hit) return hit;
+    return { url: `https://www.screener.in/company/${encodeURIComponent(ticker)}/consolidated/` };
   }
-  const markers = ['DOCK', 'SHIP', 'BANK', 'FIN', 'TECH', 'POWER', 'STEEL', 'CHEM', 'LAB', 'PHARMA', 'IND', 'CARS', 'MOTOR'];
-  for (const marker of markers) {
-    const idx = sym.indexOf(marker);
-    if (idx >= 4) out.add(sym.slice(0, idx));
-  }
-  if (sym.length > 8) {
-    out.add(sym.slice(0, 8));
-    out.add(sym.slice(0, 7));
-    out.add(sym.slice(0, 6));
-  }
-  return [...out].filter((q) => q.length >= 4);
+  throw new Error(`No Screener page found for ${isin || symbol}`);
 }
 
 async function searchCompany(
@@ -265,15 +247,17 @@ function parseScreenerHtml(html: string, url: string, symbol: string, fallbackNa
   };
 }
 
-async function fetchScreenerSnapshot(rawSymbol: string, hintName?: string): Promise<ScreenerSnapshot> {
+async function fetchScreenerSnapshot(rawSymbol: string, rawIsin?: string): Promise<ScreenerSnapshot> {
   const symbol = rawSymbol.trim().toUpperCase().replace(/\.(NS|BO|BSE)$/i, '');
-  if (!symbol) throw new Error('Symbol is required');
-  const resolved = await resolveCompanyUrl(symbol, hintName);
+  const isin = rawIsin?.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') ?? '';
+  if (!symbol && !isin) throw new Error('Symbol or ISIN is required');
+  const ticker = symbol && !isIsin(symbol) ? symbol : '';
+  const resolved = await resolveCompanyUrl(ticker, isin && isIsin(isin) ? isin : undefined);
   const html = await fetchText(resolved.url);
   if (/page not found/i.test(html) || html.length < 2000) {
-    throw new Error(`No Screener page found for ${symbol}`);
+    throw new Error(`No Screener page found for ${isin || symbol}`);
   }
-  return parseScreenerHtml(html, resolved.url, symbol, resolved.name);
+  return parseScreenerHtml(html, resolved.url, ticker || symbol, resolved.name);
 }
 
 serve(async (req) => {
@@ -284,15 +268,15 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const symbol = String(body?.symbol ?? '').trim();
-    const name = String(body?.name ?? '').trim();
-    if (!symbol) {
-      return new Response(JSON.stringify({ error: 'Symbol is required' }), {
+    const isin = String(body?.isin ?? '').trim();
+    if (!symbol && !isin) {
+      return new Response(JSON.stringify({ error: 'Symbol or ISIN is required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const snapshot = await fetchScreenerSnapshot(symbol, name || undefined);
+    const snapshot = await fetchScreenerSnapshot(symbol, isin || undefined);
     return new Response(JSON.stringify(snapshot), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

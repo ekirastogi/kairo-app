@@ -404,7 +404,7 @@ export class StockDetailComponent implements OnInit {
     this.screenerSuccess.set(null);
 
     try {
-      const data = await this.screenerSvc.fetchStock(sym, this.registryStock()?.name ?? this.stock()?.name);
+      const data = await this.screenerSvc.fetchStock(sym, { isin: this.displayIsin() });
       const existing = this.registryStock() ?? {
         symbol: sym,
         name: data.name,

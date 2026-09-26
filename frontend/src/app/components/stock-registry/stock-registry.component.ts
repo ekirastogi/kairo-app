@@ -584,7 +584,7 @@ export class StockRegistryComponent implements OnInit {
     this.fetchingSymbol.set(symbol);
     try {
       const existing = await this.registrySvc.getBySymbol(symbol);
-      const data = await this.screener.fetchStock(symbol, existing?.name);
+      const data = await this.screener.fetchStock(symbol, { isin: existing?.isin });
       this.previewStock.set(this.snapshotToRegistry(data, existing));
       this.success.set(`Fetched Screener data for ${symbol}.`);
     } catch (e) {
@@ -629,7 +629,7 @@ export class StockRegistryComponent implements OnInit {
     this.success.set(null);
     this.fetchingSymbol.set(stock.symbol);
     try {
-      const data = await this.screener.fetchStock(stock.symbol, stock.name);
+      const data = await this.screener.fetchStock(stock.symbol, { isin: stock.isin });
       await this.registrySvc.save(this.applyScreener(stock, data));
       this.success.set(`Fetched Screener data for ${stock.symbol}.`);
       await this.reload();
@@ -805,7 +805,7 @@ export class StockRegistryComponent implements OnInit {
         this.screenerRefreshDone.set(index);
         this.screenerRefreshTotal.set(targets.length);
         try {
-          const data = await this.screener.fetchStock(stock.symbol, stock.name);
+          const data = await this.screener.fetchStock(stock.symbol, { isin: stock.isin });
           await this.registrySvc.save(this.applyScreener(stock, data));
           updated++;
         } catch {

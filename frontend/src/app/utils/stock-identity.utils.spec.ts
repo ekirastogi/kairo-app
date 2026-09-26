@@ -3,6 +3,7 @@ import {
   applyKnownIsins,
   collectIsinsByName,
   fillMissingIsins,
+  looksLikeIsin,
   mergeByDisplaySymbol,
   normalizeIsin,
   StockIdentityResolver,
@@ -17,6 +18,13 @@ describe('stock identity', () => {
     expect(normalizeIsin(' ine200m01013 ')).toBe('INE200M01013');
     expect(normalizeIsin('')).toBe('');
     expect(normalizeIsin(null)).toBe('');
+  });
+
+  it('recognizes a 12-character ISIN and rejects tickers or names', () => {
+    expect(looksLikeIsin('INE022Q01020')).toBe(true);
+    expect(looksLikeIsin(' ine022q01020 ')).toBe(true);
+    expect(looksLikeIsin('IEX')).toBe(false);
+    expect(looksLikeIsin('Indian Energy Exchange Ltd')).toBe(false);
   });
 
   it('uses ISIN as the identity even when names differ', () => {
