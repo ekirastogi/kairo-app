@@ -142,6 +142,28 @@
   </nav>
 </div>
 
+@if (toasts.toasts(); as items) {
+  @if (items.length) {
+    <div class="pointer-events-none fixed inset-x-0 top-[calc(var(--app-shell-top-offset,4rem)+0.75rem)] z-[120] flex flex-col items-center gap-2 px-3 sm:items-end sm:px-5">
+      @for (toast of items; track toast.id) {
+        <div
+          class="pointer-events-auto w-full max-w-sm rounded-xl border px-4 py-3 text-sm shadow-elevated"
+          [class]="toast.kind === 'success'
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+            : 'border-red-200 bg-red-50 text-red-700'"
+        >
+          <div class="flex items-start gap-3">
+            <p class="min-w-0 flex-1 break-words">{{ toast.message }}</p>
+            <button type="button" class="btn-ghost shrink-0 !px-1 !py-0 text-current" (click)="toasts.dismiss(toast.id)">
+              ✕
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+}
+
 @if (errors.latest(); as crash) {
   <div class="fixed inset-x-0 bottom-0 z-[110] border-t border-red-300 bg-red-50 px-4 py-3 sm:px-6">
     <div class="mx-auto flex max-w-4xl items-start gap-3 text-sm text-red-800">

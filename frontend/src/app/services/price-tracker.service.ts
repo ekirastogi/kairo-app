@@ -43,7 +43,7 @@ export class PriceTrackerService {
     return this.auth.user$.pipe(
       switchMap((user) => {
         if (!user) return of([]);
-        return this.supabase.watchTable('price_trackers', () => this.listAll(), undefined, 'price_trackers');
+        return this.supabase.watchTable('price_trackers', () => this.listAll(), 0, 'price_trackers');
       })
     );
   }

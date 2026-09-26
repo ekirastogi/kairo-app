@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -7,6 +7,7 @@ import { RegistryStock } from '../../models/trading-journal.models';
 import { MarketQuoteService } from '../../services/market-quote.service';
 import { PriceTracker, PriceTrackerService } from '../../services/price-tracker.service';
 import { RegistryStockService } from '../../services/registry-stock.service';
+import { ToastService } from '../../services/toast.service';
 import { formatDataAge } from '../../utils/data-age.utils';
 import { formatPrice, formatPctSigned } from '../../utils/format.utils';
 import {
@@ -27,6 +28,8 @@ type TrackerColumn =
   | 'updatedAt';
 
 const ACTION_PRESETS = ['Buy', 'Sell'] as const;
+const AUTO_REFRESH_MS = 60_000;
+const AUTO_REFRESH_KEY = 'kairo-tracking-auto-refresh';
 
 interface TrackerRow extends PriceTracker {
   diffPct: number | null;
@@ -40,10 +43,11 @@ interface TrackerRow extends PriceTracker {
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './tracking.component.html',
 })
-export class TrackingComponent implements OnInit {
+export class TrackingComponent implements OnInit, OnDestroy {
   private trackerSvc = inject(PriceTrackerService);
   private registrySvc = inject(RegistryStockService);
   private quotes = inject(MarketQuoteService);
+  private toast = inject(ToastService);
 
   trackers = toSignal(this.trackerSvc.watchAll(), { initialValue: [] as PriceTracker[] });
   registry = signal<RegistryStock[]>([]);
@@ -56,8 +60,8 @@ export class TrackingComponent implements OnInit {
   refreshBusy = signal(false);
   refreshDone = signal(0);
   refreshTotal = signal(0);
-  error = signal<string | null>(null);
-  success = signal<string | null>(null);
+  autoRefresh = signal(false);
+  private autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
   tableSort = new TableSortState('diff', 'asc');
   readonly actionPresets = ACTION_PRESETS;
@@ -125,14 +129,39 @@ export class TrackingComponent implements OnInit {
     } catch {
       // Symbol picker falls back to an empty list.
     }
+    if (typeof localStorage !== 'undefined' && localStorage.getItem(AUTO_REFRESH_KEY) === '1') {
+      this.setAutoRefresh(true);
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.clearAutoRefresh();
+  }
+
+  setAutoRefresh(on: boolean): void {
+    this.autoRefresh.set(on);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(AUTO_REFRESH_KEY, on ? '1' : '0');
+    }
+    this.clearAutoRefresh();
+    if (!on) return;
+    void this.refreshAll({ silent: true });
+    this.autoRefreshTimer = setInterval(() => {
+      if (!this.refreshBusy()) void this.refreshAll({ silent: true });
+    }, AUTO_REFRESH_MS);
+  }
+
+  private clearAutoRefresh(): void {
+    if (this.autoRefreshTimer) {
+      clearInterval(this.autoRefreshTimer);
+      this.autoRefreshTimer = null;
+    }
   }
 
   openAddForm(): void {
     this.resetForm();
     this.editingId.set(null);
     this.formOpen.set(true);
-    this.error.set(null);
-    this.success.set(null);
   }
 
   onAddClick(): void {
@@ -165,8 +194,6 @@ export class TrackingComponent implements OnInit {
     this.form.notes = tracker.notes ?? '';
     this.symbolQuery.set(tracker.symbol);
     this.formOpen.set(true);
-    this.error.set(null);
-    this.success.set(null);
   }
 
   cancelForm(): void {
@@ -215,19 +242,17 @@ export class TrackingComponent implements OnInit {
   async save(): Promise<void> {
     const picked = this.findRegistry(this.form.symbol || this.symbolQuery());
     if (!picked) {
-      this.error.set('Pick a stock from the registry');
+      this.toast.error('Pick a stock from the registry');
       return;
     }
     const action = this.normalizeAction(this.form.action);
     const targetPrice = parseFloat(this.form.targetPrice);
     if (!(targetPrice > 0)) {
-      this.error.set('Enter a target price');
+      this.toast.error('Enter a target price');
       return;
     }
 
     this.busy.set(true);
-    this.error.set(null);
-    this.success.set(null);
     try {
       const existing = this.editingId()
         ? this.trackers().find((t) => t.id === this.editingId())
@@ -247,10 +272,10 @@ export class TrackingComponent implements OnInit {
         },
         this.editingId() ?? undefined
       );
-      this.success.set(this.editingId() ? `Updated ${picked.symbol}` : `Tracking ${picked.symbol}`);
+      this.toast.success(this.editingId() ? `Updated ${picked.symbol}` : `Tracking ${picked.symbol}`);
       this.cancelForm();
     } catch (e) {
-      this.error.set(e instanceof Error ? e.message : 'Failed to save tracker');
+      this.toast.error(e instanceof Error ? e.message : 'Failed to save tracker');
     } finally {
       this.busy.set(false);
     }
@@ -258,26 +283,23 @@ export class TrackingComponent implements OnInit {
 
   async remove(tracker: PriceTracker): Promise<void> {
     if (!confirm(`Stop tracking ${tracker.symbol} at ${formatPrice(tracker.targetPrice)}?`)) return;
-    this.error.set(null);
     try {
       await this.trackerSvc.remove(tracker.id);
       if (this.editingId() === tracker.id) this.cancelForm();
-      this.success.set(`Removed ${tracker.symbol}`);
+      this.toast.success(`Removed ${tracker.symbol}`);
     } catch (e) {
-      this.error.set(e instanceof Error ? e.message : 'Failed to remove tracker');
+      this.toast.error(e instanceof Error ? e.message : 'Failed to remove tracker');
     }
   }
 
-  async refreshAll(): Promise<void> {
+  async refreshAll(opts: { silent?: boolean } = {}): Promise<void> {
     const symbols = [...new Set(this.trackers().map((t) => t.symbol))];
     if (!symbols.length) {
-      this.success.set('Nothing to refresh yet. Add a tracker first.');
+      if (!opts.silent) this.toast.success('Nothing to refresh yet. Add a tracker first.');
       return;
     }
 
     this.refreshBusy.set(true);
-    this.error.set(null);
-    this.success.set(null);
     const failed: string[] = [];
     let updated = 0;
     try {
@@ -300,7 +322,9 @@ export class TrackingComponent implements OnInit {
       const failNote = failed.length
         ? ` ${failed.length} failed: ${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}.`
         : '';
-      this.success.set(`Refreshed CMP for ${updated} stock${updated === 1 ? '' : 's'} from ${this.quotes.source}.${failNote}`);
+      const message = `Refreshed CMP for ${updated} stock${updated === 1 ? '' : 's'} from ${this.quotes.source}.${failNote}`;
+      if (failed.length) this.toast.error(message);
+      else if (!opts.silent) this.toast.success(message);
     } finally {
       this.refreshBusy.set(false);
       this.refreshDone.set(0);

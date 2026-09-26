@@ -7,6 +7,7 @@ import { ReportStateService } from '../services/report-state.service';
 import { PageShellService } from '../services/page-shell.service';
 import { AuthService } from '../services/auth.service';
 import { NotificationService } from '../services/notification.service';
+import { ToastService } from '../services/toast.service';
 import { FilterUrlService } from '../services/filter-url.service';
 import { BrandLogoComponent } from '../components/shared/brand-logo/brand-logo.component';
 import { BRAND } from '../constants/brand';
@@ -40,6 +41,7 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
   readonly state = inject(ReportStateService);
   /** Surfaces uncaught errors as a dismissible banner instead of console-only. */
   readonly errors = inject(AppErrorHandler);
+  readonly toasts = inject(ToastService);
   readonly pageShell = inject(PageShellService);
   readonly auth = inject(AuthService);
   readonly brand = BRAND;
