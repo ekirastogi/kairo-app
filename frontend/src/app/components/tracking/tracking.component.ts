@@ -356,7 +356,7 @@ export class TrackingComponent implements OnInit, OnDestroy {
   proximityClass(row: TrackerRow): string {
     if (row.proximity === 'hot') return 'text-emerald-700';
     if (row.proximity === 'near') return 'text-amber-700';
-    return this.pnlClass(row.diffPct);
+    return this.pnlClass(row.diffPct ?? 0);
   }
 
   grossPnL(economics: TrackerEconomics): number {

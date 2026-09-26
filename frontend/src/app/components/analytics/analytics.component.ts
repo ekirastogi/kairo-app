@@ -41,7 +41,6 @@ import {
   buildLineDataset,
   buildZeroSplitLineDataset,
 } from '../../utils/chart-theme';
-import { FilterPanelComponent } from '../shared/filter-panel/filter-panel.component';
 import { TradeTypeFilterComponent } from '../shared/trade-type-filter/trade-type-filter.component';
 import { DateRangeFilterComponent } from '../shared/date-range-filter/date-range-filter.component';
 import { ChartCardComponent } from '../shared/chart-card/chart-card.component';
@@ -115,7 +114,6 @@ const ANALYTICS_TABS: AnalyticsTab[] = [
     FormsModule,
     NgTemplateOutlet,
     RouterLink,
-    FilterPanelComponent,
     TradeTypeFilterComponent,
     DateRangeFilterComponent,
     ChartCardComponent,
@@ -1978,10 +1976,6 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
 
   @HostListener('window:resize')
   onResize(): void {
-    this.chartVersion.update((v) => v + 1);
-  }
-
-  onFiltersChanged(): void {
     this.chartVersion.update((v) => v + 1);
   }
 
