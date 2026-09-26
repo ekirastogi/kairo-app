@@ -42,7 +42,7 @@
           />
           <datalist id="universe-symbols">
             @for (s of symbolOptions(); track s.symbol) {
-              <option [value]="s.symbol">{{ s.name }}</option>
+              <option [value]="s.symbol">{{ s.name }} · {{ s.exchange || 'NSE' }}</option>
             }
           </datalist>
           @if (form.name) {

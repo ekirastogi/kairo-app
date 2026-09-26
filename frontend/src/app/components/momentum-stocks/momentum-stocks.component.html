@@ -37,7 +37,7 @@
           />
           <datalist id="momentum-symbol-options">
             @for (opt of symbolOptions(); track opt.symbol) {
-              <option [value]="opt.symbol">{{ opt.name }}</option>
+              <option [value]="opt.symbol">{{ opt.name }} · {{ opt.exchange || 'NSE' }}</option>
             }
           </datalist>
         </label>

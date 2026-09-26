@@ -1453,6 +1453,10 @@
   @apply max-w-[10rem] truncate text-xs text-slate-500 sm:max-w-[16rem];
 }
 
+.registry-exchange {
+  @apply inline-flex shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600;
+}
+
 .registry-row-labels {
   @apply mt-1 flex flex-wrap gap-1;
 }

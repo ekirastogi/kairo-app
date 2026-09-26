@@ -78,7 +78,7 @@
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 class="font-semibold text-slate-900">{{ preview.name }}</h3>
-              <p class="text-xs text-slate-500">{{ preview.symbol }} · CMP {{ formatPrice(preview.currentPrice) }} · P/E {{ preview.pe ?? '—' }}</p>
+              <p class="text-xs text-slate-500">{{ preview.symbol }} · {{ exchangeLabel(preview) }} · CMP {{ formatPrice(preview.currentPrice) }} · P/E {{ preview.pe ?? '—' }}</p>
             </div>
           </div>
           <app-screener-fundamentals [stock]="preview" />
@@ -122,13 +122,20 @@
           />
           <datalist id="registry-universe-symbols">
             @for (s of symbolOptions(); track s.symbol) {
-              <option [value]="s.symbol">{{ s.name }}</option>
+              <option [value]="s.symbol">{{ s.name }} · {{ exchangeLabel(s) }}</option>
             }
           </datalist>
         </label>
         <label class="block text-sm">
           <span class="text-slate-500">Name</span>
           <input class="input-field mt-1 w-full" [(ngModel)]="form.name" />
+        </label>
+        <label class="block text-sm">
+          <span class="text-slate-500">Exchange</span>
+          <select class="input-field mt-1 w-full" [(ngModel)]="form.exchange">
+            <option value="NSE">NSE</option>
+            <option value="BSE">BSE</option>
+          </select>
         </label>
         <label class="block text-sm">
           <span class="text-slate-500">Current price</span>
@@ -222,7 +229,7 @@
           <input
             type="search"
             class="input-field w-full sm:max-w-sm"
-            placeholder="Search by symbol or name…"
+            placeholder="Search by symbol, name, or exchange…"
             [ngModel]="searchQuery()"
             (ngModelChange)="onSearchChange($event)"
           />
@@ -263,6 +270,7 @@
                     (click)="addStockToActiveLabels(stock.symbol, stock.name)"
                   >
                     <span class="font-semibold">{{ stock.symbol }}</span>
+                    <span class="registry-exchange">{{ exchangeLabel(stock) }}</span>
                     <span class="truncate text-slate-500">{{ stock.name || '' }}</span>
                   </button>
                 </li>
@@ -336,7 +344,10 @@
               <tr [class.registry-row-open]="rowMenuSymbol() === s.symbol">
                 <td>
                   <a class="registry-stock-link" [routerLink]="['/stock', s.symbol]">
-                    <span class="registry-symbol">{{ s.symbol }}</span>
+                    <span class="flex items-center gap-1.5">
+                      <span class="registry-symbol">{{ s.symbol }}</span>
+                      <span class="registry-exchange">{{ exchangeLabel(s) }}</span>
+                    </span>
                     <span class="registry-name">{{ s.name || '—' }}</span>
                   </a>
                   @if (labelIdsFor(s.symbol).length) {

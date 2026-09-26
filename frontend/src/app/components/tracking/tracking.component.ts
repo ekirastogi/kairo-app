@@ -70,6 +70,7 @@ export class TrackingComponent implements OnInit {
     symbol: '',
     name: '',
     isin: '',
+    exchange: '',
     action: 'Buy',
     targetPrice: '',
     nextTargets: [{ key: 0, price: '' }],
@@ -83,7 +84,9 @@ export class TrackingComponent implements OnInit {
     return rows
       .filter(
         (s) =>
-          s.symbol.toLowerCase().includes(q) || (s.name ?? '').toLowerCase().includes(q)
+          s.symbol.toLowerCase().includes(q) ||
+          (s.name ?? '').toLowerCase().includes(q) ||
+          (s.exchange ?? 'NSE').toLowerCase().includes(q)
       )
       .slice(0, 30);
   });
@@ -153,6 +156,7 @@ export class TrackingComponent implements OnInit {
     this.form.symbol = tracker.symbol;
     this.form.name = tracker.stockName ?? tracker.symbol;
     this.form.isin = tracker.isin ?? '';
+    this.form.exchange = this.findRegistry(tracker.symbol)?.exchange || '';
     this.form.action = tracker.action;
     this.form.targetPrice = String(tracker.targetPrice);
     this.form.nextTargets = tracker.nextTargets.length
@@ -339,6 +343,7 @@ export class TrackingComponent implements OnInit {
     this.form.symbol = stock.symbol;
     this.form.name = stock.name;
     this.form.isin = stock.isin ?? '';
+    this.form.exchange = stock.exchange || 'NSE';
     this.symbolQuery.set(stock.symbol);
   }
 
@@ -350,6 +355,7 @@ export class TrackingComponent implements OnInit {
     this.form.symbol = '';
     this.form.name = '';
     this.form.isin = '';
+    this.form.exchange = '';
     this.form.action = 'Buy';
     this.form.targetPrice = '';
     this.form.nextTargets = [this.emptyLevel()];

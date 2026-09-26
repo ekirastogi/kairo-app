@@ -114,6 +114,7 @@ export class StockRegistryComponent implements OnInit {
   form = {
     symbol: '',
     name: '',
+    exchange: 'NSE',
     currentPrice: '',
     marketCap: '',
     pe: '',
@@ -137,11 +138,7 @@ export class StockRegistryComponent implements OnInit {
     const rows = this.stocks();
     if (!q) return rows.slice(0, 30);
     return rows
-      .filter(
-        (s) =>
-          s.symbol.toLowerCase().includes(q) ||
-          (s.name ?? '').toLowerCase().includes(q)
-      )
+      .filter((s) => this.matchesStockQuery(s, q))
       .slice(0, 30);
   });
 
@@ -160,11 +157,7 @@ export class StockRegistryComponent implements OnInit {
       });
     }
     if (q) {
-      rows = rows.filter(
-        (s) =>
-          s.symbol.toLowerCase().includes(q) ||
-          (s.name ?? '').toLowerCase().includes(q)
-      );
+      rows = rows.filter((s) => this.matchesStockQuery(s, q));
     }
     return this.tableSort.sort(rows, (stock, col) => this.sortValue(stock, col));
   });
@@ -287,10 +280,7 @@ export class StockRegistryComponent implements OnInit {
       .filter((stock) => {
         const ids = assigned.get(stock.symbol) ?? [];
         if (labelIds.every((id) => ids.includes(id))) return false;
-        return (
-          stock.symbol.toLowerCase().includes(q) ||
-          (stock.name ?? '').toLowerCase().includes(q)
-        );
+        return this.matchesStockQuery(stock, q);
       })
       .slice(0, 8);
   });
@@ -398,6 +388,21 @@ export class StockRegistryComponent implements OnInit {
   formatPrice(price: number | undefined): string {
     if (price == null || !Number.isFinite(price) || price === 0) return '—';
     return formatInrPrice(price);
+  }
+
+  exchangeLabel(stock: { exchange?: string | null }): string {
+    const raw = (stock.exchange ?? 'NSE').trim().toUpperCase();
+    if (raw === 'BSE' || raw === 'BOM' || raw === 'BSE_EQ') return 'BSE';
+    if (raw === 'NSE' || raw === 'NSE_EQ' || raw === 'NFO') return 'NSE';
+    return raw || 'NSE';
+  }
+
+  private matchesStockQuery(stock: RegistryStock, q: string): boolean {
+    return (
+      stock.symbol.toLowerCase().includes(q) ||
+      (stock.name ?? '').toLowerCase().includes(q) ||
+      this.exchangeLabel(stock).toLowerCase().includes(q)
+    );
   }
 
   private sortValue(stock: RegistryStock, col: string): string | number {
@@ -639,7 +644,7 @@ export class StockRegistryComponent implements OnInit {
     this.editingSymbol.set(null);
     this.symbolQuery.set('');
     this.form = {
-      symbol: '', name: '', currentPrice: '', marketCap: '', pe: '', rsi: '',
+      symbol: '', name: '', exchange: 'NSE', currentPrice: '', marketCap: '', pe: '', rsi: '',
       macd: '', macdHist: '', macdSignal: '', sma20: '', sma50: '',
       support1: '', support2: '', support3: '',
       resistance1: '', resistance2: '', resistance3: '',
@@ -654,6 +659,9 @@ export class StockRegistryComponent implements OnInit {
     if (match?.name) {
       this.form.name = match.name;
     }
+    if (match?.exchange) {
+      this.form.exchange = this.exchangeLabel(match);
+    }
   }
 
   edit(stock: RegistryStock): void {
@@ -662,6 +670,7 @@ export class StockRegistryComponent implements OnInit {
     this.form.symbol = stock.symbol;
     this.symbolQuery.set(stock.symbol);
     this.form.name = stock.name;
+    this.form.exchange = this.exchangeLabel(stock);
     this.form.currentPrice =
       stock.currentPrice != null && stock.currentPrice > 0 ? String(stock.currentPrice) : '';
     this.form.marketCap = stock.marketCap != null ? String(stock.marketCap) : '';
@@ -737,9 +746,14 @@ export class StockRegistryComponent implements OnInit {
         // Corporate actions table may be unavailable until migration 020.
       }
 
+      const existing = this.editingSymbol()
+        ? this.stocks().find((s) => s.symbol === this.editingSymbol())
+        : undefined;
       await this.registrySvc.save({
+        ...existing,
         symbol,
         name,
+        exchange: this.form.exchange || existing?.exchange || 'NSE',
         currentPrice: this.num(this.form.currentPrice) ?? 0,
         marketCap: this.num(this.form.marketCap),
         pe: this.num(this.form.pe),

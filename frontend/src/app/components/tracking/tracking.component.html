@@ -71,11 +71,11 @@
             />
             <datalist id="tracking-symbol-options">
               @for (opt of symbolOptions(); track opt.symbol) {
-                <option [value]="opt.symbol">{{ opt.name }}</option>
+                <option [value]="opt.symbol">{{ opt.name }} · {{ opt.exchange || 'NSE' }}</option>
               }
             </datalist>
             @if (form.name && form.symbol) {
-              <span class="mt-1 block text-xs text-slate-400">{{ form.name }}</span>
+              <span class="mt-1 block text-xs text-slate-400">{{ form.name }}{{ form.exchange ? ' · ' + form.exchange : '' }}</span>
             }
             @if (!registry().length) {
               <span class="mt-1 block text-xs text-amber-700">

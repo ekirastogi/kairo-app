@@ -90,7 +90,8 @@ export class MomentumStocksComponent implements OnInit {
       .filter(
         (s) =>
           s.symbol.toLowerCase().includes(q) ||
-          (s.name ?? '').toLowerCase().includes(q)
+          (s.name ?? '').toLowerCase().includes(q) ||
+          (s.exchange ?? 'NSE').toLowerCase().includes(q)
       )
       .slice(0, 25);
   });
