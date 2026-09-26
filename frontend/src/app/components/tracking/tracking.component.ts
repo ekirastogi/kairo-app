@@ -65,13 +65,14 @@ export class TrackingComponent implements OnInit {
   readonly formatPctSigned = formatPctSigned;
   readonly formatDataAge = formatDataAge;
 
+  private nextLevelKey = 1;
   form = {
     symbol: '',
     name: '',
     isin: '',
     action: 'Buy',
     targetPrice: '',
-    nextTargets: [''] as string[],
+    nextTargets: [{ key: 0, price: '' }],
     notes: '',
   };
 
@@ -154,7 +155,9 @@ export class TrackingComponent implements OnInit {
     this.form.isin = tracker.isin ?? '';
     this.form.action = tracker.action;
     this.form.targetPrice = String(tracker.targetPrice);
-    this.form.nextTargets = tracker.nextTargets.length ? tracker.nextTargets.map(String) : [''];
+    this.form.nextTargets = tracker.nextTargets.length
+      ? tracker.nextTargets.map((price) => ({ key: this.nextLevelKey++, price: String(price) }))
+      : [this.emptyLevel()];
     this.form.notes = tracker.notes ?? '';
     this.symbolQuery.set(tracker.symbol);
     this.formOpen.set(true);
@@ -183,12 +186,12 @@ export class TrackingComponent implements OnInit {
   }
 
   addNextTarget(): void {
-    this.form.nextTargets = [...this.form.nextTargets, ''];
+    this.form.nextTargets = [...this.form.nextTargets, this.emptyLevel()];
   }
 
-  removeNextTarget(index: number): void {
-    const next = this.form.nextTargets.filter((_, i) => i !== index);
-    this.form.nextTargets = next.length ? next : [''];
+  removeNextTarget(key: number): void {
+    const next = this.form.nextTargets.filter((level) => level.key !== key);
+    this.form.nextTargets = next.length ? next : [this.emptyLevel()];
   }
 
   rowClass(row: TrackerRow): string {
@@ -232,7 +235,7 @@ export class TrackingComponent implements OnInit {
           isin: picked.isin,
           action,
           targetPrice,
-          nextTargets: this.form.nextTargets,
+          nextTargets: this.form.nextTargets.map((level) => level.price),
           cmp: existing?.cmp ?? (picked.currentPrice > 0 ? picked.currentPrice : undefined),
           cmpSource: existing?.cmpSource ?? this.quotes.source,
           cmpFetchedAt: existing?.cmpFetchedAt,
@@ -339,13 +342,17 @@ export class TrackingComponent implements OnInit {
     this.symbolQuery.set(stock.symbol);
   }
 
+  private emptyLevel(): { key: number; price: string } {
+    return { key: this.nextLevelKey++, price: '' };
+  }
+
   private resetForm(): void {
     this.form.symbol = '';
     this.form.name = '';
     this.form.isin = '';
     this.form.action = 'Buy';
     this.form.targetPrice = '';
-    this.form.nextTargets = [''];
+    this.form.nextTargets = [this.emptyLevel()];
     this.form.notes = '';
     this.symbolQuery.set('');
   }

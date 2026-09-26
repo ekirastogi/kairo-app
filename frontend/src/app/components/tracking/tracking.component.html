@@ -122,17 +122,18 @@
           <div class="block text-sm">
             <span class="text-slate-600">Next levels</span>
             <div class="mt-1.5 space-y-2">
-              @for (level of form.nextTargets; track $index; let i = $index) {
+              @for (level of form.nextTargets; track level.key) {
                 <div class="flex gap-2">
                   <input
                     class="input-field flex-1"
                     type="number"
                     step="0.01"
                     min="0"
-                    [(ngModel)]="form.nextTargets[i]"
+                    [name]="'next-level-' + level.key"
+                    [(ngModel)]="level.price"
                     placeholder="300, 310…"
                   />
-                  <button type="button" class="btn-ghost px-2" (click)="removeNextTarget(i)" aria-label="Remove level">
+                  <button type="button" class="btn-ghost px-2" (click)="removeNextTarget(level.key)" aria-label="Remove level">
                     ✕
                   </button>
                 </div>
