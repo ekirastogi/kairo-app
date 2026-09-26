@@ -150,7 +150,7 @@ interface TrackerRow extends PriceTracker {
     .side-long { @apply bg-emerald-50 text-emerald-700 ring-emerald-200; }
     .side-short { @apply bg-red-50 text-red-700 ring-red-200; }
 
-    .plan-expand > td { @apply !whitespace-normal bg-slate-50 p-0; }
+    .plan-expand > td { @apply whitespace-normal bg-slate-50 p-0; }
     .ticket { @apply space-y-2 px-2.5 py-2; }
     .ticket-meta { @apply flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-600; }
     .ticket-notes { @apply text-[11px] leading-snug text-slate-500; }
