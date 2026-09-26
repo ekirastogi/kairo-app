@@ -191,10 +191,6 @@ export class TrackingComponent implements OnInit {
     this.form.nextTargets = next.length ? next : [''];
   }
 
-  trackNextTarget(index: number): number {
-    return index;
-  }
-
   rowClass(row: TrackerRow): string {
     if (row.proximity === 'hot') return 'bg-emerald-100/80';
     if (row.proximity === 'near') return 'bg-yellow-100/80';
