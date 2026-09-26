@@ -157,7 +157,7 @@ export class TrackingComponent implements OnInit {
     this.form.name = tracker.stockName ?? tracker.symbol;
     this.form.isin = tracker.isin ?? '';
     this.form.exchange = this.findRegistry(tracker.symbol)?.exchange || '';
-    this.form.action = tracker.action;
+    this.form.action = this.normalizeAction(tracker.action);
     this.form.targetPrice = String(tracker.targetPrice);
     this.form.nextTargets = tracker.nextTargets.length
       ? tracker.nextTargets.map((price) => ({ key: this.nextLevelKey++, price: String(price) }))
@@ -185,8 +185,12 @@ export class TrackingComponent implements OnInit {
     this.form.symbol = value.trim().toUpperCase();
   }
 
-  setAction(action: string): void {
+  setAction(action: (typeof ACTION_PRESETS)[number]): void {
     this.form.action = action;
+  }
+
+  private normalizeAction(action: string): (typeof ACTION_PRESETS)[number] {
+    return action.trim().toLowerCase() === 'sell' ? 'Sell' : 'Buy';
   }
 
   addNextTarget(): void {
@@ -214,11 +218,7 @@ export class TrackingComponent implements OnInit {
       this.error.set('Pick a stock from the registry');
       return;
     }
-    const action = this.form.action.trim();
-    if (!action) {
-      this.error.set('Say what you want to do at this price (Buy, Sell, …)');
-      return;
-    }
+    const action = this.normalizeAction(this.form.action);
     const targetPrice = parseFloat(this.form.targetPrice);
     if (!(targetPrice > 0)) {
       this.error.set('Enter a target price');
