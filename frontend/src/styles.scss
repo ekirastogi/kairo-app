@@ -563,6 +563,338 @@
     @apply shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400;
   }
 
+  .plan-page {
+    @apply mx-auto max-w-5xl space-y-2;
+  }
+
+  .plan-toolbar {
+    @apply flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2 py-1.5;
+  }
+
+  .plan-search {
+    @apply min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900;
+  }
+
+  .plan-count {
+    @apply hidden shrink-0 text-[11px] text-slate-500 sm:block;
+  }
+
+  .plan-auto {
+    @apply inline-flex shrink-0 cursor-pointer items-center gap-1 text-[11px] text-slate-600;
+  }
+
+  .plan-tool-btn {
+    @apply shrink-0 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 disabled:opacity-50;
+  }
+
+  .plan-tool-btn-primary {
+    @apply border-kairo-600 bg-kairo-600 text-white;
+  }
+
+  .plan-link {
+    @apply text-[11px] font-semibold text-kairo-700 hover:underline;
+  }
+
+  .plan-form {
+    @apply rounded-lg border border-slate-200/80 bg-white;
+  }
+
+  .plan-form-head {
+    @apply flex items-center justify-between border-b border-slate-100 px-3 py-2;
+  }
+
+  .plan-form-head h2 {
+    @apply text-sm font-semibold text-slate-900;
+  }
+
+  .plan-form-grid {
+    @apply grid gap-2.5 px-3 py-3 sm:grid-cols-2;
+  }
+
+  .plan-field {
+    @apply block text-xs text-slate-600;
+  }
+
+  .plan-field-full {
+    @apply sm:col-span-2;
+  }
+
+  .plan-field > span {
+    @apply mb-1 block font-medium;
+  }
+
+  .plan-field em {
+    @apply mt-1 block text-[11px] not-italic text-slate-400;
+  }
+
+  .plan-seg {
+    @apply mt-1 flex gap-1;
+  }
+
+  .plan-seg button {
+    @apply rounded-md border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600;
+  }
+
+  .plan-seg button.active {
+    @apply border-kairo-600 bg-kairo-600 text-white;
+  }
+
+  .plan-stack {
+    @apply space-y-1.5;
+  }
+
+  .plan-inline {
+    @apply flex items-center gap-1.5;
+  }
+
+  .plan-size {
+    @apply border-t border-slate-100;
+  }
+
+  .plan-size-head {
+    @apply flex items-baseline gap-2 px-3 pt-2.5 text-xs;
+  }
+
+  .plan-size-head strong {
+    @apply font-semibold text-slate-800;
+  }
+
+  .plan-size-head span {
+    @apply text-slate-400;
+  }
+
+  .plan-preview {
+    @apply mx-3 mb-3 mt-1 grid grid-cols-4 gap-2 border-t border-slate-100 pt-2 text-xs;
+  }
+
+  .plan-preview dt {
+    @apply text-[10px] uppercase tracking-wide text-slate-400;
+  }
+
+  .plan-preview dd {
+    @apply font-semibold tabular-nums text-slate-900;
+  }
+
+  .plan-form-actions {
+    @apply flex items-center gap-3 border-t border-slate-100 px-3 py-2;
+  }
+
+  .plan-list {
+    @apply overflow-hidden rounded-lg border border-slate-200/80 bg-white;
+  }
+
+  .plan-blotter {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+
+  .plan-blotter th {
+    @apply bg-slate-50 px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500;
+  }
+
+  .plan-blotter th.num,
+  .plan-blotter td.num {
+    @apply text-right;
+  }
+
+  .plan-blotter td {
+    @apply border-t border-slate-100 px-2 py-2 text-xs text-slate-700;
+  }
+
+  .plan-blotter .col-stock {
+    width: 42%;
+  }
+
+  .plan-blotter .col-side,
+  .plan-blotter .col-cmp,
+  .plan-blotter .col-net {
+    width: 0;
+  }
+
+  .plan-blotter .col-trigger {
+    width: 26%;
+  }
+
+  .plan-blotter .col-diff {
+    width: 22%;
+  }
+
+  .plan-blotter .col-chevron {
+    width: 10%;
+  }
+
+  .plan-blotter .desk {
+    display: none;
+  }
+
+  .plan-blotter td.stock {
+    overflow: hidden;
+  }
+
+  .plan-blotter .sym {
+    @apply block truncate font-semibold tracking-wide text-slate-900;
+  }
+
+  .plan-blotter .name {
+    @apply block truncate text-[11px] text-slate-400;
+  }
+
+  .plan-blotter .trigger {
+    @apply font-medium tabular-nums text-slate-900;
+  }
+
+  .plan-blotter .mute {
+    @apply text-slate-400;
+  }
+
+  .plan-blotter .chevron {
+    @apply text-slate-400;
+  }
+
+  .plan-blotter .chevron svg {
+    @apply ml-auto;
+  }
+
+  .plan-blotter .empty {
+    @apply py-8 text-center text-slate-400;
+  }
+
+  .plan-row {
+    cursor: pointer;
+  }
+
+  .plan-row-hot > td {
+    background: #ecfdf5;
+  }
+
+  .plan-row-hot > td:first-child {
+    box-shadow: inset 3px 0 0 #10b981;
+  }
+
+  .plan-row-near > td {
+    background: #fffbeb;
+  }
+
+  .plan-row-near > td:first-child {
+    box-shadow: inset 3px 0 0 #f59e0b;
+  }
+
+  .plan-row-open > td {
+    background: #f8fafc;
+  }
+
+  .plan-row-hot.plan-row-open > td {
+    background: #d1fae5;
+  }
+
+  .plan-row-near.plan-row-open > td {
+    background: #fde68a;
+  }
+
+  .side {
+    @apply inline-flex rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide ring-1 ring-inset;
+  }
+
+  .side-long {
+    @apply bg-emerald-50 text-emerald-700 ring-emerald-200;
+  }
+
+  .side-short {
+    @apply bg-red-50 text-red-700 ring-red-200;
+  }
+
+  .plan-expand > td {
+    @apply whitespace-normal bg-slate-50 p-0;
+  }
+
+  .ticket {
+    @apply space-y-2 px-2.5 py-2;
+  }
+
+  .ticket-meta {
+    @apply flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-600;
+  }
+
+  .ticket-notes {
+    @apply text-[11px] leading-snug text-slate-500;
+  }
+
+  .ticket-foot {
+    @apply flex flex-wrap items-center justify-between gap-2;
+  }
+
+  .ticket-pnl {
+    @apply flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-500;
+  }
+
+  .ticket-pnl b {
+    @apply font-semibold tabular-nums;
+  }
+
+  .ticket-actions {
+    @apply flex gap-3;
+  }
+
+  .levels {
+    @apply w-full text-[11px] tabular-nums;
+  }
+
+  .levels td {
+    @apply border-t border-slate-200/80 px-0 py-1 text-slate-700;
+  }
+
+  .levels tr.next td {
+    @apply text-slate-400;
+  }
+
+  @screen md {
+    .plan-count {
+      @apply block;
+    }
+
+    .plan-blotter .desk {
+      display: table-cell;
+    }
+
+    .plan-blotter .col-stock {
+      width: 26%;
+    }
+
+    .plan-blotter .col-side {
+      width: 10%;
+    }
+
+    .plan-blotter .col-trigger {
+      width: 14%;
+    }
+
+    .plan-blotter .col-cmp {
+      width: 14%;
+    }
+
+    .plan-blotter .col-diff {
+      width: 12%;
+    }
+
+    .plan-blotter .col-net {
+      width: 16%;
+    }
+
+    .plan-blotter .col-chevron {
+      width: 8%;
+    }
+
+    .plan-blotter th,
+    .plan-blotter td {
+      @apply px-3;
+    }
+
+    .ticket {
+      @apply px-3 py-2.5;
+    }
+  }
+
   .stock-expand-panel {
     @apply border-t-2 border-kairo-500 px-2 py-2 sm:px-4 sm:py-3;
   }
