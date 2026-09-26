@@ -568,7 +568,7 @@
   }
 
   .plan-tabs {
-    @apply !justify-start;
+    justify-content: flex-start;
   }
 
   .plan-toolbar {

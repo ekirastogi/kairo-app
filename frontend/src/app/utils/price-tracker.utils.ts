@@ -119,6 +119,6 @@ export function allocateTrackerSlices(
   }));
 }
 
-export function trackerSegment(plan: TrackerPlanSnapshot): TradeSegment {
+export function trackerSegment(plan: Pick<TrackerPlanSnapshot, 'segment'>): TradeSegment {
   return plan.segment === 'delivery' ? 'delivery' : 'intraday';
 }
