@@ -2,15 +2,15 @@
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div>
       <p class="text-sm text-slate-600">
-        Watch registry stocks against a target. Green is within 1% of CMP, yellow within 2%.
+        Watch registry stocks against a target. Green is within 5% of CMP, yellow within 10%.
       </p>
       <p class="mt-1 text-xs text-slate-500">
         {{ trackers().length }} tracked
         @if (hotCount()) {
-          · <span class="font-semibold text-emerald-700">{{ hotCount() }} within 1%</span>
+          · <span class="font-semibold text-emerald-700">{{ hotCount() }} within 5%</span>
         }
         @if (nearCount()) {
-          · <span class="font-semibold text-amber-700">{{ nearCount() }} within 2%</span>
+          · <span class="font-semibold text-amber-700">{{ nearCount() }} within 10%</span>
         }
       </p>
     </div>

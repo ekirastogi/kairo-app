@@ -11,12 +11,12 @@ export function trackerAbsDiffPct(cmp: number | undefined | null, target: number
   return diff == null ? null : Math.abs(diff);
 }
 
-/** Green ≤ 1% of CMP, yellow ≤ 2%. */
+/** Green ≤ 5% of CMP, yellow ≤ 10%. */
 export function trackerProximity(cmp: number | undefined | null, target: number): TrackerProximity {
   const abs = trackerAbsDiffPct(cmp, target);
   if (abs == null) return null;
-  if (abs <= 1) return 'hot';
-  if (abs <= 2) return 'near';
+  if (abs <= 5) return 'hot';
+  if (abs <= 10) return 'near';
   return null;
 }
 
