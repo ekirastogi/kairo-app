@@ -75,6 +75,7 @@ export class TrackingComponent implements OnInit, OnDestroy {
 
   formOpen = signal(false);
   editingId = signal<string | null>(null);
+  expandedId = signal<string | null>(null);
   searchQuery = signal('');
   symbolQuery = signal('');
   busy = signal(false);
@@ -288,9 +289,22 @@ export class TrackingComponent implements OnInit, OnDestroy {
   }
 
   rowClass(row: TrackerRow): string {
-    if (row.proximity === 'hot') return 'bg-emerald-100/80';
-    if (row.proximity === 'near') return 'bg-yellow-100/80';
-    return '';
+    const open = this.isExpanded(row) ? ' bg-slate-50' : '';
+    if (row.proximity === 'hot') return `cursor-pointer bg-emerald-100/80${open}`;
+    if (row.proximity === 'near') return `cursor-pointer bg-yellow-100/80${open}`;
+    return `cursor-pointer${open}`;
+  }
+
+  isExpanded(row: TrackerRow): boolean {
+    return this.expandedId() === row.id;
+  }
+
+  toggleExpanded(row: TrackerRow): void {
+    this.expandedId.set(this.expandedId() === row.id ? null : row.id);
+  }
+
+  entryFor(row: TrackerRow): number {
+    return trackerEntryPrice(row) ?? row.targetPrice;
   }
 
   toggleSort(column: TrackerColumn, event?: Event): void {
