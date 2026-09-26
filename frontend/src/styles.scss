@@ -571,12 +571,16 @@
     @apply w-full max-w-none space-y-2;
   }
 
-  .plan-page .pill-tabs .pill-tab {
-    @apply flex-1 text-center sm:flex-none;
+  .plan-toolbar {
+    @apply flex flex-nowrap items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-1 sm:gap-2;
   }
 
-  .plan-toolbar {
-    @apply flex flex-wrap items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-1 sm:gap-2;
+  .plan-tabs {
+    @apply flex shrink-0 gap-0.5 sm:gap-1;
+  }
+
+  .plan-tabs .pill-tab {
+    @apply px-2.5 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm;
   }
 
   .plan-search {

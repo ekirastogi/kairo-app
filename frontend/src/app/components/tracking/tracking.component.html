@@ -1,28 +1,27 @@
 <div class="plan-page">
-  <div class="pill-tabs" role="tablist" aria-label="Trade plan views">
-    <button
-      type="button"
-      role="tab"
-      class="pill-tab"
-      [class.pill-tab-active]="activeTab() === 'open'"
-      [attr.aria-selected]="activeTab() === 'open'"
-      (click)="setTab('open')"
-    >
-      Open
-    </button>
-    <button
-      type="button"
-      role="tab"
-      class="pill-tab"
-      [class.pill-tab-active]="activeTab() === 'history'"
-      [attr.aria-selected]="activeTab() === 'history'"
-      (click)="setTab('history')"
-    >
-      History
-    </button>
-  </div>
-
   <div class="plan-toolbar">
+    <div class="plan-tabs" role="tablist" aria-label="Trade plan views">
+      <button
+        type="button"
+        role="tab"
+        class="pill-tab"
+        [class.pill-tab-active]="activeTab() === 'open'"
+        [attr.aria-selected]="activeTab() === 'open'"
+        (click)="setTab('open')"
+      >
+        Open
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="pill-tab"
+        [class.pill-tab-active]="activeTab() === 'history'"
+        [attr.aria-selected]="activeTab() === 'history'"
+        (click)="setTab('history')"
+      >
+        History
+      </button>
+    </div>
     <input
       class="plan-search"
       type="search"
