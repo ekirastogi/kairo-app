@@ -66,20 +66,53 @@ interface TrackerRow extends PriceTracker {
     .plan-row {
       cursor: pointer;
     }
-    .plan-row-hot {
-      box-shadow: inset 3px 0 0 #10b981;
+    .plan-blotter th,
+    .plan-blotter td {
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
     }
-    .plan-row-near {
-      box-shadow: inset 3px 0 0 #f59e0b;
+    .plan-blotter td.col-name {
+      max-width: none;
     }
-    .plan-row-open {
-      background: rgb(248 250 252);
+    .plan-row-hot > td {
+      background: #ecfdf5;
+    }
+    .plan-row-hot > td:first-child {
+      box-shadow: inset 4px 0 0 #10b981;
+    }
+    .plan-row-near > td {
+      background: #fffbeb;
+    }
+    .plan-row-near > td:first-child {
+      box-shadow: inset 4px 0 0 #f59e0b;
+    }
+    .plan-row-open > td {
+      background: #f8fafc;
+    }
+    .plan-row-hot.plan-row-open > td {
+      background: #d1fae5;
+    }
+    .plan-row-near.plan-row-open > td {
+      background: #fde68a;
+    }
+    :host ::ng-deep .stock-table tbody tr.plan-row-hot:hover > td {
+      background: #d1fae5;
+    }
+    :host ::ng-deep .stock-table tbody tr.plan-row-near:hover > td {
+      background: #fde68a;
     }
     .side-long {
       @apply bg-emerald-50 text-emerald-700 ring-emerald-200;
     }
     .side-short {
       @apply bg-red-50 text-red-700 ring-red-200;
+    }
+    @media (min-width: 640px) {
+      .plan-blotter th,
+      .plan-blotter td {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+      }
     }
   `,
 })
@@ -318,6 +351,12 @@ export class TrackingComponent implements OnInit, OnDestroy {
 
   sideClass(action: string): string {
     return this.displayAction(action) === 'Short' ? 'side-short' : 'side-long';
+  }
+
+  proximityClass(row: TrackerRow): string {
+    if (row.proximity === 'hot') return 'text-emerald-700';
+    if (row.proximity === 'near') return 'text-amber-700';
+    return this.pnlClass(row.diffPct);
   }
 
   grossPnL(economics: TrackerEconomics): number {
