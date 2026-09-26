@@ -567,16 +567,16 @@
     @apply w-full max-w-none space-y-2;
   }
 
-  .plan-tabs {
-    justify-content: flex-start;
+  .plan-toolbar {
+    @apply flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-1;
   }
 
-  .plan-toolbar {
-    @apply flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2 py-1.5;
+  .plan-tabs {
+    @apply flex shrink-0 gap-1;
   }
 
   .plan-search {
-    @apply min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900;
+    @apply min-w-[8rem] flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-900;
   }
 
   .plan-count {
@@ -584,11 +584,11 @@
   }
 
   .plan-auto {
-    @apply inline-flex shrink-0 cursor-pointer items-center gap-1 text-[11px] text-slate-600;
+    @apply inline-flex shrink-0 cursor-pointer items-center gap-1.5 px-2 text-sm text-slate-600;
   }
 
   .plan-tool-btn {
-    @apply shrink-0 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 disabled:opacity-50;
+    @apply shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 disabled:opacity-50;
   }
 
   .plan-tool-btn-primary {
