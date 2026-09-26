@@ -119,6 +119,15 @@ export const routes: Routes = [
         data: { title: 'Trade calendar', subtitle: 'Estimated vs realized P&L by day' },
       },
       {
+        path: 'tracking',
+        loadComponent: () =>
+          import('./components/tracking/tracking.component').then((m) => m.TrackingComponent),
+        data: {
+          title: 'Tracking',
+          subtitle: 'Watch registry stocks against a target price and next levels',
+        },
+      },
+      {
         path: 'momentum',
         loadComponent: () =>
           import('./components/momentum-stocks/momentum-stocks.component').then(
