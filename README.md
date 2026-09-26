@@ -107,9 +107,8 @@ Grouped as they appear in the sidebar. Every route except `/` is lazy-loaded.
 | Portfolio | `/watchlists` | Profitable and loss-making stocks from your P&L, by tier |
 | Portfolio | `/analytics` | P&L charts, cumulative P&L candles, stock breakdown, holdings, and the heatmap tab |
 | Portfolio | `/charges` | Brokerage and statutory charges from your report |
-| Planning | `/trade-plans` | Daily trade plans, execution tracking, and the price ribbon |
-| Planning | `/utils` | Buy/sell lot maths and charge-aware exit prices |
-| Planning | `/calendar` | Estimated vs realised P&L by day |
+| Planning | `/trade-plans` | Watch list with optional size, exits, charges, and net P&L |
+| Planning | `/utils` | Utility: buy/sell lot maths and charge-aware exit prices |
 | Market | `/registry` | Tracked stocks with levels, labels and Screener fundamentals |
 | Market | `/stocks` | Market data hydrated by the local worker |
 | Market | `/momentum` | Post-results runners with targets and open trade plans |

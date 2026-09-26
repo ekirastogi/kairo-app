@@ -236,30 +236,6 @@ create table if not exists public.registry_stocks (
   primary key (user_id, symbol)
 );
 
-create table if not exists public.planned_trades (
-  id text primary key,
-  user_id text not null,
-  trade_date text not null,
-  symbol text not null,
-  stock_name text,
-  segment text,
-  direction text,
-  quantity int,
-  cmp double precision,
-  entry_price double precision,
-  target_price double precision,
-  stop_loss double precision,
-  estimated_pnl double precision,
-  realized_pnl double precision,
-  status text default 'planned',
-  notes text,
-  created_at bigint not null default 0,
-  executed_at bigint,
-  payload jsonb default '{}'::jsonb
-);
-
-create index if not exists idx_planned_trades_date on public.planned_trades (user_id, trade_date, created_at);
-
 create table if not exists public.user_stock_levels (
   user_id text not null,
   symbol text not null,
@@ -295,7 +271,6 @@ alter table public.trades enable row level security;
 alter table public.uploads enable row level security;
 alter table public.stock_profiles enable row level security;
 alter table public.registry_stocks enable row level security;
-alter table public.planned_trades enable row level security;
 alter table public.user_stock_levels enable row level security;
 alter table public.watchlists enable row level security;
 
@@ -332,10 +307,6 @@ create policy stock_profiles_all on public.stock_profiles for all
   with check (public.is_allowed_user() and user_id = auth.uid()::text);
 
 create policy registry_stocks_all on public.registry_stocks for all
-  using (public.is_allowed_user() and user_id = auth.uid()::text)
-  with check (public.is_allowed_user() and user_id = auth.uid()::text);
-
-create policy planned_trades_all on public.planned_trades for all
   using (public.is_allowed_user() and user_id = auth.uid()::text)
   with check (public.is_allowed_user() and user_id = auth.uid()::text);
 

@@ -11,7 +11,6 @@ begin
     'recommendations',
     'watchlists',
     'registry_stocks',
-    'planned_trades',
     'user_stock_levels',
     'universe',
     'stocks'

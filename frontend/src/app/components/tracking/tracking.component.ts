@@ -3,18 +3,24 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { RegistryStock } from '../../models/trading-journal.models';
+import { RegistryStock, TradeSegment } from '../../models/trading-journal.models';
+import { ChargesService } from '../../services/charges.service';
 import { MarketQuoteService } from '../../services/market-quote.service';
 import { PriceTracker, PriceTrackerService } from '../../services/price-tracker.service';
 import { RegistryStockService } from '../../services/registry-stock.service';
 import { ToastService } from '../../services/toast.service';
 import { formatDataAge } from '../../utils/data-age.utils';
-import { formatPrice, formatPctSigned } from '../../utils/format.utils';
+import { formatCurrency, formatPrice, formatPctSigned, pnlClass } from '../../utils/format.utils';
 import {
-  parsePositivePrices,
+  TrackerPlanSnapshot,
+  allocateTrackerSlices,
   trackerAbsDiffPct,
   trackerDiffPct,
+  trackerDirection,
+  trackerEntryPrice,
+  trackerIsSized,
   trackerProximity,
+  trackerSegment,
 } from '../../utils/price-tracker.utils';
 import { TableSortState } from '../../utils/table-sort.utils';
 
@@ -25,16 +31,30 @@ type TrackerColumn =
   | 'cmp'
   | 'diff'
   | 'nextTargets'
+  | 'charges'
+  | 'netPnL'
   | 'updatedAt';
 
-const ACTION_PRESETS = ['Buy', 'Sell'] as const;
+const ACTION_PRESETS = ['Long', 'Short'] as const;
+const SEGMENT_PRESETS: TradeSegment[] = ['intraday', 'delivery'];
 const AUTO_REFRESH_MS = 60_000;
 const AUTO_REFRESH_KEY = 'kairo-tracking-auto-refresh';
+
+interface TrackerEconomics {
+  quantity: number;
+  entry: number;
+  charges: number;
+  netPnL: number;
+  slPnL: number | null;
+  slices: Array<{ key: string; label: string; price: number; quantity: number; netPnL: number }>;
+}
 
 interface TrackerRow extends PriceTracker {
   diffPct: number | null;
   absDiffPct: number | null;
   proximity: ReturnType<typeof trackerProximity>;
+  sized: boolean;
+  economics: TrackerEconomics | null;
 }
 
 @Component({
@@ -48,6 +68,7 @@ export class TrackingComponent implements OnInit, OnDestroy {
   private registrySvc = inject(RegistryStockService);
   private quotes = inject(MarketQuoteService);
   private toast = inject(ToastService);
+  private charges = inject(ChargesService);
 
   trackers = toSignal(this.trackerSvc.watchAll(), { initialValue: [] as PriceTracker[] });
   registry = signal<RegistryStock[]>([]);
@@ -65,9 +86,12 @@ export class TrackingComponent implements OnInit, OnDestroy {
 
   tableSort = new TableSortState('diff', 'asc');
   readonly actionPresets = ACTION_PRESETS;
+  readonly segmentPresets = SEGMENT_PRESETS;
   readonly formatPrice = formatPrice;
+  readonly formatCurrency = formatCurrency;
   readonly formatPctSigned = formatPctSigned;
   readonly formatDataAge = formatDataAge;
+  readonly pnlClass = pnlClass;
 
   private nextLevelKey = 1;
   form = {
@@ -75,10 +99,15 @@ export class TrackingComponent implements OnInit, OnDestroy {
     name: '',
     isin: '',
     exchange: '',
-    action: 'Buy',
+    action: 'Long',
     targetPrice: '',
     nextTargets: [{ key: 0, price: '' }],
+    exits: [{ key: 0, price: '', quantity: '' }],
     notes: '',
+    quantity: '',
+    segment: 'intraday' as TradeSegment,
+    entryPrice: '',
+    stopLoss: '',
   };
 
   symbolOptions = computed(() => {
@@ -96,18 +125,25 @@ export class TrackingComponent implements OnInit, OnDestroy {
   });
 
   rows = computed(() => {
+    this.charges.rates();
     const q = this.searchQuery().trim().toLowerCase();
-    const mapped: TrackerRow[] = this.trackers().map((t) => ({
-      ...t,
-      diffPct: trackerDiffPct(t.cmp, t.targetPrice),
-      absDiffPct: trackerAbsDiffPct(t.cmp, t.targetPrice),
-      proximity: trackerProximity(t.cmp, t.targetPrice),
-    }));
+    const mapped: TrackerRow[] = this.trackers().map((t) => {
+      const economics = this.economicsFor(t);
+      return {
+        ...t,
+        diffPct: trackerDiffPct(t.cmp, t.targetPrice),
+        absDiffPct: trackerAbsDiffPct(t.cmp, t.targetPrice),
+        proximity: trackerProximity(t.cmp, t.targetPrice),
+        sized: economics != null,
+        economics,
+      };
+    });
     const filtered = q
       ? mapped.filter(
           (t) =>
             t.symbol.toLowerCase().includes(q) ||
             (t.stockName ?? '').toLowerCase().includes(q) ||
+            this.displayAction(t.action).toLowerCase().includes(q) ||
             t.action.toLowerCase().includes(q)
         )
       : mapped;
@@ -116,6 +152,7 @@ export class TrackingComponent implements OnInit, OnDestroy {
 
   nearCount = computed(() => this.rows().filter((r) => r.proximity === 'near').length);
   hotCount = computed(() => this.rows().filter((r) => r.proximity === 'hot').length);
+  sizedCount = computed(() => this.rows().filter((r) => r.sized).length);
 
   refreshLabel = computed(() => {
     if (!this.refreshBusy()) return 'Refresh CMP';
@@ -172,14 +209,6 @@ export class TrackingComponent implements OnInit, OnDestroy {
     this.openAddForm();
   }
 
-  toggleForm(): void {
-    if (this.formOpen()) {
-      this.cancelForm();
-      return;
-    }
-    this.openAddForm();
-  }
-
   openEdit(tracker: PriceTracker): void {
     this.editingId.set(tracker.id);
     this.form.symbol = tracker.symbol;
@@ -191,7 +220,18 @@ export class TrackingComponent implements OnInit, OnDestroy {
     this.form.nextTargets = tracker.nextTargets.length
       ? tracker.nextTargets.map((price) => ({ key: this.nextLevelKey++, price: String(price) }))
       : [this.emptyLevel()];
+    this.form.exits = tracker.targets?.length
+      ? tracker.targets.map((exit) => ({
+          key: this.nextLevelKey++,
+          price: String(exit.price),
+          quantity: exit.quantity ? String(exit.quantity) : '',
+        }))
+      : [this.emptyExit()];
     this.form.notes = tracker.notes ?? '';
+    this.form.quantity = tracker.quantity ? String(tracker.quantity) : '';
+    this.form.segment = tracker.segment === 'delivery' ? 'delivery' : 'intraday';
+    this.form.entryPrice = tracker.entryPrice ? String(tracker.entryPrice) : '';
+    this.form.stopLoss = tracker.stopLoss ? String(tracker.stopLoss) : '';
     this.symbolQuery.set(tracker.symbol);
     this.formOpen.set(true);
   }
@@ -216,8 +256,17 @@ export class TrackingComponent implements OnInit, OnDestroy {
     this.form.action = action;
   }
 
+  setSegment(segment: TradeSegment): void {
+    this.form.segment = segment;
+  }
+
+  displayAction(action: string): (typeof ACTION_PRESETS)[number] {
+    return this.normalizeAction(action);
+  }
+
   private normalizeAction(action: string): (typeof ACTION_PRESETS)[number] {
-    return action.trim().toLowerCase() === 'sell' ? 'Sell' : 'Buy';
+    const value = action.trim().toLowerCase();
+    return value === 'sell' || value === 'short' ? 'Short' : 'Long';
   }
 
   addNextTarget(): void {
@@ -227,6 +276,15 @@ export class TrackingComponent implements OnInit, OnDestroy {
   removeNextTarget(key: number): void {
     const next = this.form.nextTargets.filter((level) => level.key !== key);
     this.form.nextTargets = next.length ? next : [this.emptyLevel()];
+  }
+
+  addExit(): void {
+    this.form.exits = [...this.form.exits, this.emptyExit()];
+  }
+
+  removeExit(key: number): void {
+    const next = this.form.exits.filter((level) => level.key !== key);
+    this.form.exits = next.length ? next : [this.emptyExit()];
   }
 
   rowClass(row: TrackerRow): string {
@@ -239,6 +297,14 @@ export class TrackingComponent implements OnInit, OnDestroy {
     this.tableSort.toggle(column, event);
   }
 
+  formPreview(): TrackerEconomics | null {
+    return this.economicsFor(this.formSnapshot());
+  }
+
+  nextLevelsLabel(prices: number[]): string {
+    return prices.map((price) => formatPrice(price)).join(' · ') || '—';
+  }
+
   async save(): Promise<void> {
     const picked = this.findRegistry(this.form.symbol || this.symbolQuery());
     if (!picked) {
@@ -248,9 +314,15 @@ export class TrackingComponent implements OnInit, OnDestroy {
     const action = this.normalizeAction(this.form.action);
     const targetPrice = parseFloat(this.form.targetPrice);
     if (!(targetPrice > 0)) {
-      this.toast.error('Enter a target price');
+      this.toast.error('Enter a wait price');
       return;
     }
+
+    const quantity = parseFloat(this.form.quantity);
+    const entryPrice = parseFloat(this.form.entryPrice);
+    const stopLoss = parseFloat(this.form.stopLoss);
+    const nextTargets = this.form.nextTargets.map((level) => level.price);
+    const targets = this.parsedExits();
 
     this.busy.set(true);
     try {
@@ -264,7 +336,12 @@ export class TrackingComponent implements OnInit, OnDestroy {
           isin: picked.isin,
           action,
           targetPrice,
-          nextTargets: this.form.nextTargets.map((level) => level.price),
+          nextTargets,
+          targets,
+          quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : null,
+          segment: Number.isFinite(quantity) && quantity > 0 ? this.form.segment : null,
+          entryPrice: Number.isFinite(entryPrice) && entryPrice > 0 ? entryPrice : null,
+          stopLoss: Number.isFinite(stopLoss) && stopLoss > 0 ? stopLoss : null,
           cmp: existing?.cmp ?? (picked.currentPrice > 0 ? picked.currentPrice : undefined),
           cmpSource: existing?.cmpSource ?? this.quotes.source,
           cmpFetchedAt: existing?.cmpFetchedAt,
@@ -332,8 +409,60 @@ export class TrackingComponent implements OnInit, OnDestroy {
     }
   }
 
-  nextLevelsLabel(targets: number[]): string {
-    return parsePositivePrices(targets).map((n) => formatPrice(n)).join(' · ') || '—';
+  private economicsFor(plan: TrackerPlanSnapshot): TrackerEconomics | null {
+    if (!trackerIsSized(plan)) return null;
+    const entry = trackerEntryPrice(plan);
+    const slices = allocateTrackerSlices(plan);
+    if (entry == null || !slices.length || !(plan.quantity ?? 0)) return null;
+    const ladder = this.charges.ladder({
+      segment: trackerSegment(plan),
+      direction: trackerDirection(plan.action),
+      entryPrice: entry,
+      totalQuantity: plan.quantity as number,
+      slices,
+    });
+    let slPnL: number | null = null;
+    if (plan.stopLoss != null && plan.stopLoss > 0) {
+      slPnL = this.charges.roundTrip({
+        segment: trackerSegment(plan),
+        direction: trackerDirection(plan.action),
+        quantity: plan.quantity as number,
+        entryPrice: entry,
+        exitPrice: plan.stopLoss,
+      }).netPnL;
+    }
+    return {
+      quantity: plan.quantity as number,
+      entry,
+      charges: ladder.charges,
+      netPnL: ladder.netPnL,
+      slPnL,
+      slices: ladder.slices.map((slice, index) => ({
+        key: `t-${index}`,
+        label: `T${index + 1}`,
+        price: slice.price,
+        quantity: slice.quantity,
+        netPnL: slice.netPnL,
+      })),
+    };
+  }
+
+  private formSnapshot(): TrackerPlanSnapshot {
+    const quantity = parseFloat(this.form.quantity);
+    const entryPrice = parseFloat(this.form.entryPrice);
+    const stopLoss = parseFloat(this.form.stopLoss);
+    const targetPrice = parseFloat(this.form.targetPrice);
+    const targets = this.parsedExits();
+    return {
+      action: this.form.action,
+      targetPrice: Number.isFinite(targetPrice) ? targetPrice : 0,
+      nextTargets: this.form.nextTargets.map((level) => parseFloat(level.price)).filter((n) => n > 0),
+      targets,
+      quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : undefined,
+      segment: this.form.segment,
+      entryPrice: Number.isFinite(entryPrice) && entryPrice > 0 ? entryPrice : undefined,
+      stopLoss: Number.isFinite(stopLoss) && stopLoss > 0 ? stopLoss : undefined,
+    };
   }
 
   private sortValue(row: TrackerRow, column: TrackerColumn): string | number {
@@ -350,6 +479,10 @@ export class TrackingComponent implements OnInit, OnDestroy {
         return row.absDiffPct ?? Number.POSITIVE_INFINITY;
       case 'nextTargets':
         return row.nextTargets[0] ?? -1;
+      case 'charges':
+        return row.economics?.charges ?? -1;
+      case 'netPnL':
+        return row.economics?.netPnL ?? Number.NEGATIVE_INFINITY;
       case 'updatedAt':
         return row.cmpFetchedAt ?? row.updatedAt;
       default:
@@ -371,8 +504,25 @@ export class TrackingComponent implements OnInit, OnDestroy {
     this.symbolQuery.set(stock.symbol);
   }
 
+  private parsedExits(): Array<{ price: number; quantity?: number }> {
+    return this.form.exits
+      .map((level) => ({
+        price: parseFloat(level.price),
+        quantity: parseFloat(level.quantity),
+      }))
+      .filter((level) => Number.isFinite(level.price) && level.price > 0)
+      .map((level) => ({
+        price: level.price,
+        quantity: Number.isFinite(level.quantity) && level.quantity > 0 ? level.quantity : undefined,
+      }));
+  }
+
   private emptyLevel(): { key: number; price: string } {
     return { key: this.nextLevelKey++, price: '' };
+  }
+
+  private emptyExit(): { key: number; price: string; quantity: string } {
+    return { key: this.nextLevelKey++, price: '', quantity: '' };
   }
 
   private resetForm(): void {
@@ -380,10 +530,15 @@ export class TrackingComponent implements OnInit, OnDestroy {
     this.form.name = '';
     this.form.isin = '';
     this.form.exchange = '';
-    this.form.action = 'Buy';
+    this.form.action = 'Long';
     this.form.targetPrice = '';
     this.form.nextTargets = [this.emptyLevel()];
+    this.form.exits = [this.emptyExit()];
     this.form.notes = '';
+    this.form.quantity = '';
+    this.form.segment = 'intraday';
+    this.form.entryPrice = '';
+    this.form.stopLoss = '';
     this.symbolQuery.set('');
   }
 }

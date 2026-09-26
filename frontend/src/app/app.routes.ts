@@ -69,7 +69,7 @@ export const routes: Routes = [
         path: 'utils',
         loadComponent: () =>
           import('./components/utils/utils.component').then((m) => m.UtilsComponent),
-        data: { title: 'Stock plans', subtitle: 'Buy/sell lots and charge-aware exit prices' },
+        data: { title: 'Utility', subtitle: 'Buy/sell lots and charge-aware exit prices' },
       },
       {
         path: 'charges',
@@ -95,38 +95,15 @@ export const routes: Routes = [
         },
       },
       {
-        path: 'trade-plans/new',
-        loadComponent: () =>
-          import('./components/trade-plans/trade-plan-form.component').then((m) => m.TradePlanFormComponent),
-        data: { title: 'Add trade plan', subtitle: 'Plan a new trade for the selected date' },
-      },
-      {
-        path: 'trade-plans/:id/edit',
-        loadComponent: () =>
-          import('./components/trade-plans/trade-plan-form.component').then((m) => m.TradePlanFormComponent),
-        data: { title: 'Edit trade plan', subtitle: 'Update an existing trade plan' },
-      },
-      {
         path: 'trade-plans',
-        loadComponent: () =>
-          import('./components/trade-plans/trade-plans.component').then((m) => m.TradePlansComponent),
-        data: { title: 'Trade plans', subtitle: 'Daily trade recommendations and execution tracking' },
-      },
-      {
-        path: 'calendar',
-        loadComponent: () =>
-          import('./components/trade-calendar/trade-calendar.component').then((m) => m.TradeCalendarComponent),
-        data: { title: 'Trade calendar', subtitle: 'Estimated vs realized P&L by day' },
-      },
-      {
-        path: 'tracking',
         loadComponent: () =>
           import('./components/tracking/tracking.component').then((m) => m.TrackingComponent),
         data: {
-          title: 'Tracking',
-          subtitle: 'Watch registry stocks against a target price and next levels',
+          title: 'Trade plans',
+          subtitle: 'Watch a stock, then add size and exits for charges and net P&L',
         },
       },
+      { path: 'tracking', redirectTo: 'trade-plans', pathMatch: 'full' },
       {
         path: 'momentum',
         loadComponent: () =>

@@ -1,45 +1,50 @@
-<div class="mx-auto max-w-6xl space-y-4">
-  <div class="flex flex-wrap items-start justify-between gap-3">
-    <div>
-      <p class="text-sm text-slate-600">
-        Watch registry stocks against a target. Green is within 5% of CMP, yellow within 10%.
-      </p>
-      <p class="mt-1 text-xs text-slate-500">
-        {{ trackers().length }} tracked
-        @if (hotCount()) {
-          · <span class="font-semibold text-emerald-700">{{ hotCount() }} within 5%</span>
-        }
-        @if (nearCount()) {
-          · <span class="font-semibold text-amber-700">{{ nearCount() }} within 10%</span>
-        }
-      </p>
-    </div>
-    <div class="flex flex-wrap gap-2">
-      <button
-        type="button"
-        class="btn-secondary text-sm"
-        (click)="refreshAll()"
-        [disabled]="refreshBusy() || busy() || !trackers().length"
-      >
-        {{ refreshLabel() }}
-      </button>
-      <button type="button" class="btn-primary text-sm" (click)="onAddClick()" [disabled]="busy()">
-        {{ formOpen() && !editingId() ? 'Close' : '+ Add new' }}
-      </button>
-      <label class="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-600">
-        <span class="relative inline-flex h-5 w-9 shrink-0 items-center">
-          <input
-            type="checkbox"
-            class="peer sr-only"
-            [ngModel]="autoRefresh()"
-            (ngModelChange)="setAutoRefresh($event)"
-          />
-          <span class="absolute inset-0 rounded-full bg-slate-200 transition peer-checked:bg-kairo-600"></span>
-          <span class="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-4"></span>
-        </span>
-        Auto refresh
-      </label>
-    </div>
+<div class="mx-auto max-w-6xl space-y-3">
+  <div class="filter-toolbar flex-nowrap overflow-x-auto">
+    <input
+      class="input-field !w-44 shrink-0 !py-1.5 !text-xs sm:!w-56"
+      type="search"
+      placeholder="Search symbol or action"
+      [ngModel]="searchQuery()"
+      (ngModelChange)="searchQuery.set($event)"
+    />
+    <span class="filter-toolbar-rule" aria-hidden="true"></span>
+    <p class="shrink-0 whitespace-nowrap text-[11px] text-slate-500">
+      {{ trackers().length }} tracked
+      @if (sizedCount()) {
+        · <span class="font-semibold text-slate-700">{{ sizedCount() }} sized</span>
+      }
+      @if (hotCount()) {
+        · <span class="font-semibold text-emerald-700">{{ hotCount() }} within 5%</span>
+      }
+      @if (nearCount()) {
+        · <span class="font-semibold text-amber-700">{{ nearCount() }} within 10%</span>
+      }
+    </p>
+    <span class="ml-auto hidden h-4 w-px bg-slate-200 sm:block" aria-hidden="true"></span>
+    <label class="inline-flex shrink-0 cursor-pointer items-center gap-1.5 text-[11px] text-slate-600">
+      <span class="relative inline-flex h-4 w-7 shrink-0 items-center">
+        <input
+          type="checkbox"
+          class="peer sr-only"
+          [ngModel]="autoRefresh()"
+          (ngModelChange)="setAutoRefresh($event)"
+        />
+        <span class="absolute inset-0 rounded-full bg-slate-200 transition peer-checked:bg-kairo-600"></span>
+        <span class="absolute left-0.5 h-3 w-3 rounded-full bg-white shadow transition peer-checked:translate-x-3"></span>
+      </span>
+      Auto
+    </label>
+    <button
+      type="button"
+      class="btn-secondary !px-2.5 !py-1.5 text-xs"
+      (click)="refreshAll()"
+      [disabled]="refreshBusy() || busy() || !trackers().length"
+    >
+      {{ refreshLabel() }}
+    </button>
+    <button type="button" class="btn-primary !px-2.5 !py-1.5 text-xs" (click)="onAddClick()" [disabled]="busy()">
+      {{ formOpen() && !editingId() ? 'Close' : '+ Add' }}
+    </button>
   </div>
 
   @if (formOpen()) {
@@ -79,7 +84,7 @@
           </label>
 
           <div class="block text-sm sm:col-span-2">
-            <span class="text-slate-600">Action at this price</span>
+            <span class="text-slate-600">Action</span>
             <div class="mt-1.5 flex flex-wrap gap-2">
               @for (preset of actionPresets; track preset) {
                 <button
@@ -96,7 +101,7 @@
           </div>
 
           <label class="block text-sm">
-            <span class="text-slate-600">Target price</span>
+            <span class="text-slate-600">Wait price</span>
             <input
               class="input-field mt-1.5"
               type="number"
@@ -106,6 +111,7 @@
               [(ngModel)]="form.targetPrice"
               placeholder="e.g. 300"
             />
+            <span class="mt-1 block text-xs text-slate-400">CMP highlight uses this price. For a Long it is also planned entry.</span>
           </label>
 
           <div class="block text-sm">
@@ -132,12 +138,145 @@
                 + Add next level
               </button>
             </div>
+            <span class="mt-1 block text-xs text-slate-400">If price runs through, add more long/short at these levels. Not exits.</span>
           </div>
 
           <label class="block text-sm sm:col-span-2">
             <span class="text-slate-600">Notes</span>
             <textarea class="input-field mt-1.5 min-h-[3.5rem]" [(ngModel)]="form.notes" placeholder="Optional"></textarea>
           </label>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4">
+          <p class="text-sm font-semibold text-slate-800">Size the trade</p>
+          <p class="mt-0.5 text-xs text-slate-500">Optional. Charges and net P&amp;L appear after quantity and at least one exit target.</p>
+          <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            <label class="block text-sm">
+              <span class="text-slate-600">Quantity</span>
+              <input
+                class="input-field mt-1.5"
+                type="number"
+                step="1"
+                inputmode="numeric"
+                min="0"
+                [(ngModel)]="form.quantity"
+                placeholder="e.g. 100"
+              />
+            </label>
+            <div class="block text-sm">
+              <span class="text-slate-600">Segment</span>
+              <div class="mt-1.5 flex flex-wrap gap-2">
+                @for (seg of segmentPresets; track seg) {
+                  <button
+                    type="button"
+                    class="chip"
+                    [class.chip-active]="form.segment === seg"
+                    [class.chip-inactive]="form.segment !== seg"
+                    (click)="setSegment(seg)"
+                  >
+                    {{ seg === 'intraday' ? 'Intraday' : 'Delivery' }}
+                  </button>
+                }
+              </div>
+            </div>
+            <label class="block text-sm">
+              <span class="text-slate-600">Entry override</span>
+              <input
+                class="input-field mt-1.5"
+                type="number"
+                step="0.01"
+                inputmode="decimal"
+                min="0"
+                [(ngModel)]="form.entryPrice"
+                placeholder="Defaults to wait price"
+              />
+              <span class="mt-1 block text-xs text-slate-400">Set avg buy for a Short, or a different entry than the wait price.</span>
+            </label>
+            <label class="block text-sm">
+              <span class="text-slate-600">Stop loss</span>
+              <input
+                class="input-field mt-1.5"
+                type="number"
+                step="0.01"
+                inputmode="decimal"
+                min="0"
+                [(ngModel)]="form.stopLoss"
+                placeholder="Optional"
+              />
+            </label>
+            <div class="block text-sm sm:col-span-2">
+              <span class="text-slate-600">Exit targets</span>
+              <div class="mt-1.5 space-y-2">
+                @for (level of form.exits; track level.key) {
+                  <div class="flex gap-2">
+                    <input
+                      class="input-field flex-1"
+                      type="number"
+                      step="0.01"
+                      inputmode="decimal"
+                      min="0"
+                      [name]="'exit-price-' + level.key"
+                      [(ngModel)]="level.price"
+                      placeholder="Exit price"
+                    />
+                    <input
+                      class="input-field w-24"
+                      type="number"
+                      step="1"
+                      inputmode="numeric"
+                      min="0"
+                      [name]="'exit-qty-' + level.key"
+                      [(ngModel)]="level.quantity"
+                      placeholder="Qty"
+                    />
+                    <button type="button" class="btn-ghost px-2" (click)="removeExit(level.key)" aria-label="Remove exit">
+                      ✕
+                    </button>
+                  </div>
+                }
+                <button type="button" class="text-xs font-semibold text-kairo-700 hover:underline" (click)="addExit()">
+                  + Add exit
+                </button>
+              </div>
+              <span class="mt-1 block text-xs text-slate-400">Book profit here. Qty per exit is optional and splits the position if left blank.</span>
+            </div>
+          </div>
+
+          @if (formPreview(); as preview) {
+            <div class="mt-4 grid gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <p class="text-[11px] font-medium text-slate-500">Quantity</p>
+                <p class="font-bold tabular-nums text-slate-900">{{ preview.quantity | number }}</p>
+              </div>
+              <div>
+                <p class="text-[11px] font-medium text-slate-500">Entry</p>
+                <p class="font-bold tabular-nums text-slate-900">{{ formatPrice(preview.entry) }}</p>
+              </div>
+              <div>
+                <p class="text-[11px] font-medium text-slate-500">Charges</p>
+                <p class="font-bold tabular-nums text-red-600">−{{ formatPrice(preview.charges) }}</p>
+              </div>
+              <div>
+                <p class="text-[11px] font-medium text-slate-500">Net at targets</p>
+                <p class="font-bold tabular-nums" [class]="pnlClass(preview.netPnL)">{{ formatCurrency(preview.netPnL) }}</p>
+              </div>
+              @if (preview.slPnL != null) {
+                <div>
+                  <p class="text-[11px] font-medium text-slate-500">If SL hit</p>
+                  <p class="font-bold tabular-nums text-red-600">{{ formatCurrency(preview.slPnL) }}</p>
+                </div>
+              }
+            </div>
+            @if (preview.slices.length) {
+              <div class="mt-2 flex flex-wrap gap-1.5">
+                @for (slice of preview.slices; track slice.key) {
+                  <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium tabular-nums text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                    {{ slice.label }} {{ formatPrice(slice.price) }} · {{ slice.quantity | number }} qty · net {{ formatCurrency(slice.netPnL) }}
+                  </span>
+                }
+              </div>
+            }
+          }
         </div>
 
         <div class="flex flex-wrap gap-2">
@@ -149,16 +288,6 @@
       </div>
     </div>
   }
-
-  <div class="flex flex-wrap items-center gap-2">
-    <input
-      class="input-field max-w-xs flex-1"
-      type="search"
-      placeholder="Search symbol or action"
-      [ngModel]="searchQuery()"
-      (ngModelChange)="searchQuery.set($event)"
-    />
-  </div>
 
   <div class="card overflow-hidden p-0">
     <div class="overflow-x-auto">
@@ -177,7 +306,7 @@
             </th>
             <th class="text-right">
               <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('targetPrice')" (click)="toggleSort('targetPrice', $event)">
-                Target <span>{{ tableSort.indicator('targetPrice') }}</span>
+                Wait <span>{{ tableSort.indicator('targetPrice') }}</span>
               </button>
             </th>
             <th class="text-right">
@@ -195,6 +324,16 @@
                 Next <span>{{ tableSort.indicator('nextTargets') }}</span>
               </button>
             </th>
+            <th class="text-right">
+              <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('charges')" (click)="toggleSort('charges', $event)">
+                Charges <span>{{ tableSort.indicator('charges') }}</span>
+              </button>
+            </th>
+            <th class="text-right">
+              <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('netPnL')" (click)="toggleSort('netPnL', $event)">
+                Net <span>{{ tableSort.indicator('netPnL') }}</span>
+              </button>
+            </th>
             <th class="hidden sm:table-cell">
               <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('updatedAt')" (click)="toggleSort('updatedAt', $event)">
                 CMP age <span>{{ tableSort.indicator('updatedAt') }}</span>
@@ -208,9 +347,17 @@
             <tr [class]="rowClass(row)">
               <td class="col-name">
                 <a class="font-semibold text-kairo-700 hover:underline" [routerLink]="['/stock', row.symbol]">{{ row.symbol }}</a>
-                <div class="text-xs text-slate-400">{{ row.stockName || row.isin || '' }}</div>
+                <div class="text-xs text-slate-400">
+                  {{ row.stockName || row.isin || '' }}
+                  @if (row.sized && row.quantity) {
+                    · {{ row.quantity | number }} qty
+                    @if (row.segment) {
+                      · {{ row.segment }}
+                    }
+                  }
+                </div>
               </td>
-              <td class="font-medium text-slate-700">{{ row.action }}</td>
+              <td class="font-medium text-slate-700">{{ displayAction(row.action) }}</td>
               <td class="text-right tabular-nums font-semibold">{{ formatPrice(row.targetPrice) }}</td>
               <td class="text-right tabular-nums">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</td>
               <td class="text-right tabular-nums">
@@ -222,6 +369,32 @@
                 }
               </td>
               <td class="text-xs text-slate-600">{{ nextLevelsLabel(row.nextTargets) }}</td>
+              <td class="text-right tabular-nums text-xs">
+                @if (row.economics) {
+                  <span class="text-red-600">−{{ formatPrice(row.economics.charges) }}</span>
+                } @else {
+                  <span class="text-slate-400">—</span>
+                }
+              </td>
+              <td class="text-right tabular-nums">
+                @if (row.economics) {
+                  <div class="font-semibold" [class]="pnlClass(row.economics.netPnL)">{{ formatCurrency(row.economics.netPnL) }}</div>
+                  @if (row.economics.slPnL != null) {
+                    <div class="text-[10px] text-red-600">SL {{ formatCurrency(row.economics.slPnL) }}</div>
+                  }
+                  @if (row.economics.slices.length) {
+                    <div class="mt-1 flex flex-wrap justify-end gap-1">
+                      @for (slice of row.economics.slices; track slice.key) {
+                        <span class="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                          {{ slice.label }} {{ formatPrice(slice.price) }} · {{ formatCurrency(slice.netPnL) }}
+                        </span>
+                      }
+                    </div>
+                  }
+                } @else {
+                  <span class="text-slate-400">—</span>
+                }
+              </td>
               <td class="hidden text-xs text-slate-500 sm:table-cell">{{ formatDataAge(row.cmpFetchedAt) }}</td>
               <td class="text-right">
                 <div class="flex justify-end gap-1">
@@ -232,7 +405,7 @@
             </tr>
           } @empty {
             <tr>
-              <td colspan="8" class="py-10 text-center text-sm text-slate-400">
+              <td colspan="10" class="py-10 text-center text-sm text-slate-400">
                 No tracked stocks yet. Use Add new to pick one from the registry.
               </td>
             </tr>

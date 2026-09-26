@@ -35,11 +35,6 @@ create policy registry_stocks_all on public.registry_stocks for all
   using (public.is_allowed_user() and user_id = public.firebase_user_id())
   with check (public.is_allowed_user() and user_id = public.firebase_user_id());
 
-drop policy if exists planned_trades_all on public.planned_trades;
-create policy planned_trades_all on public.planned_trades for all
-  using (public.is_allowed_user() and user_id = public.firebase_user_id())
-  with check (public.is_allowed_user() and user_id = public.firebase_user_id());
-
 drop policy if exists user_levels_all on public.user_stock_levels;
 create policy user_levels_all on public.user_stock_levels for all
   using (public.is_allowed_user() and user_id = public.firebase_user_id())
