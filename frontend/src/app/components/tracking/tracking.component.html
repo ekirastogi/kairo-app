@@ -1,501 +1,369 @@
-<div class="mx-auto max-w-6xl space-y-3">
-  <div class="filter-toolbar">
+<div class="plan-page">
+  <div class="plan-toolbar">
     <input
-      class="input-field min-w-0 w-full !py-1.5 !text-xs sm:!w-56 sm:shrink-0"
+      class="plan-search"
       type="search"
-      placeholder="Search symbol or action"
+      placeholder="Search"
       [ngModel]="searchQuery()"
       (ngModelChange)="searchQuery.set($event)"
     />
-    <p class="min-w-0 flex-1 text-[11px] leading-snug text-slate-500">
-      {{ trackers().length }} plans
-      @if (sizedCount()) {
-        · <span class="font-semibold text-slate-700">{{ sizedCount() }} sized</span>
-      }
+    <p class="plan-count">
+      {{ trackers().length }}
       @if (hotCount()) {
-        · <span class="font-semibold text-emerald-700">{{ hotCount() }} within 5%</span>
+        <span class="text-emerald-700">· {{ hotCount() }} hot</span>
       }
       @if (nearCount()) {
-        · <span class="font-semibold text-amber-700">{{ nearCount() }} within 10%</span>
+        <span class="text-amber-700">· {{ nearCount() }} near</span>
       }
     </p>
-    <div class="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
-      <label class="inline-flex shrink-0 cursor-pointer items-center gap-1.5 text-[11px] text-slate-600">
-        <span class="relative inline-flex h-4 w-7 shrink-0 items-center">
-          <input
-            type="checkbox"
-            class="peer sr-only"
-            [ngModel]="autoRefresh()"
-            (ngModelChange)="setAutoRefresh($event)"
-          />
-          <span class="absolute inset-0 rounded-full bg-slate-200 transition peer-checked:bg-kairo-600"></span>
-          <span class="absolute left-0.5 h-3 w-3 rounded-full bg-white shadow transition peer-checked:translate-x-3"></span>
-        </span>
-        Auto
-      </label>
-      <button
-        type="button"
-        class="btn-secondary ml-auto !px-2.5 !py-1.5 text-xs sm:ml-0"
-        (click)="refreshAll()"
-        [disabled]="refreshBusy() || busy() || !trackers().length"
-      >
-        {{ refreshLabel() }}
-      </button>
-      <button type="button" class="btn-primary !px-2.5 !py-1.5 text-xs" (click)="onAddClick()" [disabled]="busy()">
-        {{ formOpen() && !editingId() ? 'Close' : '+ Add' }}
-      </button>
-    </div>
+    <label class="plan-auto">
+      <span class="relative inline-flex h-4 w-7 shrink-0 items-center">
+        <input
+          type="checkbox"
+          class="peer sr-only"
+          [ngModel]="autoRefresh()"
+          (ngModelChange)="setAutoRefresh($event)"
+        />
+        <span class="absolute inset-0 rounded-full bg-slate-200 transition peer-checked:bg-kairo-600"></span>
+        <span class="absolute left-0.5 h-3 w-3 rounded-full bg-white shadow transition peer-checked:translate-x-3"></span>
+      </span>
+      Auto
+    </label>
+    <button
+      type="button"
+      class="plan-tool-btn"
+      (click)="refreshAll()"
+      [disabled]="refreshBusy() || busy() || !trackers().length"
+    >
+      {{ refreshBusy() ? refreshLabel() : 'Refresh' }}
+    </button>
+    <button type="button" class="plan-tool-btn plan-tool-btn-primary" (click)="onAddClick()" [disabled]="busy()">
+      {{ formOpen() && !editingId() ? 'Close' : 'Add' }}
+    </button>
   </div>
 
   @if (formOpen()) {
-    <div class="card overflow-hidden p-0">
-      <div class="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 sm:px-5">
-        <span class="text-sm font-semibold text-slate-900">
-          {{ editingId() ? 'Edit plan' : 'New plan' }}
-        </span>
-        <button type="button" class="btn-ghost text-sm" (click)="cancelForm()">Close</button>
-      </div>
-      <div class="space-y-4 px-4 py-4 sm:px-5">
-        <div class="grid gap-4 sm:grid-cols-2">
-          <label class="block text-sm sm:col-span-2">
-            <span class="text-slate-600">Stock</span>
-            <input
-              class="input-field mt-1.5"
-              list="tracking-symbol-options"
-              [ngModel]="symbolQuery()"
-              (ngModelChange)="onSymbolQuery($event)"
-              [disabled]="!!editingId()"
-              placeholder="Search the registry…"
-            />
-            <datalist id="tracking-symbol-options">
-              @for (opt of symbolOptions(); track opt.symbol) {
-                <option [value]="opt.symbol">{{ opt.name }} · {{ opt.exchange || 'NSE' }}</option>
-              }
-            </datalist>
-            @if (form.name && form.symbol) {
-              <span class="mt-1 block text-xs text-slate-400">{{ form.name }}{{ form.exchange ? ' · ' + form.exchange : '' }}</span>
-            }
-            @if (!registry().length) {
-              <span class="mt-1 block text-xs text-amber-700">
-                Registry is empty.
-                <a routerLink="/registry" class="underline">Add stocks first</a>
-              </span>
-            }
-          </label>
+    <section class="plan-form">
+      <header class="plan-form-head">
+        <h2>{{ editingId() ? 'Edit plan' : 'New plan' }}</h2>
+        <button type="button" class="plan-link" (click)="cancelForm()">Close</button>
+      </header>
 
-          <div class="block text-sm sm:col-span-2">
-            <span class="text-slate-600">Action</span>
-            <div class="mt-1.5 flex flex-wrap gap-2">
-              @for (preset of actionPresets; track preset) {
-                <button
-                  type="button"
-                  class="chip"
-                  [class.chip-active]="form.action === preset"
-                  [class.chip-inactive]="form.action !== preset"
-                  (click)="setAction(preset)"
-                >
-                  {{ preset }}
+      <div class="plan-form-grid">
+        <label class="plan-field plan-field-full">
+          <span>Stock</span>
+          <input
+            class="input-field !py-2"
+            list="tracking-symbol-options"
+            [ngModel]="symbolQuery()"
+            (ngModelChange)="onSymbolQuery($event)"
+            [disabled]="!!editingId()"
+            placeholder="Search the registry…"
+          />
+          <datalist id="tracking-symbol-options">
+            @for (opt of symbolOptions(); track opt.symbol) {
+              <option [value]="opt.symbol">{{ opt.name }} · {{ opt.exchange || 'NSE' }}</option>
+            }
+          </datalist>
+          @if (form.name && form.symbol) {
+            <em>{{ form.name }}{{ form.exchange ? ' · ' + form.exchange : '' }}</em>
+          }
+          @if (!registry().length) {
+            <em class="!text-amber-700">
+              Registry is empty.
+              <a routerLink="/registry" class="underline">Add stocks first</a>
+            </em>
+          }
+        </label>
+
+        <div class="plan-field">
+          <span>Side</span>
+          <div class="plan-seg">
+            @for (preset of actionPresets; track preset) {
+              <button
+                type="button"
+                [class.active]="form.action === preset"
+                (click)="setAction(preset)"
+              >{{ preset }}</button>
+            }
+          </div>
+        </div>
+
+        <label class="plan-field">
+          <span>Trigger</span>
+          <input class="input-field !py-2" type="number" step="0.01" inputmode="decimal" min="0" [(ngModel)]="form.targetPrice" placeholder="e.g. 300" />
+        </label>
+
+        <div class="plan-field plan-field-full">
+          <span>Next levels</span>
+          <div class="plan-stack">
+            @for (level of form.nextTargets; track level.key) {
+              <div class="plan-inline">
+                <input
+                  class="input-field !py-2 min-w-0 flex-1"
+                  type="number"
+                  step="0.01"
+                  inputmode="decimal"
+                  min="0"
+                  [name]="'next-level-' + level.key"
+                  [(ngModel)]="level.price"
+                  placeholder="Add-on price"
+                />
+                <button type="button" class="plan-link" (click)="removeNextTarget(level.key)" aria-label="Remove level">✕</button>
+              </div>
+            }
+            <button type="button" class="plan-link" (click)="addNextTarget()">+ Next level</button>
+          </div>
+        </div>
+
+        <label class="plan-field plan-field-full">
+          <span>Notes</span>
+          <textarea class="input-field !py-2 min-h-[2.75rem]" [(ngModel)]="form.notes" placeholder="Optional"></textarea>
+        </label>
+      </div>
+
+      <div class="plan-size">
+        <div class="plan-size-head">
+          <strong>Size</strong>
+          <span>Optional · P&amp;L after qty + an exit</span>
+        </div>
+        <div class="plan-form-grid">
+          <label class="plan-field">
+            <span>Quantity</span>
+            <input class="input-field !py-2" type="number" step="1" inputmode="numeric" min="0" [(ngModel)]="form.quantity" placeholder="100" />
+          </label>
+          <div class="plan-field">
+            <span>Segment</span>
+            <div class="plan-seg">
+              @for (seg of segmentPresets; track seg) {
+                <button type="button" [class.active]="form.segment === seg" (click)="setSegment(seg)">
+                  {{ seg === 'intraday' ? 'Intraday' : 'Delivery' }}
                 </button>
               }
             </div>
           </div>
-
-          <label class="block text-sm">
-            <span class="text-slate-600">Trigger</span>
-            <input
-              class="input-field mt-1.5"
-              type="number"
-              step="0.01"
-              inputmode="decimal"
-              min="0"
-              [(ngModel)]="form.targetPrice"
-              placeholder="e.g. 300"
-            />
-            <span class="mt-1 block text-xs text-slate-400">Act when CMP is near this price. For a Long it is also planned entry.</span>
+          <label class="plan-field">
+            <span>Entry override</span>
+            <input class="input-field !py-2" type="number" step="0.01" inputmode="decimal" min="0" [(ngModel)]="form.entryPrice" placeholder="Trigger" />
           </label>
-
-          <div class="block text-sm">
-            <span class="text-slate-600">Next levels</span>
-            <div class="mt-1.5 space-y-2">
-              @for (level of form.nextTargets; track level.key) {
-                <div class="flex gap-2">
+          <label class="plan-field">
+            <span>Stop loss</span>
+            <input class="input-field !py-2" type="number" step="0.01" inputmode="decimal" min="0" [(ngModel)]="form.stopLoss" placeholder="Optional" />
+          </label>
+          <div class="plan-field plan-field-full">
+            <span>Exits</span>
+            <div class="plan-stack">
+              @for (level of form.exits; track level.key) {
+                <div class="plan-inline">
                   <input
-                    class="input-field flex-1"
+                    class="input-field !py-2 min-w-0 flex-1"
                     type="number"
                     step="0.01"
                     inputmode="decimal"
                     min="0"
-                    [name]="'next-level-' + level.key"
+                    [name]="'exit-price-' + level.key"
                     [(ngModel)]="level.price"
-                    placeholder="300, 310…"
+                    placeholder="Exit"
                   />
-                  <button type="button" class="btn-ghost px-2" (click)="removeNextTarget(level.key)" aria-label="Remove level">
-                    ✕
-                  </button>
+                  <input
+                    class="input-field !py-2 w-16 shrink-0"
+                    type="number"
+                    step="1"
+                    inputmode="numeric"
+                    min="0"
+                    [name]="'exit-qty-' + level.key"
+                    [(ngModel)]="level.quantity"
+                    placeholder="Qty"
+                  />
+                  <button type="button" class="plan-link" (click)="removeExit(level.key)" aria-label="Remove exit">✕</button>
                 </div>
               }
-              <button type="button" class="text-xs font-semibold text-kairo-700 hover:underline" (click)="addNextTarget()">
-                + Add next level
-              </button>
+              <button type="button" class="plan-link" (click)="addExit()">+ Exit</button>
             </div>
-            <span class="mt-1 block text-xs text-slate-400">If price runs through, add more long/short at these levels. Not exits.</span>
           </div>
-
-          <label class="block text-sm sm:col-span-2">
-            <span class="text-slate-600">Notes</span>
-            <textarea class="input-field mt-1.5 min-h-[3.5rem]" [(ngModel)]="form.notes" placeholder="Optional"></textarea>
-          </label>
         </div>
 
-        <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4">
-          <p class="text-sm font-semibold text-slate-800">Size the trade</p>
-          <p class="mt-0.5 text-xs text-slate-500">Optional. Charges and net P&amp;L appear after quantity and at least one exit target.</p>
-          <div class="mt-3 grid gap-3 sm:grid-cols-2">
-            <label class="block text-sm">
-              <span class="text-slate-600">Quantity</span>
-              <input
-                class="input-field mt-1.5"
-                type="number"
-                step="1"
-                inputmode="numeric"
-                min="0"
-                [(ngModel)]="form.quantity"
-                placeholder="e.g. 100"
-              />
-            </label>
-            <div class="block text-sm">
-              <span class="text-slate-600">Segment</span>
-              <div class="mt-1.5 flex flex-wrap gap-2">
-                @for (seg of segmentPresets; track seg) {
-                  <button
-                    type="button"
-                    class="chip"
-                    [class.chip-active]="form.segment === seg"
-                    [class.chip-inactive]="form.segment !== seg"
-                    (click)="setSegment(seg)"
-                  >
-                    {{ seg === 'intraday' ? 'Intraday' : 'Delivery' }}
-                  </button>
-                }
-              </div>
-            </div>
-            <label class="block text-sm">
-              <span class="text-slate-600">Entry override</span>
-              <input
-                class="input-field mt-1.5"
-                type="number"
-                step="0.01"
-                inputmode="decimal"
-                min="0"
-                [(ngModel)]="form.entryPrice"
-                placeholder="Defaults to trigger"
-              />
-              <span class="mt-1 block text-xs text-slate-400">Set avg buy for a Short, or a different entry than the trigger.</span>
-            </label>
-            <label class="block text-sm">
-              <span class="text-slate-600">Stop loss</span>
-              <input
-                class="input-field mt-1.5"
-                type="number"
-                step="0.01"
-                inputmode="decimal"
-                min="0"
-                [(ngModel)]="form.stopLoss"
-                placeholder="Optional"
-              />
-            </label>
-            <div class="block text-sm sm:col-span-2">
-              <span class="text-slate-600">Exit targets</span>
-              <div class="mt-1.5 space-y-2">
-                @for (level of form.exits; track level.key) {
-                  <div class="grid grid-cols-[minmax(0,1fr)_4.5rem_auto] gap-2">
-                    <input
-                      class="input-field min-w-0"
-                      type="number"
-                      step="0.01"
-                      inputmode="decimal"
-                      min="0"
-                      [name]="'exit-price-' + level.key"
-                      [(ngModel)]="level.price"
-                      placeholder="Exit price"
-                    />
-                    <input
-                      class="input-field min-w-0"
-                      type="number"
-                      step="1"
-                      inputmode="numeric"
-                      min="0"
-                      [name]="'exit-qty-' + level.key"
-                      [(ngModel)]="level.quantity"
-                      placeholder="Qty"
-                    />
-                    <button type="button" class="btn-ghost px-2" (click)="removeExit(level.key)" aria-label="Remove exit">
-                      ✕
-                    </button>
-                  </div>
-                }
-                <button type="button" class="text-xs font-semibold text-kairo-700 hover:underline" (click)="addExit()">
-                  + Add exit
-                </button>
-              </div>
-              <span class="mt-1 block text-xs text-slate-400">Book profit here. Qty per exit is optional and splits the position if left blank.</span>
-            </div>
-          </div>
-
-          @if (formPreview(); as preview) {
-            <div class="mt-4 grid gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <p class="text-[11px] font-medium text-slate-500">Quantity</p>
-                <p class="font-bold tabular-nums text-slate-900">{{ preview.quantity | number }}</p>
-              </div>
-              <div>
-                <p class="text-[11px] font-medium text-slate-500">Entry</p>
-                <p class="font-bold tabular-nums text-slate-900">{{ formatPrice(preview.entry) }}</p>
-              </div>
-              <div>
-                <p class="text-[11px] font-medium text-slate-500">Charges</p>
-                <p class="font-bold tabular-nums text-red-600">−{{ formatPrice(preview.charges) }}</p>
-              </div>
-              <div>
-                <p class="text-[11px] font-medium text-slate-500">Net at targets</p>
-                <p class="font-bold tabular-nums" [class]="pnlClass(preview.netPnL)">{{ formatCurrency(preview.netPnL) }}</p>
-              </div>
-              @if (preview.slPnL != null) {
-                <div>
-                  <p class="text-[11px] font-medium text-slate-500">If SL hit</p>
-                  <p class="font-bold tabular-nums text-red-600">{{ formatCurrency(preview.slPnL) }}</p>
-                </div>
-              }
-            </div>
-            @if (preview.slices.length) {
-              <div class="mt-2 flex flex-wrap gap-1.5">
-                @for (slice of preview.slices; track slice.key) {
-                  <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium tabular-nums text-emerald-700 ring-1 ring-inset ring-emerald-200">
-                    {{ slice.label }} {{ formatPrice(slice.price) }} · {{ slice.quantity | number }} qty · net {{ formatCurrency(slice.netPnL) }}
-                  </span>
-                }
-              </div>
+        @if (formPreview(); as preview) {
+          <dl class="plan-preview">
+            <div><dt>Qty</dt><dd>{{ preview.quantity | number }}</dd></div>
+            <div><dt>Entry</dt><dd>{{ formatPrice(preview.entry) }}</dd></div>
+            <div><dt>Charges</dt><dd class="text-red-600">−{{ formatPrice(preview.charges) }}</dd></div>
+            <div><dt>Net</dt><dd [class]="pnlClass(preview.netPnL)">{{ formatCurrency(preview.netPnL) }}</dd></div>
+            @if (preview.slPnL != null) {
+              <div><dt>SL</dt><dd class="text-red-600">{{ formatCurrency(preview.slPnL) }}</dd></div>
             }
-          }
-        </div>
-
-        <div class="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
-          <button type="button" class="btn-primary w-full sm:w-auto" [disabled]="busy()" (click)="save()">
-            {{ busy() ? 'Saving…' : editingId() ? 'Save plan' : 'Add plan' }}
-          </button>
-          <button type="button" class="btn-ghost w-full sm:w-auto" (click)="cancelForm()">Cancel</button>
-        </div>
+          </dl>
+        }
       </div>
-    </div>
+
+      <footer class="plan-form-actions">
+        <button type="button" class="btn-primary !px-3 !py-2 text-sm" [disabled]="busy()" (click)="save()">
+          {{ busy() ? 'Saving…' : editingId() ? 'Save' : 'Add plan' }}
+        </button>
+        <button type="button" class="plan-link" (click)="cancelForm()">Cancel</button>
+      </footer>
+    </section>
   }
 
-  <div class="card overflow-hidden p-0">
-    <div class="overflow-x-auto">
-      <table class="stock-table plan-blotter">
-        <thead>
-          <tr>
-            <th>
-              <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('symbol')" (click)="toggleSort('symbol', $event)">
-                Symbol <span>{{ tableSort.indicator('symbol') }}</span>
-              </button>
-            </th>
-            <th class="hidden md:table-cell">
-              <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('action')" (click)="toggleSort('action', $event)">
-                Side <span>{{ tableSort.indicator('action') }}</span>
-              </button>
-            </th>
-            <th class="hidden text-right md:table-cell">
-              <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('targetPrice')" (click)="toggleSort('targetPrice', $event)">
-                Trigger <span>{{ tableSort.indicator('targetPrice') }}</span>
-              </button>
-            </th>
-            <th class="hidden text-right md:table-cell">
-              <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('cmp')" (click)="toggleSort('cmp', $event)">
-                CMP <span>{{ tableSort.indicator('cmp') }}</span>
-              </button>
-            </th>
-            <th class="text-right">
-              <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('diff')" (click)="toggleSort('diff', $event)">
-                Dist. <span>{{ tableSort.indicator('diff') }}</span>
-              </button>
-            </th>
-            <th class="text-right">
-              <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('netPnL')" (click)="toggleSort('netPnL', $event)">
-                Net <span>{{ tableSort.indicator('netPnL') }}</span>
-              </button>
-            </th>
-            <th class="w-8"></th>
+  <div class="plan-list">
+    <table class="plan-blotter">
+      <colgroup>
+        <col class="col-stock" />
+        <col class="col-side" />
+        <col class="col-trigger" />
+        <col class="col-cmp" />
+        <col class="col-diff" />
+        <col class="col-net" />
+        <col class="col-chevron" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>
+            <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('symbol')" (click)="toggleSort('symbol', $event)">
+              Stock <span>{{ tableSort.indicator('symbol') }}</span>
+            </button>
+          </th>
+          <th class="desk">
+            <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('action')" (click)="toggleSort('action', $event)">
+              Side <span>{{ tableSort.indicator('action') }}</span>
+            </button>
+          </th>
+          <th class="num">
+            <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('targetPrice')" (click)="toggleSort('targetPrice', $event)">
+              Trigger <span>{{ tableSort.indicator('targetPrice') }}</span>
+            </button>
+          </th>
+          <th class="desk num">
+            <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('cmp')" (click)="toggleSort('cmp', $event)">
+              CMP <span>{{ tableSort.indicator('cmp') }}</span>
+            </button>
+          </th>
+          <th class="num">
+            <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('diff')" (click)="toggleSort('diff', $event)">
+              Dist. <span>{{ tableSort.indicator('diff') }}</span>
+            </button>
+          </th>
+          <th class="desk num">
+            <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('netPnL')" (click)="toggleSort('netPnL', $event)">
+              Net <span>{{ tableSort.indicator('netPnL') }}</span>
+            </button>
+          </th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows(); track row.id) {
+          <tr [class]="rowClass(row)" (click)="toggleExpanded(row)">
+            <td class="stock">
+              <a
+                class="sym"
+                [routerLink]="['/stock', row.symbol]"
+                (click)="$event.stopPropagation()"
+              >{{ row.symbol }}</a>
+              <span class="name">{{ row.stockName || row.isin || row.symbol }}</span>
+            </td>
+            <td class="desk">
+              <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
+            </td>
+            <td class="num trigger">{{ formatPrice(row.targetPrice) }}</td>
+            <td class="desk num">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</td>
+            <td class="num">
+              @if (row.diffPct != null) {
+                <span [class]="proximityClass(row)">{{ formatPctSigned(row.diffPct) }}</span>
+              } @else {
+                <span class="mute">—</span>
+              }
+            </td>
+            <td class="desk num">
+              @if (row.economics) {
+                <span class="font-semibold" [class]="pnlClass(row.economics.netPnL)">{{ formatCurrency(row.economics.netPnL) }}</span>
+              } @else {
+                <span class="mute">—</span>
+              }
+            </td>
+            <td class="chevron">
+              <svg class="h-3.5 w-3.5 transition" [class.rotate-180]="isExpanded(row)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          @for (row of rows(); track row.id) {
-            <tr [class]="rowClass(row)" (click)="toggleExpanded(row)">
-              <td class="col-name">
-                <div class="flex flex-wrap items-center gap-1.5">
-                  <a
-                    class="font-semibold tracking-wide text-slate-900 hover:text-kairo-700 hover:underline"
-                    [routerLink]="['/stock', row.symbol]"
-                    (click)="$event.stopPropagation()"
-                  >{{ row.symbol }}</a>
-                  <span class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset md:hidden" [class]="sideClass(row.action)">
-                    {{ displayAction(row.action) }}
-                  </span>
-                  @if (row.quantity) {
-                    <span class="text-[11px] tabular-nums text-slate-400">{{ row.quantity | number }}</span>
+          @if (isExpanded(row)) {
+            <tr class="plan-expand">
+              <td colspan="7">
+                <div class="ticket">
+                  <p class="ticket-meta">
+                    <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
+                    @if (row.quantity) {
+                      <span>{{ row.quantity | number }} qty</span>
+                    }
+                    @if (row.segment) {
+                      <span>{{ row.segment === 'intraday' ? 'Intraday' : 'Delivery' }}</span>
+                    }
+                    @if (row.cmp) {
+                      <span>CMP {{ formatPrice(row.cmp) }}</span>
+                    }
+                    <span>Entry {{ formatPrice(entryFor(row)) }}</span>
+                    <span>SL {{ row.stopLoss != null ? formatPrice(row.stopLoss) : '—' }}</span>
+                    @if (row.cmpFetchedAt) {
+                      <span class="mute">{{ formatDataAge(row.cmpFetchedAt) }}</span>
+                    }
+                  </p>
+
+                  @if (row.economics?.slices?.length || row.nextTargets.length) {
+                    <table class="levels">
+                      @if (row.economics?.slices; as slices) {
+                        @for (slice of slices; track slice.key) {
+                          <tr>
+                            <td>{{ slice.label }}</td>
+                            <td class="num">{{ formatPrice(slice.price) }}</td>
+                            <td class="num">{{ slice.quantity | number }}</td>
+                            <td class="num" [class]="pnlClass(slice.netPnL)">{{ formatCurrency(slice.netPnL) }}</td>
+                          </tr>
+                        }
+                      }
+                      @for (price of row.nextTargets; track price) {
+                        <tr class="next">
+                          <td>Next</td>
+                          <td class="num">{{ formatPrice(price) }}</td>
+                          <td class="num mute">—</td>
+                          <td class="num mute">scale-in</td>
+                        </tr>
+                      }
+                    </table>
                   }
-                </div>
-                <div class="truncate text-[11px] text-slate-400">
-                  {{ row.stockName || row.isin || '' }}
-                  @if (row.segment) {
-                    · {{ row.segment === 'intraday' ? 'INT' : 'DEL' }}
+
+                  @if (row.notes) {
+                    <p class="ticket-notes">{{ row.notes }}</p>
                   }
-                </div>
-              </td>
-              <td class="hidden md:table-cell">
-                <span class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset" [class]="sideClass(row.action)">
-                  {{ displayAction(row.action) }}
-                </span>
-              </td>
-              <td class="hidden text-right font-medium tabular-nums text-slate-900 md:table-cell">{{ formatPrice(row.targetPrice) }}</td>
-              <td class="hidden text-right tabular-nums text-slate-700 md:table-cell">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</td>
-              <td class="text-right tabular-nums">
-                @if (row.diffPct != null) {
-                  <div class="font-medium" [class]="proximityClass(row)">{{ formatPctSigned(row.diffPct) }}</div>
-                  <div class="text-[11px] text-slate-400">{{ formatPrice(row.targetPrice - (row.cmp ?? 0)) }}</div>
-                } @else {
-                  <span class="text-slate-400">—</span>
-                }
-              </td>
-              <td class="text-right tabular-nums">
-                @if (row.economics) {
-                  <span class="font-semibold" [class]="pnlClass(row.economics.netPnL)">{{ formatCurrency(row.economics.netPnL) }}</span>
-                } @else {
-                  <span class="text-slate-400">—</span>
-                }
-              </td>
-              <td class="text-slate-400">
-                <svg class="ml-auto h-3.5 w-3.5 transition" [class.rotate-180]="isExpanded(row)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-              </td>
-            </tr>
-            @if (isExpanded(row)) {
-              <tr>
-                <td colspan="7" class="!whitespace-normal !border-t-0 bg-slate-50/80 p-0">
-                  <div class="border-t border-slate-200 px-3 py-3 sm:px-4">
-                    <div class="grid gap-3 lg:grid-cols-[1fr_13rem]">
-                      <div class="space-y-3">
-                        <div class="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-slate-200 ring-1 ring-slate-200 sm:grid-cols-4">
-                          <div class="bg-white px-3 py-2">
-                            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">CMP</p>
-                            <p class="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</p>
-                            <p class="text-[10px] text-slate-400">{{ formatDataAge(row.cmpFetchedAt) }}</p>
-                          </div>
-                          <div class="bg-white px-3 py-2">
-                            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Entry</p>
-                            <p class="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">{{ formatPrice(entryFor(row)) }}</p>
-                            @if (row.cmp) {
-                              <p class="text-[10px] tabular-nums" [class]="pnlClass(((entryFor(row) - row.cmp) / row.cmp) * 100)">
-                                {{ formatPctSigned(((entryFor(row) - row.cmp) / row.cmp) * 100) }}
-                              </p>
-                            }
-                          </div>
-                          <div class="bg-white px-3 py-2">
-                            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Trigger</p>
-                            <p class="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">{{ formatPrice(row.targetPrice) }}</p>
-                          </div>
-                          <div class="bg-white px-3 py-2">
-                            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">SL</p>
-                            <p class="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">{{ row.stopLoss != null ? formatPrice(row.stopLoss) : '—' }}</p>
-                          </div>
-                        </div>
 
-                        @if (row.economics?.slices?.length || row.nextTargets.length) {
-                          <table class="w-full text-left text-xs">
-                            <thead>
-                              <tr class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                                <th class="pb-1 font-semibold">Level</th>
-                                <th class="pb-1 text-right font-semibold">Price</th>
-                                <th class="pb-1 text-right font-semibold">Qty</th>
-                                <th class="pb-1 text-right font-semibold">Net</th>
-                              </tr>
-                            </thead>
-                            <tbody class="tabular-nums">
-                              @if (row.economics?.slices; as slices) {
-                                @for (slice of slices; track slice.key) {
-                                  <tr class="border-t border-slate-200">
-                                    <td class="py-1.5 font-medium text-slate-600">{{ slice.label }}</td>
-                                    <td class="py-1.5 text-right text-slate-900">{{ formatPrice(slice.price) }}</td>
-                                    <td class="py-1.5 text-right text-slate-600">{{ slice.quantity | number }}</td>
-                                    <td class="py-1.5 text-right font-medium" [class]="pnlClass(slice.netPnL)">{{ formatCurrency(slice.netPnL) }}</td>
-                                  </tr>
-                                }
-                              }
-                              @for (price of row.nextTargets; track price) {
-                                <tr class="border-t border-slate-200">
-                                  <td class="py-1.5 text-slate-400">Next</td>
-                                  <td class="py-1.5 text-right text-slate-700">{{ formatPrice(price) }}</td>
-                                  <td class="py-1.5 text-right text-slate-400">—</td>
-                                  <td class="py-1.5 text-right text-slate-400">scale-in</td>
-                                </tr>
-                              }
-                            </tbody>
-                          </table>
+                  <div class="ticket-foot">
+                    @if (row.economics) {
+                      <p class="ticket-pnl">
+                        <span>Gross <b [class]="pnlClass(grossPnL(row.economics))">{{ formatCurrency(grossPnL(row.economics)) }}</b></span>
+                        <span>Chg <b class="text-red-600">−{{ formatPrice(row.economics.charges) }}</b></span>
+                        <span>Net <b [class]="pnlClass(row.economics.netPnL)">{{ formatCurrency(row.economics.netPnL) }}</b></span>
+                        @if (row.economics.slPnL != null) {
+                          <span>SL <b class="text-red-600">{{ formatCurrency(row.economics.slPnL) }}</b></span>
                         }
-
-                        @if (row.notes) {
-                          <p class="text-xs leading-relaxed text-slate-500">{{ row.notes }}</p>
-                        }
-                      </div>
-
-                      <div class="flex flex-col justify-between gap-3 rounded-lg bg-white px-3 py-2.5 ring-1 ring-slate-200">
-                        @if (row.economics) {
-                          <div class="space-y-1.5">
-                            <div class="flex items-baseline justify-between gap-3">
-                              <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Gross</span>
-                              <span class="text-sm font-semibold tabular-nums" [class]="pnlClass(grossPnL(row.economics))">{{ formatCurrency(grossPnL(row.economics)) }}</span>
-                            </div>
-                            <div class="flex items-baseline justify-between gap-3">
-                              <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Charges</span>
-                              <span class="text-sm tabular-nums text-red-600">−{{ formatPrice(row.economics.charges) }}</span>
-                            </div>
-                            <div class="flex items-baseline justify-between gap-3 border-t border-slate-100 pt-1.5">
-                              <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Net</span>
-                              <span class="text-base font-bold tabular-nums" [class]="pnlClass(row.economics.netPnL)">{{ formatCurrency(row.economics.netPnL) }}</span>
-                            </div>
-                            @if (row.economics.slPnL != null) {
-                              <div class="flex items-baseline justify-between gap-3">
-                                <span class="text-[10px] font-semibold uppercase tracking-wider text-red-400">SL</span>
-                                <span class="text-sm font-semibold tabular-nums text-red-600">{{ formatCurrency(row.economics.slPnL) }}</span>
-                              </div>
-                            }
-                          </div>
-                        } @else {
-                          <p class="text-xs text-slate-400">Size the trade to see P&amp;L.</p>
-                        }
-                        <div class="flex gap-3 border-t border-slate-100 pt-2">
-                          <button type="button" class="text-xs font-semibold text-kairo-700 hover:underline" (click)="openEdit(row); $event.stopPropagation()">
-                            Edit
-                          </button>
-                          <button type="button" class="text-xs font-semibold text-red-600 hover:underline" (click)="remove(row); $event.stopPropagation()">
-                            Delete
-                          </button>
-                        </div>
-                      </div>
+                      </p>
+                    } @else {
+                      <p class="mute">Size the trade to see P&amp;L.</p>
+                    }
+                    <div class="ticket-actions">
+                      <button type="button" class="plan-link" (click)="openEdit(row); $event.stopPropagation()">Edit</button>
+                      <button type="button" class="plan-link text-red-600" (click)="remove(row); $event.stopPropagation()">Delete</button>
                     </div>
                   </div>
-                </td>
-              </tr>
-            }
-          } @empty {
-            <tr>
-              <td colspan="7" class="py-10 text-center text-sm text-slate-400">
-                No plans yet. Add a registry stock to start.
+                </div>
               </td>
             </tr>
           }
-        </tbody>
-      </table>
-    </div>
+        } @empty {
+          <tr>
+            <td colspan="7" class="empty">No plans yet. Add a registry stock to start.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
   </div>
 </div>
