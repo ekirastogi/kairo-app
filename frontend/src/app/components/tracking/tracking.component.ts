@@ -1,7 +1,7 @@
 import { Component, computed, effect, inject, input, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { combineLatest, distinctUntilChanged, from, map, switchMap } from 'rxjs';
 import { ExecutionLeg, RegistryStock, TradeSegment } from '../../models/trading-journal.models';
@@ -99,6 +99,7 @@ export class TrackingComponent implements OnInit, OnDestroy {
   readonly lockedName = input('');
   readonly lockedIsin = input('');
 
+  private route = inject(ActivatedRoute);
   private trackerSvc = inject(PriceTrackerService);
   private registrySvc = inject(RegistryStockService);
   private stockSearch = inject(StockSearchService);
@@ -144,9 +145,12 @@ export class TrackingComponent implements OnInit, OnDestroy {
   autoRefresh = signal(false);
   private autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
+  readonly planView = toSignal(
+    this.route.data.pipe(map((data) => (data['planView'] === 'history' ? 'history' : 'open') as 'open' | 'history')),
+    { initialValue: 'open' as const }
+  );
   tableSort = new TableSortState('diff', 'asc');
   historySort = new TableSortState('executedAt', 'desc');
-  activeTab = signal<'open' | 'history'>('open');
   history = signal<PriceTracker[]>([]);
   historyLoaded = signal(false);
   historyBusy = signal(false);
@@ -280,6 +284,10 @@ export class TrackingComponent implements OnInit, OnDestroy {
     const total = this.refreshTotal();
     return total ? `Refreshing ${this.refreshDone() + 1}/${total}…` : 'Refreshing…';
   });
+
+  private readonly loadHistoryView = effect(() => {
+    if (this.planView() === 'history') void this.ensureHistory();
+  }, { allowSignalWrites: true });
 
   private readonly loadLockedStock = effect(() => {
     const sym = this.lockedSymbol().trim().toUpperCase();
@@ -454,15 +462,6 @@ export class TrackingComponent implements OnInit, OnDestroy {
     const next = this.expandedId() === row.id ? null : row.id;
     this.expandedId.set(next);
     if (this.executingId() !== next) this.executingId.set(null);
-  }
-
-  setTab(tab: 'open' | 'history'): void {
-    this.activeTab.set(tab);
-    this.expandedId.set(null);
-    this.executingId.set(null);
-    this.formOpen.set(false);
-    this.refreshPickerOpen.set(false);
-    if (tab === 'history') void this.ensureHistory();
   }
 
   async ensureHistory(): Promise<void> {
@@ -739,6 +738,53 @@ export class TrackingComponent implements OnInit, OnDestroy {
     void this.refreshSymbols(symbols);
   }
 
+  downloadCsv(): void {
+    const history = this.planView() === 'history';
+    const table = history ? this.historyCsv() : this.openCsv();
+    if (table.length < 2) return;
+    const csv = table.map((row) => row.map(csvCell).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = history ? 'trade-history.csv' : 'trade-plans.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  private openCsv(): string[][] {
+    const header = ['Symbol', 'Name', 'Side', 'Trigger', 'CMP', 'Dist %', 'Net'];
+    const body = this.rows().map((row) => [
+      row.symbol,
+      row.stockName || '',
+      this.displayAction(row.action),
+      this.csvPrice(row.targetPrice),
+      row.cmp ? this.csvPrice(row.cmp) : '',
+      row.diffPct != null ? row.diffPct.toFixed(2) : '',
+      row.economics ? this.csvPrice(row.economics.netPnL) : '',
+    ]);
+    return [header, ...body];
+  }
+
+  private historyCsv(): string[][] {
+    const header = ['Symbol', 'Name', 'Side', 'Entry', 'Exit', 'Win %', 'Net', 'Closed'];
+    const body = this.historyRows().map((row) => [
+      row.symbol,
+      row.stockName || '',
+      this.displayAction(row.action),
+      this.csvPrice(row.entry),
+      this.csvPrice(row.exit),
+      row.winPct.toFixed(2),
+      this.csvPrice(row.netPnL),
+      row.executedAt ? new Date(row.executedAt).toLocaleDateString('en-IN') : '',
+    ]);
+    return [header, ...body];
+  }
+
+  private csvPrice(value: number): string {
+    return Number.isFinite(value) ? value.toFixed(2) : '';
+  }
+
   async refreshAll(opts: { silent?: boolean } = {}): Promise<void> {
     const symbols = this.refreshCandidates()
       .filter((row) => row.ageMs == null || row.ageMs >= CMP_STALE_MS)
@@ -989,4 +1035,10 @@ export class TrackingComponent implements OnInit, OnDestroy {
     this.form.stopLoss = '';
     this.symbolQuery.set('');
   }
+}
+
+function csvCell(value: string | number): string {
+  const text = String(value ?? '');
+  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
 }

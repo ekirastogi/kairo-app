@@ -95,6 +95,16 @@ export const routes: Routes = [
         },
       },
       {
+        path: 'trade-plans/history',
+        loadComponent: () =>
+          import('./components/tracking/tracking.component').then((m) => m.TrackingComponent),
+        data: {
+          title: 'Trade history',
+          subtitle: 'Closed trades with entry, exit, and net P&L',
+          planView: 'history',
+        },
+      },
+      {
         path: 'trade-plans',
         loadComponent: () =>
           import('./components/tracking/tracking.component').then((m) => m.TrackingComponent),

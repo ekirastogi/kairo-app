@@ -1,27 +1,5 @@
 <div class="plan-page" [class.plan-page-locked]="!!lockedSymbol()">
   <div class="plan-toolbar">
-    <div class="plan-tabs" role="tablist" aria-label="Trade plan views">
-      <button
-        type="button"
-        role="tab"
-        class="pill-tab"
-        [class.pill-tab-active]="activeTab() === 'open'"
-        [attr.aria-selected]="activeTab() === 'open'"
-        (click)="setTab('open')"
-      >
-        Open
-      </button>
-      <button
-        type="button"
-        role="tab"
-        class="pill-tab"
-        [class.pill-tab-active]="activeTab() === 'history'"
-        [attr.aria-selected]="activeTab() === 'history'"
-        (click)="setTab('history')"
-      >
-        History
-      </button>
-    </div>
     @if (!lockedSymbol()) {
       <input
         class="plan-search"
@@ -32,43 +10,57 @@
       />
     }
     <p class="plan-count">
-      {{ rows().length }}
-      @if (hotCount()) {
-        <span class="text-emerald-700">· {{ hotCount() }} hot</span>
-      }
-      @if (nearCount()) {
-        <span class="text-amber-700">· {{ nearCount() }} near</span>
+      @if (planView() === 'history') {
+        {{ historyRows().length }}
+      } @else {
+        {{ rows().length }}
+        @if (hotCount()) {
+          <span class="text-emerald-700">· {{ hotCount() }} hot</span>
+        }
+        @if (nearCount()) {
+          <span class="text-amber-700">· {{ nearCount() }} near</span>
+        }
       }
     </p>
-    <label class="plan-auto">
-      <span class="relative inline-flex h-4 w-7 shrink-0 items-center">
-        <input
-          type="checkbox"
-          class="peer sr-only"
-          [ngModel]="autoRefresh()"
-          (ngModelChange)="setAutoRefresh($event)"
-        />
-        <span class="absolute inset-0 rounded-full bg-slate-200 transition peer-checked:bg-kairo-600"></span>
-        <span class="absolute left-0.5 h-3 w-3 rounded-full bg-white shadow transition peer-checked:translate-x-3"></span>
-      </span>
-      Auto
-    </label>
-    @if (activeTab() === 'open') {
+    @if (planView() !== 'history') {
+      <label class="plan-auto">
+        <span class="relative inline-flex h-4 w-7 shrink-0 items-center">
+          <input
+            type="checkbox"
+            class="peer sr-only"
+            [ngModel]="autoRefresh()"
+            (ngModelChange)="setAutoRefresh($event)"
+          />
+          <span class="absolute inset-0 rounded-full bg-slate-200 transition peer-checked:bg-kairo-600"></span>
+          <span class="absolute left-0.5 h-3 w-3 rounded-full bg-white shadow transition peer-checked:translate-x-3"></span>
+        </span>
+        Auto
+      </label>
       <button
         type="button"
-        class="plan-tool-btn"
+        class="plan-tool-btn plan-icon-btn"
         [class.plan-tool-btn-on]="refreshPickerOpen()"
         (click)="openRefreshPicker()"
         [disabled]="refreshBusy() || busy() || !refreshCandidates().length"
+        aria-label="Refresh CMP"
+        title="Refresh CMP"
       >
-        {{ refreshBusy() ? refreshLabel() : 'Refresh' }}
+        <svg class="h-4 w-4" [class.animate-spin]="refreshBusy()" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466A5.5 5.5 0 1112.28 6.28a.75.75 0 011.06 1.06 4 4 0 00-5.78 5.47 4 4 0 008.16-1.53.75.75 0 011.44.61z" clip-rule="evenodd" />
+        </svg>
       </button>
-    }
-    @if (activeTab() === 'open') {
       <button type="button" class="plan-tool-btn plan-tool-btn-primary" (click)="onAddClick()" [disabled]="busy()">
         {{ formOpen() && !editingId() ? 'Close' : 'Add' }}
       </button>
     }
+    <button
+      type="button"
+      class="plan-tool-btn"
+      (click)="downloadCsv()"
+      [disabled]="planView() === 'history' ? !historyRows().length : !rows().length"
+    >
+      Download
+    </button>
   </div>
 
   @if (refreshPickerOpen()) {
@@ -297,7 +289,7 @@
     </section>
   }
 
-  @if (activeTab() === 'open') {
+  @if (planView() !== 'history') {
   <div class="plan-list">
     <table class="plan-blotter">
       <thead>

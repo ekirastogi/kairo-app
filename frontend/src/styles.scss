@@ -611,6 +611,10 @@
     @apply border-kairo-600 text-kairo-700;
   }
 
+  .plan-icon-btn {
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center p-0;
+  }
+
   .plan-refresh {
     @apply overflow-hidden rounded-lg border border-slate-200 bg-white;
   }
