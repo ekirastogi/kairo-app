@@ -57,8 +57,9 @@
       <button
         type="button"
         class="plan-tool-btn"
-        (click)="refreshAll()"
-        [disabled]="refreshBusy() || busy() || !trackers().length"
+        [class.plan-tool-btn-on]="refreshPickerOpen()"
+        (click)="openRefreshPicker()"
+        [disabled]="refreshBusy() || busy() || !refreshCandidates().length"
       >
         {{ refreshBusy() ? refreshLabel() : 'Refresh' }}
       </button>
@@ -69,6 +70,56 @@
       </button>
     }
   </div>
+
+  @if (refreshPickerOpen()) {
+    <section class="plan-refresh">
+      <header class="plan-refresh-head">
+        <h2>Refresh CMP</h2>
+        <button type="button" class="plan-link" (click)="refreshPickerOpen.set(false)">Close</button>
+      </header>
+      <div class="plan-refresh-actions">
+        <button type="button" class="plan-refresh-chip" [class.plan-refresh-chip-on]="refreshPreset() === 'all'" (click)="selectAllRefresh()">Select all</button>
+        <button type="button" class="plan-refresh-chip" [class.plan-refresh-chip-on]="refreshPreset() === 'none'" (click)="clearRefresh()">Deselect all</button>
+        @for (window of refreshWindows; track window.id) {
+          <button
+            type="button"
+            class="plan-refresh-chip"
+            [class.plan-refresh-chip-on]="refreshPreset() === window.id"
+            (click)="selectRefreshOlderThan(window.ms, window.id)"
+          >Older than {{ window.label }}</button>
+        }
+      </div>
+      <ul class="plan-refresh-list">
+        @for (stock of refreshCandidates(); track stock.symbol) {
+          <li>
+            <label class="plan-refresh-row">
+              <input
+                type="checkbox"
+                [checked]="isRefreshSelected(stock.symbol)"
+                (change)="toggleRefresh(stock.symbol)"
+              />
+              <span class="sym">{{ stock.symbol }}</span>
+              <span class="name">{{ stock.name }}</span>
+              <span class="age">{{ stock.ageLabel }}</span>
+            </label>
+          </li>
+        } @empty {
+          <li class="plan-refresh-empty">No open plans to refresh.</li>
+        }
+      </ul>
+      <footer class="plan-refresh-foot">
+        <button
+          type="button"
+          class="plan-tool-btn plan-tool-btn-primary"
+          [disabled]="refreshBusy() || !refreshSelection().length"
+          (click)="confirmRefresh()"
+        >
+          Refresh {{ refreshSelection().length || '' }}
+        </button>
+        <button type="button" class="plan-link" (click)="refreshPickerOpen.set(false)">Cancel</button>
+      </footer>
+    </section>
+  }
 
   @if (formOpen()) {
     <section class="plan-form">

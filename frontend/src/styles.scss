@@ -607,6 +607,71 @@
     @apply border-kairo-600 bg-kairo-600 text-white;
   }
 
+  .plan-tool-btn-on {
+    @apply border-kairo-600 text-kairo-700;
+  }
+
+  .plan-refresh {
+    @apply overflow-hidden rounded-lg border border-slate-200 bg-white;
+  }
+
+  .plan-refresh-head,
+  .plan-refresh-foot {
+    @apply flex items-center justify-between gap-2 px-3 py-2;
+  }
+
+  .plan-refresh-head {
+    @apply border-b border-slate-100;
+  }
+
+  .plan-refresh-head h2 {
+    @apply text-sm font-semibold text-slate-900;
+  }
+
+  .plan-refresh-actions {
+    @apply flex flex-wrap gap-1.5 border-b border-slate-100 px-3 py-2;
+  }
+
+  .plan-refresh-chip {
+    @apply rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600;
+  }
+
+  .plan-refresh-chip-on {
+    @apply border-kairo-600 bg-kairo-50 text-kairo-800;
+  }
+
+  .plan-refresh-list {
+    @apply max-h-72 divide-y divide-slate-100 overflow-y-auto;
+  }
+
+  .plan-refresh-row {
+    @apply flex min-w-0 items-center gap-2 px-3 py-2 text-sm;
+  }
+
+  .plan-refresh-row input {
+    @apply shrink-0;
+  }
+
+  .plan-refresh-row .sym {
+    @apply shrink-0 font-semibold text-slate-900;
+  }
+
+  .plan-refresh-row .name {
+    @apply min-w-0 flex-1 truncate text-xs text-slate-400;
+  }
+
+  .plan-refresh-row .age {
+    @apply shrink-0 text-xs tabular-nums text-slate-500;
+  }
+
+  .plan-refresh-empty {
+    @apply px-3 py-4 text-sm text-slate-400;
+  }
+
+  .plan-refresh-foot {
+    @apply border-t border-slate-100;
+  }
+
   .plan-link {
     @apply text-[11px] font-semibold text-kairo-700 hover:underline;
   }

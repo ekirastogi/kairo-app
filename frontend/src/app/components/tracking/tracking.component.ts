@@ -43,7 +43,14 @@ const ACTION_PRESETS = ['Long', 'Short'] as const;
 const SEGMENT_PRESETS: TradeSegment[] = ['intraday', 'delivery'];
 const AUTO_REFRESH_MS = 60_000;
 const AUTO_REFRESH_KEY = 'kairo-tracking-auto-refresh';
-const CMP_STALE_MS = 24 * 60 * 60 * 1000;
+const CMP_STALE_MS = 30 * 60 * 1000;
+
+const REFRESH_WINDOWS = [
+  { id: '30m', label: '30 min', ms: 30 * 60 * 1000 },
+  { id: '1h', label: '1 hour', ms: 60 * 60 * 1000 },
+  { id: '4h', label: '4 hours', ms: 4 * 60 * 60 * 1000 },
+  { id: '1d', label: '1 day', ms: 24 * 60 * 60 * 1000 },
+] as const;
 
 interface TrackerEconomics {
   quantity: number;
@@ -60,6 +67,14 @@ interface TrackerRow extends PriceTracker {
   proximity: ReturnType<typeof trackerProximity>;
   sized: boolean;
   economics: TrackerEconomics | null;
+}
+
+interface RefreshCandidate {
+  symbol: string;
+  name: string;
+  isin?: string;
+  ageMs: number | null;
+  ageLabel: string;
 }
 
 interface HistoryRow extends PriceTracker {
@@ -106,6 +121,8 @@ export class TrackingComponent implements OnInit, OnDestroy {
     { initialValue: [] as RegistryStock[] }
   );
   pickedRegistry = signal<RegistryStock[]>([]);
+  /** Quotes saved in this session. Wins over the last registry fetch so CMP updates without a reload. */
+  private refreshedRegistry = signal<RegistryStock[]>([]);
   symbolQuery = signal('');
   private symbolSearch = this.stockSearch.bindQuery(this.symbolQuery);
   symbolOptions = this.symbolSearch.results;
@@ -120,6 +137,10 @@ export class TrackingComponent implements OnInit, OnDestroy {
   refreshBusy = signal(false);
   refreshDone = signal(0);
   refreshTotal = signal(0);
+  refreshPickerOpen = signal(false);
+  refreshPreset = signal<string>('30m');
+  refreshSelection = signal<string[]>([]);
+  readonly refreshWindows = REFRESH_WINDOWS;
   autoRefresh = signal(false);
   private autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -157,8 +178,29 @@ export class TrackingComponent implements OnInit, OnDestroy {
     stopLoss: '',
   };
 
+  refreshCandidates = computed((): RefreshCandidate[] => {
+    const now = Date.now();
+    const bySymbol = new Map<string, { symbol: string; name: string; isin?: string }>();
+    for (const plan of this.openPlans()) {
+      const symbol = plan.symbol.trim().toUpperCase();
+      if (!symbol || bySymbol.has(symbol)) continue;
+      bySymbol.set(symbol, { symbol, name: plan.stockName || symbol, isin: plan.isin });
+    }
+    return [...bySymbol.values()]
+      .map((plan) => {
+        const at = this.liveCmpAt(plan);
+        return {
+          ...plan,
+          ageMs: at != null ? Math.max(0, now - at) : null,
+          ageLabel: formatDataAge(at),
+        };
+      })
+      .sort((a, b) => (b.ageMs ?? Number.POSITIVE_INFINITY) - (a.ageMs ?? Number.POSITIVE_INFINITY));
+  });
+
   rows = computed(() => {
     this.charges.rates();
+    this.refreshedRegistry();
     const q = this.searchQuery().trim().toLowerCase();
     const mapped: TrackerRow[] = this.trackers().map((t) => {
       const economics = this.economicsFor(t);
@@ -419,6 +461,7 @@ export class TrackingComponent implements OnInit, OnDestroy {
     this.expandedId.set(null);
     this.executingId.set(null);
     this.formOpen.set(false);
+    this.refreshPickerOpen.set(false);
     if (tab === 'history') void this.ensureHistory();
   }
 
@@ -649,23 +692,67 @@ export class TrackingComponent implements OnInit, OnDestroy {
     }
   }
 
-  async refreshAll(opts: { silent?: boolean } = {}): Promise<void> {
-    const source = this.lockedSymbol().trim()
-      ? this.trackers().filter((row) => this.matchesLocked(row))
-      : this.trackers();
-    const symbols = [...new Set(source.map((t) => t.symbol))];
-    if (!symbols.length) {
-      if (!opts.silent) this.toast.success('Nothing to refresh yet. Add a plan first.');
+  openRefreshPicker(): void {
+    if (this.refreshBusy()) return;
+    if (this.refreshPickerOpen()) {
+      this.refreshPickerOpen.set(false);
       return;
     }
+    this.selectRefreshOlderThan(CMP_STALE_MS, '30m');
+    this.refreshPickerOpen.set(true);
+  }
 
-    const stale = symbols.filter((symbol) => {
-      const plan = this.trackers().find((t) => t.symbol === symbol);
-      return this.isCmpStale(plan ?? { symbol });
-    });
-    const skipped = symbols.length - stale.length;
-    if (!stale.length) {
-      if (!opts.silent) this.toast.success('All CMPs are fresh (updated within 1 day).');
+  selectAllRefresh(): void {
+    this.refreshPreset.set('all');
+    this.refreshSelection.set(this.refreshCandidates().map((row) => row.symbol));
+  }
+
+  clearRefresh(): void {
+    this.refreshPreset.set('none');
+    this.refreshSelection.set([]);
+  }
+
+  selectRefreshOlderThan(ms: number, preset: string): void {
+    this.refreshPreset.set(preset);
+    this.refreshSelection.set(
+      this.refreshCandidates()
+        .filter((row) => row.ageMs == null || row.ageMs >= ms)
+        .map((row) => row.symbol)
+    );
+  }
+
+  isRefreshSelected(symbol: string): boolean {
+    return this.refreshSelection().includes(symbol);
+  }
+
+  toggleRefresh(symbol: string): void {
+    this.refreshPreset.set('custom');
+    this.refreshSelection.update((current) =>
+      current.includes(symbol) ? current.filter((item) => item !== symbol) : [...current, symbol]
+    );
+  }
+
+  confirmRefresh(): void {
+    const symbols = this.refreshSelection();
+    if (!symbols.length || this.refreshBusy()) return;
+    this.refreshPickerOpen.set(false);
+    void this.refreshSymbols(symbols);
+  }
+
+  async refreshAll(opts: { silent?: boolean } = {}): Promise<void> {
+    const symbols = this.refreshCandidates()
+      .filter((row) => row.ageMs == null || row.ageMs >= CMP_STALE_MS)
+      .map((row) => row.symbol);
+    if (!symbols.length) {
+      if (!opts.silent) this.toast.success('All CMPs are fresh (updated within 30 minutes).');
+      return;
+    }
+    await this.refreshSymbols(symbols, opts);
+  }
+
+  private async refreshSymbols(symbols: string[], opts: { silent?: boolean } = {}): Promise<void> {
+    if (!symbols.length) {
+      if (!opts.silent) this.toast.success('Select at least one stock to refresh.');
       return;
     }
 
@@ -673,10 +760,10 @@ export class TrackingComponent implements OnInit, OnDestroy {
     const failed: string[] = [];
     let updated = 0;
     try {
-      this.refreshTotal.set(stale.length);
-      for (const [index, symbol] of stale.entries()) {
+      this.refreshTotal.set(symbols.length);
+      for (const [index, symbol] of symbols.entries()) {
         this.refreshDone.set(index);
-        const plan = this.trackers().find((t) => t.symbol === symbol);
+        const plan = this.openPlans().find((row) => row.symbol.trim().toUpperCase() === symbol);
         const registry = this.registryFor(plan ?? { symbol });
         if (!registry) {
           failed.push(symbol);
@@ -687,7 +774,13 @@ export class TrackingComponent implements OnInit, OnDestroy {
             isin: plan?.isin || registry.isin,
             name: plan?.stockName || registry.name,
           });
-          await this.registrySvc.save({ ...registry, currentPrice: quote.price });
+          const next: RegistryStock = {
+            ...registry,
+            currentPrice: quote.price,
+            updatedAt: quote.fetchedAt || Date.now(),
+          };
+          await this.registrySvc.save(next);
+          this.refreshedRegistry.update((rows) => [...rows.filter((row) => row.symbol !== next.symbol), next]);
           updated++;
         } catch {
           failed.push(symbol);
@@ -695,11 +788,10 @@ export class TrackingComponent implements OnInit, OnDestroy {
       }
       this.registrySvc.reload();
       this.planRegistryTick.update((n) => n + 1);
-      const skipNote = skipped ? ` ${skipped} already fresh.` : '';
       const failNote = failed.length
         ? ` ${failed.length} failed: ${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}.`
         : '';
-      const message = `Refreshed CMP for ${updated} stock${updated === 1 ? '' : 's'} from ${this.quotes.source}.${skipNote}${failNote}`;
+      const message = `Refreshed CMP for ${updated} stock${updated === 1 ? '' : 's'}.${failNote}`;
       if (failed.length) this.toast.error(message);
       else if (!opts.silent) this.toast.success(message);
     } finally {
@@ -790,9 +882,20 @@ export class TrackingComponent implements OnInit, OnDestroy {
     }
   }
 
+  private openPlans(): PriceTracker[] {
+    return this.lockedSymbol().trim()
+      ? this.trackers().filter((row) => this.matchesLocked(row))
+      : this.trackers();
+  }
+
   private registryPool(): RegistryStock[] {
     const bySymbol = new Map<string, RegistryStock>();
-    for (const stock of [...this.planRegistry(), ...this.symbolOptions(), ...this.pickedRegistry()]) {
+    for (const stock of [
+      ...this.symbolOptions(),
+      ...this.pickedRegistry(),
+      ...this.planRegistry(),
+      ...this.refreshedRegistry(),
+    ]) {
       bySymbol.set(stock.symbol.toUpperCase(), stock);
     }
     return [...bySymbol.values()];
@@ -822,12 +925,6 @@ export class TrackingComponent implements OnInit, OnDestroy {
   private liveCmpAt(plan: { symbol: string; isin?: string }): number | undefined {
     const at = this.registryFor(plan)?.updatedAt;
     return at != null && at > 0 ? at : undefined;
-  }
-
-  private isCmpStale(plan: { symbol: string; isin?: string }): boolean {
-    const registry = this.registryFor(plan);
-    if (!registry || !(registry.currentPrice > 0) || !(registry.updatedAt > 0)) return true;
-    return Date.now() - registry.updatedAt > CMP_STALE_MS;
   }
 
   private matchesLocked(row: { symbol: string; isin?: string }): boolean {
