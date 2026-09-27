@@ -304,15 +304,14 @@
               Stock <span>{{ tableSort.indicator('symbol') }}</span>
             </button>
           </th>
-          <th class="num col-trigger">
-            <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('targetPrice')" (click)="toggleSort('targetPrice', $event)">
-              Trigger <span>{{ tableSort.indicator('targetPrice') }}</span>
+          <th class="num col-pair">
+            <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('cmp')" (click)="toggleSort('cmp', $event)">
+              <span class="pair-head"><span>CMP</span><span class="pair-sub">Trigger</span></span>
+              <span>{{ tableSort.indicator('cmp') }}</span>
             </button>
           </th>
-          <th class="desk num col-cmp">
-            <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('cmp')" (click)="toggleSort('cmp', $event)">
-              CMP <span>{{ tableSort.indicator('cmp') }}</span>
-            </button>
+          <th class="num col-pair">
+            <span class="pair-head"><span>Entry</span><span class="pair-sub">Exit</span></span>
           </th>
           <th class="num col-diff">
             <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('diff')" (click)="toggleSort('diff', $event)">
@@ -341,8 +340,18 @@
               </span>
               <span class="name">{{ row.stockName || row.isin || row.symbol }}</span>
             </td>
-            <td class="num trigger col-trigger">{{ formatPrice(row.targetPrice) }}</td>
-            <td class="desk num col-cmp">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</td>
+            <td class="num col-pair">
+              <span class="pair">
+                <span class="pair-main">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</span>
+                <span class="pair-sub">{{ formatPrice(row.targetPrice) }}</span>
+              </span>
+            </td>
+            <td class="num col-pair">
+              <span class="pair">
+                <span class="pair-main">{{ formatPrice(entryFor(row)) }}</span>
+                <span class="pair-sub">{{ exitFor(row) != null ? formatPrice(exitFor(row)!) : '—' }}</span>
+              </span>
+            </td>
             <td class="num col-diff">
               @if (row.diffPct != null) {
                 <span [class]="proximityClass(row)">{{ formatPctSigned(row.diffPct) }}</span>
@@ -566,8 +575,9 @@
                   Stock <span>{{ historySort.indicator('symbol') }}</span>
                 </button>
               </th>
-              <th class="num col-trigger">Entry</th>
-              <th class="desk num col-cmp">Exit</th>
+              <th class="num col-pair">
+                <span class="pair-head"><span>Entry</span><span class="pair-sub">Exit</span></span>
+              </th>
               <th class="num col-diff">Win %</th>
               <th class="desk num col-net">
                 <button type="button" class="sort-btn" [class.sort-btn-active]="historySort.isActive('netPnL')" (click)="historySort.toggle('netPnL', $event)">
@@ -587,8 +597,12 @@
                   </span>
                   <span class="name">{{ row.stockName || row.symbol }}{{ row.executedAt ? ' · ' + (row.executedAt | date:'d MMM') : '' }}</span>
                 </td>
-                <td class="num trigger col-trigger">{{ formatPrice(row.entry) }}</td>
-                <td class="desk num col-cmp">{{ formatPrice(row.exit) }}</td>
+                <td class="num col-pair">
+                  <span class="pair">
+                    <span class="pair-main">{{ formatPrice(row.entry) }}</span>
+                    <span class="pair-sub">{{ formatPrice(row.exit) }}</span>
+                  </span>
+                </td>
                 <td class="num col-diff" [class]="proximityClass({ proximity: row.netPnL > 0 ? 'hot' : row.netPnL < 0 ? 'near' : null, diffPct: row.winPct })">
                   {{ formatPctSigned(row.winPct) }}
                 </td>
@@ -603,7 +617,7 @@
               </tr>
               @if (isExpanded(row)) {
                 <tr class="plan-expand">
-                  <td colspan="6">
+                  <td colspan="5">
                     <div class="ticket">
                       <dl class="ticket-facts">
                         <div>
@@ -655,7 +669,7 @@
               }
             } @empty {
               <tr>
-                <td colspan="6" class="empty">{{ lockedSymbol() ? 'No closed plans for this stock.' : 'No closed trades yet. Close a plan from Open to see it here.' }}</td>
+                <td colspan="5" class="empty">{{ lockedSymbol() ? 'No closed plans for this stock.' : 'No closed trades yet. Close a plan from Open to see it here.' }}</td>
               </tr>
             }
           </tbody>

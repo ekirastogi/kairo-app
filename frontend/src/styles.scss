@@ -796,15 +796,16 @@
   }
 
   .plan-blotter .col-stock {
-    width: 40%;
+    width: 36%;
   }
 
-  .plan-blotter .col-trigger {
-    width: 28%;
+  .plan-blotter .col-pair {
+    width: 20%;
+    white-space: normal;
   }
 
   .plan-blotter .col-diff {
-    width: 24%;
+    width: 16%;
   }
 
   .plan-blotter .col-chevron {
@@ -829,6 +830,28 @@
 
   .plan-blotter .trigger {
     @apply font-medium tabular-nums text-slate-900;
+  }
+
+  .plan-blotter .pair,
+  .plan-blotter .pair-head {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.15;
+  }
+
+  .plan-blotter .pair-main {
+    @apply font-medium tabular-nums text-slate-900;
+  }
+
+  .plan-blotter .pair-sub {
+    @apply text-[10px] font-normal tabular-nums text-slate-400;
+  }
+
+  .plan-blotter th.num .sort-btn {
+    align-items: flex-end;
+    justify-content: flex-end;
+    width: 100%;
   }
 
   .plan-blotter .mute {
@@ -1014,15 +1037,11 @@
     }
 
     .plan-blotter .col-stock {
-      width: 34%;
+      width: 30%;
     }
 
-    .plan-blotter .col-trigger {
+    .plan-blotter .col-pair {
       width: 16%;
-    }
-
-    .plan-blotter .col-cmp {
-      width: 14%;
     }
 
     .plan-blotter .col-diff {

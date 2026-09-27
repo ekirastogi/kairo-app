@@ -612,6 +612,11 @@ export class TrackingComponent implements OnInit, OnDestroy {
     return trackerEntryPrice(row) ?? row.targetPrice;
   }
 
+  exitFor(row: TrackerRow): number | null {
+    const price = row.targets?.[0]?.price;
+    return price != null && price > 0 ? price : null;
+  }
+
   toggleSort(column: TrackerColumn, event?: Event): void {
     this.tableSort.toggle(column, event);
   }
@@ -753,13 +758,15 @@ export class TrackingComponent implements OnInit, OnDestroy {
   }
 
   private openCsv(): string[][] {
-    const header = ['Symbol', 'Name', 'Side', 'Trigger', 'CMP', 'Dist %', 'Net'];
+    const header = ['Symbol', 'Name', 'Side', 'CMP', 'Trigger', 'Entry', 'Exit', 'Dist %', 'Net'];
     const body = this.rows().map((row) => [
       row.symbol,
       row.stockName || '',
       this.displayAction(row.action),
-      this.csvPrice(row.targetPrice),
       row.cmp ? this.csvPrice(row.cmp) : '',
+      this.csvPrice(row.targetPrice),
+      this.csvPrice(this.entryFor(row)),
+      this.exitFor(row) != null ? this.csvPrice(this.exitFor(row) as number) : '',
       row.diffPct != null ? row.diffPct.toFixed(2) : '',
       row.economics ? this.csvPrice(row.economics.netPnL) : '',
     ]);
