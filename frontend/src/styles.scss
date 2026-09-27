@@ -113,7 +113,7 @@
   }
 
   .segmented-control {
-    @apply flex rounded-xl bg-slate-100 p-1 shadow-sm;
+    @apply flex flex-wrap rounded-xl bg-slate-100 p-1 shadow-sm;
   }
 
   .segment-item {
@@ -986,7 +986,7 @@
 
 /* Screener-style fundamentals view (project theme) */
 .screener-view {
-  @apply space-y-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-5;
+  @apply min-w-0 max-w-full space-y-4 overflow-x-clip rounded-xl border border-slate-200 bg-white p-3 sm:p-5;
 }
 
 .screener-header {
@@ -1002,7 +1002,7 @@
 }
 
 .screener-meta {
-  @apply text-xs text-slate-500;
+  @apply flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-slate-500;
 }
 
 .screener-meta-sep {
@@ -1014,7 +1014,7 @@
 }
 
 .screener-ratios {
-  @apply grid gap-2 sm:grid-cols-2 lg:grid-cols-4;
+  @apply grid grid-cols-2 gap-2 lg:grid-cols-4;
 }
 
 .screener-ratio-card {
@@ -1026,7 +1026,7 @@
 }
 
 .screener-ratio-value {
-  @apply text-sm font-bold tabular-nums text-slate-900;
+  @apply text-sm font-bold tabular-nums text-slate-900 [overflow-wrap:anywhere];
 }
 
 .screener-ratio-value-sm {
@@ -1034,7 +1034,11 @@
 }
 
 .screener-section-tabs {
-  @apply flex flex-wrap gap-1;
+  @apply -mx-3 flex gap-1 overflow-x-auto px-3 pb-px [-ms-overflow-style:none] [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 .screener-tabs-divider {
@@ -1046,7 +1050,7 @@
 }
 
 .screener-section-tab {
-  @apply rounded-t-lg px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-800;
+  @apply shrink-0 rounded-t-lg px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-800;
 }
 
 .screener-section-tab-active {
@@ -1255,9 +1259,9 @@
   @apply space-y-0;
 }
 
-/* Fixed inset (not %) so the widest edge label always clears the card padding. */
+/* Mobile: low/high as a row. Desktop: pin markers over the track. */
 .screener-price-chart-inset {
-  --price-edge-inset: 2.5rem;
+  --price-edge-inset: 0;
   @apply relative;
 }
 
@@ -1268,28 +1272,52 @@
 }
 
 .screener-price-markers {
-  @apply relative mb-1 h-[5.25rem];
+  @apply mb-2 flex items-end justify-between gap-2;
+}
+
+@screen sm {
+  .screener-price-markers {
+    @apply relative mb-1 h-[5.25rem];
+  }
 }
 
 .screener-price-marker {
-  @apply absolute bottom-0 flex flex-col items-center gap-0.5;
-  transform: translateX(-50%);
+  @apply flex min-w-0 max-w-[42%] flex-col gap-0.5;
 }
 
 .screener-price-marker-low {
-  left: var(--price-edge-inset);
+  @apply items-start text-left;
 }
 
 .screener-price-marker-high {
-  left: calc(100% - var(--price-edge-inset));
+  @apply items-end text-right;
 }
 
 .screener-price-marker-current {
-  @apply z-[1];
+  @apply hidden;
+}
+
+@screen sm {
+  .screener-price-marker {
+    @apply absolute bottom-0 max-w-none items-center;
+    transform: translateX(-50%);
+  }
+
+  .screener-price-marker-low {
+    left: var(--price-edge-inset);
+  }
+
+  .screener-price-marker-high {
+    left: calc(100% - var(--price-edge-inset));
+  }
+
+  .screener-price-marker-current {
+    @apply z-[1] flex;
+  }
 }
 
 .screener-price-marker-tag {
-  @apply whitespace-nowrap text-[10px] font-bold uppercase tracking-wide text-slate-500;
+  @apply text-[10px] font-bold uppercase tracking-wide text-slate-500;
 }
 
 .screener-price-marker-current .screener-price-marker-tag {
@@ -1305,7 +1333,7 @@
 }
 
 .screener-price-marker-value {
-  @apply whitespace-nowrap text-sm font-bold tabular-nums text-slate-900;
+  @apply text-xs font-bold tabular-nums text-slate-900 sm:text-sm;
 }
 
 .screener-price-track {
@@ -1331,7 +1359,7 @@
 }
 
 .screener-price-stat-seg {
-  @apply flex items-start justify-center text-center;
+  @apply flex min-w-0 items-start justify-center px-0.5 text-center;
 }
 
 .screener-price-stat-up {
@@ -1351,7 +1379,11 @@
 }
 
 .screener-table-wrap {
-  @apply -mx-1 overflow-x-auto;
+  @apply max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch];
+}
+
+.screener-table-hint {
+  @apply mb-2 text-[11px] font-medium text-slate-400 sm:hidden;
 }
 
 .screener-data-table {
@@ -1370,7 +1402,7 @@
   }
 
   .screener-sticky-col {
-    @apply sticky left-0 z-[1] min-w-[10rem] max-w-[14rem] border-r border-slate-200 bg-white text-left font-medium text-slate-800;
+    @apply sticky left-0 z-[1] min-w-[7.5rem] max-w-[10rem] border-r border-slate-200 bg-white text-left font-medium text-slate-800 sm:min-w-[10rem] sm:max-w-[14rem];
   }
 
   thead .screener-sticky-col {
@@ -1549,7 +1581,35 @@
 }
 
 .screener-compound-wrap {
-  @apply rounded-xl border border-slate-200 bg-white p-4;
+  @apply min-w-0 rounded-xl border border-slate-200 bg-white p-3 sm:p-4;
+}
+
+.screener-compound-cards {
+  @apply grid gap-2 sm:hidden;
+}
+
+.screener-compound-card {
+  @apply rounded-lg border border-slate-100 bg-slate-50/80 p-3;
+
+  h4 {
+    @apply mb-2 text-sm font-semibold text-slate-800;
+  }
+
+  dl {
+    @apply grid grid-cols-4 gap-2;
+  }
+
+  dt {
+    @apply text-[10px] font-bold uppercase tracking-wide text-slate-400;
+  }
+
+  dd {
+    @apply text-sm font-bold tabular-nums text-slate-900;
+  }
+}
+
+.screener-compound-table-wrap {
+  @apply hidden overflow-x-auto sm:block;
 }
 
 .screener-compound-table {
@@ -1577,9 +1637,25 @@
   }
 }
 
+.screener-holding-pattern {
+  @apply divide-y divide-slate-100 rounded-lg border border-slate-100;
+}
+
+.screener-holding-pattern-row {
+  @apply flex items-center justify-between gap-3 px-3 py-2.5 text-sm;
+
+  span:first-child {
+    @apply min-w-0 text-slate-600;
+  }
+
+  span:last-child {
+    @apply shrink-0 font-semibold tabular-nums text-slate-900;
+  }
+}
+
 /* Stock detail page */
 .stock-detail-page {
-  @apply w-full space-y-5;
+  @apply min-w-0 max-w-full space-y-4 overflow-x-clip sm:space-y-5;
 }
 
 .stock-detail-hero {
@@ -1587,19 +1663,23 @@
 }
 
 .stock-detail-hero-top {
-  @apply flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-6;
+  @apply flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3;
 }
 
 .stock-detail-back {
-  @apply inline-flex items-center gap-1 text-sm font-medium text-slate-500 transition hover:text-kairo-700;
+  @apply inline-flex min-h-9 shrink-0 items-center gap-1 text-sm font-medium text-slate-500 transition hover:text-kairo-700;
 }
 
 .stock-detail-hero-actions {
-  @apply flex flex-wrap items-center justify-end gap-2;
+  @apply flex min-w-0 flex-wrap items-center justify-end gap-2;
+}
+
+.stock-detail-label-btn {
+  @apply px-3 py-2 text-sm;
 }
 
 .stock-detail-hero-body {
-  @apply flex flex-col gap-6 px-4 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-6 sm:py-6;
+  @apply flex flex-col gap-4 px-3 py-4 sm:flex-row sm:items-end sm:justify-between sm:gap-6 sm:px-6 sm:py-6;
 }
 
 .stock-detail-identity {
@@ -1611,44 +1691,55 @@
 }
 
 .stock-detail-name {
-  @apply mt-1 truncate text-2xl font-bold text-slate-900 sm:text-3xl;
+  @apply mt-1 text-xl font-bold leading-tight text-slate-900 [overflow-wrap:anywhere] sm:text-3xl;
 }
 
 .stock-detail-exchange {
-  @apply mt-1 text-xs font-medium text-slate-400;
+  @apply mt-1 break-all text-xs font-medium text-slate-400;
 }
 
 .stock-detail-quote {
-  @apply shrink-0 text-right;
+  @apply min-w-0 sm:shrink-0 sm:text-right;
+}
+
+.stock-detail-quote-row {
+  @apply flex flex-wrap items-baseline gap-x-3 gap-y-1;
+}
+
+.stock-detail-quote .stock-detail-quote-row {
+  @apply sm:justify-end;
 }
 
 .stock-detail-ltp {
-  @apply text-3xl font-bold tabular-nums sm:text-4xl;
+  @apply text-3xl font-bold tabular-nums leading-none sm:text-4xl;
 }
 
 .stock-detail-ltp-muted {
-  @apply text-3xl font-bold text-slate-300;
+  @apply text-3xl font-bold leading-none text-slate-300;
 }
 
 .stock-detail-change {
-  @apply mt-1 text-sm font-semibold tabular-nums;
+  @apply text-sm font-semibold tabular-nums sm:mt-1;
 }
 
 .stock-detail-change-muted {
-  @apply mt-1 text-xs font-medium text-slate-400;
+  @apply text-xs font-medium text-slate-400 sm:mt-1;
 }
 
 .stock-detail-quote-meta {
-  @apply mt-2 flex flex-wrap justify-end gap-x-2 gap-y-0.5 text-[11px] text-slate-400;
+  @apply mt-2 flex flex-wrap gap-1.5 text-[11px] text-slate-500 sm:justify-end;
 
-  span:not(:last-child)::after {
-    content: '·';
-    @apply ml-2 text-slate-300;
+  span {
+    @apply rounded-full bg-slate-100 px-2 py-0.5 font-medium;
   }
 }
 
 .stock-fetch-cta {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-kairo-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-kairo-600/25 transition hover:bg-kairo-700 focus:outline-none focus:ring-2 focus:ring-kairo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-kairo-600 px-3 py-2 text-sm font-semibold text-white shadow-md shadow-kairo-600/25 transition hover:bg-kairo-700 focus:outline-none focus:ring-2 focus:ring-kairo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:gap-2 sm:px-4;
+}
+
+.stock-action-label {
+  @apply hidden min-[380px]:inline;
 }
 
 .stock-fetch-cta-lg {
@@ -1680,15 +1771,19 @@
 }
 
 .stock-detail-52w {
-  @apply rounded-xl border border-slate-200 bg-white px-4 py-4;
+  @apply min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white px-3 py-3 sm:px-4 sm:py-4;
 }
 
 .stock-detail-52w-labels {
-  @apply mb-2 flex justify-between text-xs text-slate-500;
+  @apply mb-2 flex items-start justify-between gap-3 text-[11px] text-slate-500 sm:text-xs;
+
+  span {
+    @apply min-w-0;
+  }
 }
 
 .stock-detail-52w-track {
-  @apply relative h-2 rounded-full bg-slate-100;
+  @apply relative mx-1.5 h-2 rounded-full bg-slate-100;
 }
 
 .stock-detail-52w-fill {
@@ -1696,7 +1791,7 @@
 }
 
 .stock-detail-52w-thumb {
-  @apply absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border-2 border-white bg-kairo-600 shadow;
+  @apply absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-kairo-600 shadow;
 }
 
 .stock-detail-52w-stats {
@@ -1712,11 +1807,23 @@
 }
 
 .stock-detail-tabs {
-  @apply flex gap-1 border-b border-slate-200;
+  @apply -mx-3 flex gap-0 overflow-x-auto border-b border-slate-200 px-1 overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] sm:mx-0 sm:px-0;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 .stock-detail-tab {
-  @apply relative px-4 py-2.5 text-sm font-semibold text-slate-500 transition hover:text-slate-800;
+  @apply relative shrink-0 px-3 py-2.5 text-sm font-semibold text-slate-500 transition hover:text-slate-800 sm:px-4;
+}
+
+.stock-detail-tab-short {
+  @apply sm:hidden;
+}
+
+.stock-detail-tab-full {
+  @apply hidden sm:inline;
 }
 
 .stock-detail-tab-active {
@@ -1733,11 +1840,11 @@
 }
 
 .stock-detail-metrics {
-  @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-4;
+  @apply grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4;
 }
 
 .stock-detail-metric {
-  @apply rounded-xl border border-slate-200 bg-white px-4 py-3;
+  @apply min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 sm:px-4;
 }
 
 .stock-detail-metric-label {
@@ -1745,11 +1852,11 @@
 }
 
 .stock-detail-metric-value {
-  @apply mt-1 block text-lg font-bold tabular-nums text-slate-900;
+  @apply mt-1 block truncate text-base font-bold tabular-nums text-slate-900 sm:text-lg;
 }
 
 .stock-detail-panel {
-  @apply rounded-xl border border-slate-200 bg-white p-4;
+  @apply min-w-0 rounded-xl border border-slate-200 bg-white p-3 sm:p-4;
 }
 
 .stock-detail-panel-title {
@@ -1757,15 +1864,115 @@
 }
 
 .stock-detail-levels-grid {
-  @apply grid gap-4 lg:grid-cols-2;
+  @apply grid gap-3 sm:gap-4 lg:grid-cols-2;
 }
 
 .stock-detail-level-row {
-  @apply flex justify-between text-sm;
+  @apply flex items-center justify-between gap-3 text-sm;
+}
+
+.stock-detail-chart {
+  @apply min-w-0 max-w-full overflow-hidden;
+}
+
+.stock-detail-relstr {
+  @apply flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm text-slate-600;
+}
+
+.stock-detail-level-form {
+  @apply mb-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap;
+}
+
+.stock-detail-level-input {
+  @apply min-w-0 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm sm:w-auto;
+}
+
+.stock-detail-level-add {
+  @apply col-span-2 py-2 text-sm sm:col-span-1 sm:py-1;
+}
+
+.stock-position-card {
+  @apply min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white;
+}
+
+.stock-position-head {
+  @apply flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3;
+}
+
+.stock-position-kicker {
+  @apply text-[11px] font-bold uppercase tracking-wide text-kairo-600;
+}
+
+.stock-position-asof {
+  @apply mt-0.5 text-xs text-slate-400;
+}
+
+.stock-position-pnl {
+  @apply shrink-0 text-right;
+}
+
+.stock-position-pnl-value {
+  @apply text-lg font-bold tabular-nums;
+}
+
+.stock-position-pnl-pct {
+  @apply text-xs font-semibold tabular-nums;
+}
+
+.stock-position-grid {
+  @apply grid grid-cols-2 gap-px bg-slate-100 sm:grid-cols-3;
+
+  div {
+    @apply bg-white px-4 py-3;
+  }
+
+  dt {
+    @apply text-[10px] font-bold uppercase tracking-wide text-slate-400;
+  }
+
+  dd {
+    @apply mt-0.5 text-sm font-semibold tabular-nums text-slate-900;
+  }
+}
+
+.stock-position-lots {
+  @apply border-t border-slate-100 p-3 sm:p-4;
+}
+
+.stock-ticket-list {
+  @apply space-y-2;
+}
+
+.stock-ticket {
+  @apply rounded-xl border border-slate-200 bg-white p-3;
+}
+
+.stock-ticket-top {
+  @apply flex items-start justify-between gap-3;
+}
+
+.stock-ticket-index {
+  @apply text-xs font-semibold uppercase tracking-wide text-slate-500;
+}
+
+.stock-ticket-meta {
+  @apply mt-2 grid grid-cols-2 gap-2;
+
+  dt {
+    @apply text-[10px] font-bold uppercase tracking-wide text-slate-400;
+  }
+
+  dd {
+    @apply text-xs font-semibold tabular-nums text-slate-800 [overflow-wrap:anywhere];
+  }
+}
+
+.stock-day-row {
+  @apply flex w-full items-center gap-2 px-3 py-3 text-left transition hover:bg-slate-50 sm:gap-3 sm:px-4;
 }
 
 .stock-detail-empty {
-  @apply flex flex-col items-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-14 text-center;
+  @apply flex flex-col items-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-10 text-center sm:px-6 sm:py-14;
 }
 
 .stock-detail-empty-icon {

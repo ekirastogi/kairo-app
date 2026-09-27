@@ -242,50 +242,58 @@
     } @else if (activeTab() === 'growth') {
       <div class="screener-compound-wrap">
         <h3 class="screener-analysis-heading">Compounded growth</h3>
-        <table class="screener-compound-table">
-          <thead>
-            <tr>
-              <th></th>
-              <th>10 Years</th>
-              <th>5 Years</th>
-              <th>3 Years</th>
-              <th>TTM / 1Y</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of analysis().compoundGrowth; track row.label) {
+        <div class="screener-compound-cards">
+          @for (row of analysis().compoundGrowth; track row.label) {
+            <article class="screener-compound-card">
+              <h4>{{ row.label }}</h4>
+              <dl>
+                <div><dt>10Y</dt><dd>{{ formatPct(row.y10) }}</dd></div>
+                <div><dt>5Y</dt><dd>{{ formatPct(row.y5) }}</dd></div>
+                <div><dt>3Y</dt><dd>{{ formatPct(row.y3) }}</dd></div>
+                <div><dt>TTM</dt><dd>{{ formatPct(row.ttm) }}</dd></div>
+              </dl>
+            </article>
+          }
+        </div>
+        <div class="screener-compound-table-wrap">
+          <table class="screener-compound-table">
+            <thead>
               <tr>
-                <td>{{ row.label }}</td>
-                <td>{{ formatPct(row.y10) }}</td>
-                <td>{{ formatPct(row.y5) }}</td>
-                <td>{{ formatPct(row.y3) }}</td>
-                <td>{{ formatPct(row.ttm) }}</td>
+                <th></th>
+                <th>10 Years</th>
+                <th>5 Years</th>
+                <th>3 Years</th>
+                <th>TTM / 1Y</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (row of analysis().compoundGrowth; track row.label) {
+                <tr>
+                  <td>{{ row.label }}</td>
+                  <td>{{ formatPct(row.y10) }}</td>
+                  <td>{{ formatPct(row.y5) }}</td>
+                  <td>{{ formatPct(row.y3) }}</td>
+                  <td>{{ formatPct(row.ttm) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
 
         <h3 class="screener-analysis-heading mt-5">Shareholding pattern</h3>
-        <table class="screener-compound-table">
-          <thead>
-            <tr>
-              <th>Holder</th>
-              <th>%</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td>Promoters</td><td>{{ formatPct(stock().promoterHolding) }}</td></tr>
-            <tr><td>FIIs</td><td>{{ formatPct(stock().fiiHolding) }}</td></tr>
-            <tr><td>DIIs</td><td>{{ formatPct(stock().diiHolding) }}</td></tr>
-            <tr><td>Public</td><td>{{ formatPct(stock().publicHolding) }}</td></tr>
-            <tr><td>Government</td><td>{{ formatPct(stock().governmentHolding) }}</td></tr>
-            <tr><td>Others</td><td>{{ formatPct(stock().otherHolding) }}</td></tr>
-          </tbody>
-        </table>
+        <div class="screener-holding-pattern">
+          <div class="screener-holding-pattern-row"><span>Promoters</span><span>{{ formatPct(stock().promoterHolding) }}</span></div>
+          <div class="screener-holding-pattern-row"><span>FIIs</span><span>{{ formatPct(stock().fiiHolding) }}</span></div>
+          <div class="screener-holding-pattern-row"><span>DIIs</span><span>{{ formatPct(stock().diiHolding) }}</span></div>
+          <div class="screener-holding-pattern-row"><span>Public</span><span>{{ formatPct(stock().publicHolding) }}</span></div>
+          <div class="screener-holding-pattern-row"><span>Government</span><span>{{ formatPct(stock().governmentHolding) }}</span></div>
+          <div class="screener-holding-pattern-row"><span>Others</span><span>{{ formatPct(stock().otherHolding) }}</span></div>
+        </div>
       </div>
     } @else {
       @if (activeTable(); as table) {
         <div class="screener-table-wrap">
+          <p class="screener-table-hint">Swipe to see more periods</p>
           <table class="screener-data-table">
             <thead>
               <tr>

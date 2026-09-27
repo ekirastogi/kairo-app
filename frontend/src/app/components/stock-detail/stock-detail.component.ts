@@ -17,7 +17,6 @@ import { OPEN_TRADE_POOL_DATE, TradePlanService } from '../../services/trade-pla
 import { TradingChartComponent } from '../trading-chart/trading-chart.component';
 import { ScreenerFundamentalsComponent } from '../screener-fundamentals/screener-fundamentals.component';
 import { StockLabelsManagerComponent } from '../stock-labels/stock-labels-manager.component';
-import { HoldingsTableComponent } from '../shared/holdings-table/holdings-table.component';
 import { TradePlanFormComponent } from '../trade-plans/trade-plan-form.component';
 import { PlannedTrade, RegistryStock } from '../../models/trading-journal.models';
 import { StockSnapshot } from '../../models/market.models';
@@ -42,7 +41,6 @@ import { normalizeSymbol } from '../../utils/upload-merge.utils';
     TradingChartComponent,
     ScreenerFundamentalsComponent,
     StockLabelsManagerComponent,
-    HoldingsTableComponent,
     TradePlanFormComponent,
   ],
   templateUrl: './stock-detail.component.html',
@@ -309,11 +307,6 @@ export class StockDetailComponent implements OnInit {
           normalizeSymbol(holding.stockName) === sym
       ) ?? null
     );
-  });
-
-  holdingRows = computed(() => {
-    const holding = this.myHolding();
-    return holding ? [holding] : [];
   });
 
   daySummaries = computed((): TradeDaySummary[] =>

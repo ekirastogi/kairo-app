@@ -2,7 +2,8 @@
   <header class="stock-detail-hero">
     <div class="stock-detail-hero-top">
       <button type="button" class="stock-detail-back" (click)="goBack()">
-        <span aria-hidden="true">←</span> Back
+        <span aria-hidden="true">←</span>
+        <span>Back</span>
       </button>
       <div class="stock-detail-hero-actions">
         <button
@@ -14,23 +15,23 @@
         >
           @if (screenerBusy()) {
             <span class="stock-fetch-spinner" aria-hidden="true"></span>
-            <span>Fetching from Screener…</span>
+            <span class="stock-action-label">Fetching…</span>
           } @else {
             <svg class="stock-fetch-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466A5.5 5.5 0 1112.28 6.28a.75.75 0 011.06 1.06 4 4 0 00-5.78 5.47 4 4 0 008.16-1.53.75.75 0 011.44.61z" clip-rule="evenodd" />
             </svg>
-            <span>Refresh</span>
+            <span class="stock-action-label">Refresh</span>
           }
         </button>
         <button
           type="button"
-          class="btn-secondary"
+          class="btn-secondary stock-detail-label-btn !px-3 !py-2"
           [class.btn-toggle-on]="showLabelPanel()"
           [disabled]="!auth.hasAccess"
           [attr.aria-expanded]="showLabelPanel()"
           (click)="showLabelPanel.set(!showLabelPanel())"
         >
-          {{ showLabelPanel() ? 'Hide labels' : 'Labels' }}
+          {{ showLabelPanel() ? 'Hide' : 'Labels' }}
         </button>
       </div>
     </div>
@@ -57,28 +58,32 @@
 
       <div class="stock-detail-quote">
         @if (displayPrice(); as price) {
-          <div
-            class="stock-detail-ltp"
-            [class.text-emerald-600]="price.fromMarket && price.change != null && price.change >= 0"
-            [class.text-red-600]="price.fromMarket && price.change != null && price.change < 0"
-          >
-            {{ fmtPrice(price.value) }}
-          </div>
-          @if (price.fromMarket && price.change != null && price.changePct != null) {
+          <div class="stock-detail-quote-row">
             <div
-              class="stock-detail-change"
-              [class.text-emerald-600]="price.change >= 0"
-              [class.text-red-600]="price.change < 0"
+              class="stock-detail-ltp"
+              [class.text-emerald-600]="price.fromMarket && price.change != null && price.change >= 0"
+              [class.text-red-600]="price.fromMarket && price.change != null && price.change < 0"
             >
-              {{ price.change >= 0 ? '+' : '' }}{{ price.change.toFixed(2) }}
-              ({{ fmtPct(price.changePct / 100) }})
+              {{ fmtPrice(price.value) }}
             </div>
-          } @else {
-            <div class="stock-detail-change-muted">From Screener</div>
-          }
+            @if (price.fromMarket && price.change != null && price.changePct != null) {
+              <div
+                class="stock-detail-change"
+                [class.text-emerald-600]="price.change >= 0"
+                [class.text-red-600]="price.change < 0"
+              >
+                {{ price.change >= 0 ? '+' : '' }}{{ price.change.toFixed(2) }}
+                <span>({{ fmtPct(price.changePct / 100) }})</span>
+              </div>
+            } @else {
+              <div class="stock-detail-change-muted">From Screener</div>
+            }
+          </div>
         } @else {
-          <div class="stock-detail-ltp-muted">—</div>
-          <div class="stock-detail-change-muted">Price not loaded</div>
+          <div class="stock-detail-quote-row">
+            <div class="stock-detail-ltp-muted">—</div>
+            <div class="stock-detail-change-muted">Price not loaded</div>
+          </div>
         }
 
         <div class="stock-detail-quote-meta">
@@ -139,7 +144,8 @@
       [class.stock-detail-tab-active]="activeTab() === 'fundamentals'"
       (click)="activeTab.set('fundamentals')"
     >
-      Fundamentals
+      <span class="stock-detail-tab-full">Fundamentals</span>
+      <span class="stock-detail-tab-short">Overview</span>
     </button>
     <button
       type="button"
@@ -157,7 +163,8 @@
       [class.stock-detail-tab-muted]="!myHolding()"
       (click)="activeTab.set('holdings')"
     >
-      Holdings
+      <span class="stock-detail-tab-full">Holdings</span>
+      <span class="stock-detail-tab-short">Position</span>
     </button>
     <button
       type="button"
@@ -165,7 +172,8 @@
       [class.stock-detail-tab-active]="activeTab() === 'my-trades'"
       (click)="activeTab.set('my-trades')"
     >
-      My Trades
+      <span class="stock-detail-tab-full">My Trades</span>
+      <span class="stock-detail-tab-short">Trades</span>
     </button>
     <button
       type="button"
@@ -173,7 +181,8 @@
       [class.stock-detail-tab-active]="activeTab() === 'trade-plan'"
       (click)="activeTab.set('trade-plan')"
     >
-      Trade plan
+      <span class="stock-detail-tab-full">Trade plan</span>
+      <span class="stock-detail-tab-short">Plan</span>
     </button>
   </nav>
 
@@ -205,14 +214,16 @@
     }
   } @else if (activeTab() === 'market') {
     @if (stock(); as s) {
-      <app-trading-chart
-        [chartView]="chartView()"
-        [supportLevels]="(s.supportLevels ?? []).slice(0, 3)"
-        [resistanceLevels]="(s.resistanceLevels ?? []).slice(0, 3)"
-        [userSupports]="userLevels()?.supports ?? []"
-        [userResistances]="userLevels()?.resistances ?? []"
-        [showSma]="true"
-      />
+      <div class="stock-detail-chart">
+        <app-trading-chart
+          [chartView]="chartView()"
+          [supportLevels]="(s.supportLevels ?? []).slice(0, 3)"
+          [resistanceLevels]="(s.resistanceLevels ?? []).slice(0, 3)"
+          [userSupports]="userLevels()?.supports ?? []"
+          [userResistances]="userLevels()?.resistances ?? []"
+          [showSma]="true"
+        />
+      </div>
 
       <div class="stock-detail-metrics">
         <div class="stock-detail-metric">
@@ -236,11 +247,11 @@
       </div>
 
       @if (s.vsNiftyPct != null || s.vsCapIndexPct != null) {
-        <div class="stock-detail-panel text-sm text-slate-600">
-          <span class="font-semibold text-slate-900">Relative strength:</span>
-          @if (s.vsNiftyPct != null) { Nifty {{ s.vsNiftyPct >= 0 ? '+' : '' }}{{ s.vsNiftyPct.toFixed(2) }}% }
-          @if (s.vsCapIndexPct != null) { · Cap index {{ s.vsCapIndexPct >= 0 ? '+' : '' }}{{ s.vsCapIndexPct.toFixed(2) }}% }
-          @if (s.vsSectorPct != null) { · {{ s.sector ?? 'Sector' }} {{ s.vsSectorPct >= 0 ? '+' : '' }}{{ s.vsSectorPct.toFixed(2) }}% }
+        <div class="stock-detail-panel stock-detail-relstr">
+          <span class="font-semibold text-slate-900">Relative strength</span>
+          @if (s.vsNiftyPct != null) { <span>Nifty {{ s.vsNiftyPct >= 0 ? '+' : '' }}{{ s.vsNiftyPct.toFixed(2) }}%</span> }
+          @if (s.vsCapIndexPct != null) { <span>Cap index {{ s.vsCapIndexPct >= 0 ? '+' : '' }}{{ s.vsCapIndexPct.toFixed(2) }}%</span> }
+          @if (s.vsSectorPct != null) { <span>{{ s.sector ?? 'Sector' }} {{ s.vsSectorPct >= 0 ? '+' : '' }}{{ s.vsSectorPct.toFixed(2) }}%</span> }
         </div>
       }
 
@@ -270,20 +281,20 @@
         @if (levelError()) {
           <p class="mb-2 text-sm text-red-600">{{ levelError() }}</p>
         }
-        <div class="mb-4 flex flex-wrap gap-2">
-          <select class="rounded-lg border border-slate-200 px-2 py-1 text-sm" [(ngModel)]="newLevelType">
+        <div class="stock-detail-level-form">
+          <select class="stock-detail-level-input" [(ngModel)]="newLevelType">
             <option value="support">Support</option>
             <option value="resistance">Resistance</option>
           </select>
-          <input class="rounded-lg border border-slate-200 px-2 py-1 text-sm" placeholder="Price" [(ngModel)]="newLevelPrice" />
-          <input class="rounded-lg border border-slate-200 px-2 py-1 text-sm" placeholder="Label" [(ngModel)]="newLevelLabel" />
-          <button type="button" class="btn-primary !py-1 !text-sm" (click)="addUserLevel()">Add</button>
+          <input class="stock-detail-level-input" placeholder="Price" [(ngModel)]="newLevelPrice" />
+          <input class="stock-detail-level-input" placeholder="Label" [(ngModel)]="newLevelLabel" />
+          <button type="button" class="btn-primary stock-detail-level-add !py-2 !text-sm sm:!py-1" (click)="addUserLevel()">Add</button>
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
           <div>
             <h4 class="mb-2 text-xs font-semibold uppercase text-slate-500">Your supports</h4>
             @for (l of userLevels()?.supports ?? []; track l.id) {
-              <div class="stock-detail-level-row"><span>{{ l.label }}</span><span class="font-mono text-emerald-600">{{ fmtPrice(l.price) }}</span></div>
+              <div class="stock-detail-level-row"><span class="min-w-0 truncate">{{ l.label }}</span><span class="shrink-0 font-mono text-emerald-600">{{ fmtPrice(l.price) }}</span></div>
             } @empty {
               <p class="text-xs text-slate-400">None yet</p>
             }
@@ -291,7 +302,7 @@
           <div>
             <h4 class="mb-2 text-xs font-semibold uppercase text-slate-500">Your resistances</h4>
             @for (l of userLevels()?.resistances ?? []; track l.id) {
-              <div class="stock-detail-level-row"><span>{{ l.label }}</span><span class="font-mono text-red-600">{{ fmtPrice(l.price) }}</span></div>
+              <div class="stock-detail-level-row"><span class="min-w-0 truncate">{{ l.label }}</span><span class="shrink-0 font-mono text-red-600">{{ fmtPrice(l.price) }}</span></div>
             } @empty {
               <p class="text-xs text-slate-400">None yet</p>
             }
@@ -309,8 +320,66 @@
       </div>
     }
   } @else if (activeTab() === 'holdings') {
-    @if (myHolding()) {
-      <app-holdings-table [holdings]="holdingRows()" emptyMessage="No open position in this stock" />
+    @if (myHolding(); as holding) {
+      <article class="stock-position-card">
+        <div class="stock-position-head">
+          <div>
+            <p class="stock-position-kicker">Open position</p>
+            <p class="stock-position-asof">As of {{ formatDate(holding.asOfDate) }}</p>
+          </div>
+          <div class="stock-position-pnl">
+            <p class="stock-position-pnl-value" [class]="pnlClass(holding.unrealisedPnL)">{{ fmt(holding.unrealisedPnL) }}</p>
+            <p class="stock-position-pnl-pct" [class]="pnlClass(holding.unrealisedPnL)">{{ fmtPct(holding.unrealisedPnLPct) }}</p>
+          </div>
+        </div>
+        <dl class="stock-position-grid">
+          <div>
+            <dt>Qty</dt>
+            <dd>{{ holding.quantity | number }}</dd>
+          </div>
+          <div>
+            <dt>Avg buy</dt>
+            <dd>{{ fmtPrice(holding.avgBuyPrice) }}</dd>
+          </div>
+          <div>
+            <dt>Close</dt>
+            <dd>{{ fmtPrice(holding.closingPrice) }}</dd>
+          </div>
+          <div>
+            <dt>Lots</dt>
+            <dd>{{ holding.lots.length || 1 }}</dd>
+          </div>
+          <div>
+            <dt>Invested</dt>
+            <dd>{{ fmt(holding.buyValue) }}</dd>
+          </div>
+          <div>
+            <dt>Current</dt>
+            <dd>{{ fmt(holding.closingValue) }}</dd>
+          </div>
+        </dl>
+        @if (holding.lots.length) {
+          <div class="stock-position-lots">
+            <h3 class="stock-detail-panel-title">Open lots</h3>
+            <div class="stock-ticket-list">
+              @for (lot of holding.lots; track lot.isin + lot.buyDate + lot.quantity + lot.buyPrice; let j = $index) {
+                <div class="stock-ticket">
+                  <div class="stock-ticket-top">
+                    <span class="stock-ticket-index">Lot {{ j + 1 }}</span>
+                    <span class="font-semibold tabular-nums" [class]="pnlClass(lot.unrealisedPnL)">{{ fmt(lot.unrealisedPnL) }}</span>
+                  </div>
+                  <dl class="stock-ticket-meta">
+                    <div><dt>Buy</dt><dd>{{ formatDate(lot.buyDate) }}</dd></div>
+                    <div><dt>Qty</dt><dd>{{ lot.quantity | number }}</dd></div>
+                    <div><dt>Buy price</dt><dd>{{ fmtPrice(lot.buyPrice) }}</dd></div>
+                    <div><dt>Close</dt><dd>{{ fmtPrice(lot.closingPrice) }}</dd></div>
+                  </dl>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </article>
     } @else {
       <div class="stock-detail-empty">
         <div class="stock-detail-empty-icon" aria-hidden="true"></div>
@@ -351,7 +420,7 @@
           <div class="overflow-hidden rounded-lg border border-slate-200 bg-white">
             <button
               type="button"
-              class="flex w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-slate-50 sm:px-4"
+              class="stock-day-row"
               (click)="toggleDayExpand(day.date, $event)"
             >
               <div class="min-w-0 flex-1">
@@ -384,7 +453,35 @@
             </button>
             @if (isDayExpanded(day.date)) {
               <div class="border-t border-slate-100 bg-slate-50/50">
-                <div class="overflow-x-auto">
+                <div class="stock-ticket-list p-3 sm:hidden">
+                  @for (trade of day.trades; track trade.isin + trade.sellDate + trade.buyDate + trade.quantity; let ti = $index) {
+                    <div class="stock-ticket">
+                      <div class="stock-ticket-top">
+                        <span class="stock-ticket-index">#{{ ti + 1 }} · {{ tradeTypeLabel(trade.tradeType) }}</span>
+                        <span class="font-semibold tabular-nums" [class]="pnlClass(tradeNetPnL(trade))">{{ fmt(tradeNetPnL(trade)) }}</span>
+                      </div>
+                      <dl class="stock-ticket-meta">
+                        <div>
+                          <dt>Qty</dt>
+                          <dd>{{ trade.quantity | number }}</dd>
+                        </div>
+                        <div>
+                          <dt>Buy</dt>
+                          <dd>{{ formatDate(trade.buyDate) }} · {{ fmtPrice(trade.buyPrice) }}</dd>
+                        </div>
+                        <div>
+                          <dt>Sell</dt>
+                          <dd>{{ formatDate(trade.sellDate) }} · {{ fmtPrice(trade.sellPrice) }}</dd>
+                        </div>
+                        <div>
+                          <dt>P&amp;L</dt>
+                          <dd [class]="pnlClass(trade.realisedPnL)">{{ fmt(trade.realisedPnL) }}</dd>
+                        </div>
+                      </dl>
+                    </div>
+                  }
+                </div>
+                <div class="hidden overflow-x-auto sm:block">
                   <table class="data-table min-w-[560px]">
                     <thead>
                       <tr>
@@ -439,7 +536,7 @@
   } @else if (activeTab() === 'trade-plan') {
     <div class="space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <p class="text-sm text-slate-500">Plans for {{ symbol() }} from this page or Trade plans.</p>
+        <p class="min-w-0 text-sm text-slate-500">Plans for {{ symbol() }} from this page or Trade plans.</p>
         @if (!showPlanForm()) {
           <button type="button" class="btn-primary text-sm" (click)="showPlanForm.set(true)">+ Add trade plan</button>
         }
@@ -454,39 +551,27 @@
       } @else if (plansLoading()) {
         <p class="text-sm text-slate-500">Loading trade plans…</p>
       } @else if (stockPlans().length) {
-        <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table class="stock-table min-w-[640px]">
-            <thead>
-              <tr>
-                <th class="text-left">Date</th>
-                <th class="text-left">Segment</th>
-                <th class="text-right">Qty</th>
-                <th class="text-right">Entry</th>
-                <th class="text-right">Target</th>
-                <th class="text-right">Est. P&amp;L</th>
-                <th class="text-left">Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (plan of stockPlans(); track plan.id) {
-                <tr>
-                  <td>{{ planDateLabel(plan) }}</td>
-                  <td class="capitalize">{{ plan.segment }} {{ plan.direction }}</td>
-                  <td class="text-right tabular-nums">{{ plan.quantity | number }}</td>
-                  <td class="text-right tabular-nums">{{ fmtPrice(plan.entryPrice) }}</td>
-                  <td class="text-right tabular-nums">{{ fmtPrice(plan.targetPrice) }}</td>
-                  <td class="text-right tabular-nums" [class]="pnlClass(plan.realizedPnL ?? plan.estimatedPnL)">
+        <div class="stock-ticket-list">
+          @for (plan of stockPlans(); track plan.id) {
+            <article class="stock-ticket">
+              <div class="stock-ticket-top">
+                <div class="min-w-0">
+                  <p class="stock-ticket-index">{{ planDateLabel(plan) }} · {{ plan.segment }} {{ plan.direction }}</p>
+                  <p class="mt-0.5 text-xs capitalize text-slate-500">{{ plan.status }} · Qty {{ plan.quantity | number }}</p>
+                </div>
+                <div class="shrink-0 text-right">
+                  <p class="text-sm font-bold tabular-nums" [class]="pnlClass(plan.realizedPnL ?? plan.estimatedPnL)">
                     {{ fmt(plan.realizedPnL ?? plan.estimatedPnL) }}
-                  </td>
-                  <td class="capitalize">{{ plan.status }}</td>
-                  <td class="text-right">
-                    <a class="text-sm font-semibold text-kairo-700 hover:underline" [routerLink]="['/trade-plans', plan.id, 'edit']">Edit</a>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
+                  </p>
+                  <a class="text-xs font-semibold text-kairo-700 hover:underline" [routerLink]="['/trade-plans', plan.id, 'edit']">Edit</a>
+                </div>
+              </div>
+              <dl class="stock-ticket-meta">
+                <div><dt>Entry</dt><dd>{{ fmtPrice(plan.entryPrice) }}</dd></div>
+                <div><dt>Target</dt><dd>{{ fmtPrice(plan.targetPrice) }}</dd></div>
+              </dl>
+            </article>
+          }
         </div>
       } @else {
         <div class="stock-detail-empty">
@@ -499,4 +584,3 @@
     </div>
   }
 </div>
-

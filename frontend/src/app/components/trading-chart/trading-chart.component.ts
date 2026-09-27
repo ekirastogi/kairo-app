@@ -17,10 +17,10 @@ import { UserLevel } from '../../services/stock-levels.service';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="space-y-2">
-      <div #chartContainer class="h-80 w-full rounded-lg border border-slate-200 bg-white"></div>
+    <div class="min-w-0 max-w-full space-y-2 overflow-hidden">
+      <div #chartContainer class="h-64 w-full max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white sm:h-80"></div>
       @if (showMacd || showRsi) {
-        <div #macdContainer class="h-24 w-full rounded-lg border border-slate-200 bg-white"></div>
+        <div #macdContainer class="h-24 w-full max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white"></div>
       }
     </div>
   `,
@@ -66,6 +66,7 @@ export class TradingChartComponent implements OnChanges, OnDestroy {
 
     if (!this.chart) {
       this.chart = createChart(this.container.nativeElement, {
+        autoSize: true,
         layout: { background: { color: '#ffffff' }, textColor: '#334155' },
         grid: { vertLines: { color: '#f1f5f9' }, horzLines: { color: '#f1f5f9' } },
         rightPriceScale: { borderColor: '#e2e8f0' },
