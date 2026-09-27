@@ -307,11 +307,6 @@
               Stock <span>{{ tableSort.indicator('symbol') }}</span>
             </button>
           </th>
-          <th class="desk col-side">
-            <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('action')" (click)="toggleSort('action', $event)">
-              Side <span>{{ tableSort.indicator('action') }}</span>
-            </button>
-          </th>
           <th class="num col-trigger">
             <button type="button" class="sort-btn" [class.sort-btn-active]="tableSort.isActive('targetPrice')" (click)="toggleSort('targetPrice', $event)">
               Trigger <span>{{ tableSort.indicator('targetPrice') }}</span>
@@ -339,15 +334,15 @@
         @for (row of rows(); track row.id) {
           <tr [class]="rowClass(row)" (click)="toggleExpanded(row)">
             <td class="stock col-stock">
-              <a
-                class="sym"
-                [routerLink]="['/stock', row.symbol]"
-                (click)="$event.stopPropagation()"
-              >{{ row.symbol }}</a>
+              <span class="stock-id">
+                <a
+                  class="sym"
+                  [routerLink]="['/stock', row.symbol]"
+                  (click)="$event.stopPropagation()"
+                >{{ row.symbol }}</a>
+                <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
+              </span>
               <span class="name">{{ row.stockName || row.isin || row.symbol }}</span>
-            </td>
-            <td class="desk col-side">
-              <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
             </td>
             <td class="num trigger col-trigger">{{ formatPrice(row.targetPrice) }}</td>
             <td class="desk num col-cmp">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</td>
@@ -373,7 +368,7 @@
           </tr>
           @if (isExpanded(row)) {
             <tr class="plan-expand">
-              <td colspan="7">
+              <td colspan="6">
                 <div class="ticket">
                   <dl class="ticket-facts">
                     <div>
@@ -533,7 +528,7 @@
           }
         } @empty {
           <tr>
-            <td colspan="7" class="empty">{{ lockedSymbol() ? 'No open plans for this stock.' : 'No plans yet. Add a registry stock to start.' }}</td>
+            <td colspan="6" class="empty">{{ lockedSymbol() ? 'No open plans for this stock.' : 'No plans yet. Add a registry stock to start.' }}</td>
           </tr>
         }
       </tbody>
@@ -574,7 +569,6 @@
                   Stock <span>{{ historySort.indicator('symbol') }}</span>
                 </button>
               </th>
-              <th class="desk col-side">Side</th>
               <th class="num col-trigger">Entry</th>
               <th class="desk num col-cmp">Exit</th>
               <th class="num col-diff">Win %</th>
@@ -590,10 +584,12 @@
             @for (row of historyRows(); track row.id) {
               <tr class="plan-row" [class.plan-row-hot]="row.netPnL > 0" (click)="toggleExpanded(row)">
                 <td class="stock col-stock">
-                  <a class="sym" [routerLink]="['/stock', row.symbol]" (click)="$event.stopPropagation()">{{ row.symbol }}</a>
+                  <span class="stock-id">
+                    <a class="sym" [routerLink]="['/stock', row.symbol]" (click)="$event.stopPropagation()">{{ row.symbol }}</a>
+                    <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
+                  </span>
                   <span class="name">{{ row.stockName || row.symbol }}{{ row.executedAt ? ' · ' + (row.executedAt | date:'d MMM') : '' }}</span>
                 </td>
-                <td class="desk col-side"><span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span></td>
                 <td class="num trigger col-trigger">{{ formatPrice(row.entry) }}</td>
                 <td class="desk num col-cmp">{{ formatPrice(row.exit) }}</td>
                 <td class="num col-diff" [class]="proximityClass({ proximity: row.netPnL > 0 ? 'hot' : row.netPnL < 0 ? 'near' : null, diffPct: row.winPct })">
@@ -610,7 +606,7 @@
               </tr>
               @if (isExpanded(row)) {
                 <tr class="plan-expand">
-                  <td colspan="7">
+                  <td colspan="6">
                     <div class="ticket">
                       <dl class="ticket-facts">
                         <div>
@@ -662,7 +658,7 @@
               }
             } @empty {
               <tr>
-                <td colspan="7" class="empty">{{ lockedSymbol() ? 'No closed plans for this stock.' : 'No closed trades yet. Close a plan from Open to see it here.' }}</td>
+                <td colspan="6" class="empty">{{ lockedSymbol() ? 'No closed plans for this stock.' : 'No closed trades yet. Close a plan from Open to see it here.' }}</td>
               </tr>
             }
           </tbody>
