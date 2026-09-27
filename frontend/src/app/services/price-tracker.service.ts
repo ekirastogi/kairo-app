@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, of, switchMap } from 'rxjs';
+import { Observable, Subject, from, merge, of, switchMap } from 'rxjs';
 import { ExecutionLeg, TradeSegment } from '../models/trading-journal.models';
 import { TradePlanService } from './trade-plan.service';
 import { AuthService } from './auth.service';
@@ -59,14 +59,22 @@ export interface SavePriceTrackerInput {
 export class PriceTrackerService {
   private supabase = inject(SupabaseService);
   private auth = inject(AuthService);
+  private refreshOpen$ = new Subject<void>();
 
   watchAll(): Observable<PriceTracker[]> {
     return this.auth.user$.pipe(
       switchMap((user) => {
         if (!user) return of([]);
-        return this.supabase.watchTable('price_trackers-open', () => this.listOpen(), 0, 'price_trackers');
+        return merge(
+          this.supabase.watchTable('price_trackers-open', () => this.listOpen(), 0, 'price_trackers'),
+          this.refreshOpen$.pipe(switchMap(() => from(this.listOpen())))
+        );
       })
     );
+  }
+
+  private notifyOpenChanged(): void {
+    this.refreshOpen$.next();
   }
 
   async listOpen(): Promise<PriceTracker[]> {
@@ -135,11 +143,13 @@ export class PriceTrackerService {
         .eq('id', id)
         .eq('user_id', uid);
       if (error) throw error;
+      this.notifyOpenChanged();
       return rowId;
     }
 
     const { error } = await this.supabase.client.from('price_trackers').insert(row);
     if (error) throw error;
+    this.notifyOpenChanged();
     return rowId;
   }
 
@@ -152,6 +162,7 @@ export class PriceTrackerService {
       .eq('id', id)
       .eq('user_id', uid);
     if (error) throw error;
+    this.notifyOpenChanged();
   }
 
   async applyQuote(symbol: string, quote: MarketQuote): Promise<void> {
@@ -171,6 +182,7 @@ export class PriceTrackerService {
       .eq('symbol', symbol.toUpperCase())
       .eq('status', 'open');
     if (error) throw error;
+    this.notifyOpenChanged();
   }
 
   async execute(id: string, buyLegs: ExecutionLeg[], sellLegs: ExecutionLeg[]): Promise<void> {
@@ -193,6 +205,7 @@ export class PriceTrackerService {
       .eq('id', id)
       .eq('user_id', uid);
     if (error) throw error;
+    this.notifyOpenChanged();
   }
 
   async reopen(id: string): Promise<void> {
@@ -213,6 +226,7 @@ export class PriceTrackerService {
       .eq('id', id)
       .eq('user_id', uid);
     if (error) throw error;
+    this.notifyOpenChanged();
   }
 }
 
