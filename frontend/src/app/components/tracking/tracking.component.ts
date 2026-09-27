@@ -12,6 +12,7 @@ import { RegistryStockService } from '../../services/registry-stock.service';
 import { ToastService } from '../../services/toast.service';
 import { formatDataAge } from '../../utils/data-age.utils';
 import { formatCurrency, formatPrice, formatPctSigned, pnlClass } from '../../utils/format.utils';
+import { normalizeIsin } from '../../utils/stock-identity.utils';
 import {
   TrackerPlanSnapshot,
   allocateTrackerSlices,
@@ -40,6 +41,7 @@ const ACTION_PRESETS = ['Long', 'Short'] as const;
 const SEGMENT_PRESETS: TradeSegment[] = ['intraday', 'delivery'];
 const AUTO_REFRESH_MS = 60_000;
 const AUTO_REFRESH_KEY = 'kairo-tracking-auto-refresh';
+const CMP_STALE_MS = 24 * 60 * 60 * 1000;
 
 interface TrackerEconomics {
   quantity: number;
@@ -82,7 +84,7 @@ export class TrackingComponent implements OnInit, OnDestroy {
   private charges = inject(ChargesService);
 
   trackers = toSignal(this.trackerSvc.watchAll(), { initialValue: [] as PriceTracker[] });
-  registry = signal<RegistryStock[]>([]);
+  registry = toSignal(this.registrySvc.watchAll(), { initialValue: [] as RegistryStock[] });
 
   formOpen = signal(false);
   editingId = signal<string | null>(null);
@@ -149,11 +151,14 @@ export class TrackingComponent implements OnInit, OnDestroy {
     const q = this.searchQuery().trim().toLowerCase();
     const mapped: TrackerRow[] = this.trackers().map((t) => {
       const economics = this.economicsFor(t);
+      const cmp = this.liveCmp(t);
       return {
         ...t,
-        diffPct: trackerDiffPct(t.cmp, t.targetPrice),
-        absDiffPct: trackerAbsDiffPct(t.cmp, t.targetPrice),
-        proximity: trackerProximity(t.cmp, t.targetPrice),
+        cmp,
+        cmpFetchedAt: this.liveCmpAt(t),
+        diffPct: trackerDiffPct(cmp, t.targetPrice),
+        absDiffPct: trackerAbsDiffPct(cmp, t.targetPrice),
+        proximity: trackerProximity(cmp, t.targetPrice),
         sized: economics != null,
         economics,
       };
@@ -222,11 +227,6 @@ export class TrackingComponent implements OnInit, OnDestroy {
   });
 
   async ngOnInit(): Promise<void> {
-    try {
-      this.registry.set(await this.registrySvc.listAll());
-    } catch {
-      // Symbol picker falls back to an empty list.
-    }
     if (typeof localStorage !== 'undefined' && localStorage.getItem(AUTO_REFRESH_KEY) === '1') {
       this.setAutoRefresh(true);
     }
@@ -569,9 +569,6 @@ export class TrackingComponent implements OnInit, OnDestroy {
 
     this.busy.set(true);
     try {
-      const existing = this.editingId()
-        ? this.trackers().find((t) => t.id === this.editingId())
-        : undefined;
       await this.trackerSvc.save(
         {
           symbol: picked.symbol,
@@ -585,9 +582,6 @@ export class TrackingComponent implements OnInit, OnDestroy {
           segment: Number.isFinite(quantity) && quantity > 0 ? this.form.segment : null,
           entryPrice: Number.isFinite(entryPrice) && entryPrice > 0 ? entryPrice : null,
           stopLoss: Number.isFinite(stopLoss) && stopLoss > 0 ? stopLoss : null,
-          cmp: existing?.cmp ?? (picked.currentPrice > 0 ? picked.currentPrice : undefined),
-          cmpSource: existing?.cmpSource ?? this.quotes.source,
-          cmpFetchedAt: existing?.cmpFetchedAt,
           notes: this.form.notes,
         },
         this.editingId() ?? undefined
@@ -619,32 +613,45 @@ export class TrackingComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const stale = symbols.filter((symbol) => {
+      const plan = this.trackers().find((t) => t.symbol === symbol);
+      return this.isCmpStale(plan ?? { symbol });
+    });
+    const skipped = symbols.length - stale.length;
+    if (!stale.length) {
+      if (!opts.silent) this.toast.success('All CMPs are fresh (updated within 1 day).');
+      return;
+    }
+
     this.refreshBusy.set(true);
     const failed: string[] = [];
     let updated = 0;
     try {
-      this.refreshTotal.set(symbols.length);
-      for (const [index, symbol] of symbols.entries()) {
+      this.refreshTotal.set(stale.length);
+      for (const [index, symbol] of stale.entries()) {
         this.refreshDone.set(index);
         const plan = this.trackers().find((t) => t.symbol === symbol);
+        const registry = this.registryFor(plan ?? { symbol });
+        if (!registry) {
+          failed.push(symbol);
+          continue;
+        }
         try {
           const quote = await this.quotes.quote(symbol, {
-            isin: plan?.isin || this.findRegistry(symbol)?.isin,
+            isin: plan?.isin || registry.isin,
           });
-          await this.trackerSvc.applyQuote(symbol, quote);
-          const registry = this.findRegistry(symbol);
-          if (registry) {
-            await this.registrySvc.save({ ...registry, currentPrice: quote.price });
-          }
+          await this.registrySvc.save({ ...registry, currentPrice: quote.price });
           updated++;
         } catch {
           failed.push(symbol);
         }
       }
+      this.registrySvc.reload();
+      const skipNote = skipped ? ` ${skipped} already fresh.` : '';
       const failNote = failed.length
         ? ` ${failed.length} failed: ${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}.`
         : '';
-      const message = `Refreshed CMP for ${updated} stock${updated === 1 ? '' : 's'} from ${this.quotes.source}.${failNote}`;
+      const message = `Refreshed CMP for ${updated} stock${updated === 1 ? '' : 's'} from ${this.quotes.source}.${skipNote}${failNote}`;
       if (failed.length) this.toast.error(message);
       else if (!opts.silent) this.toast.success(message);
     } finally {
@@ -739,6 +746,31 @@ export class TrackingComponent implements OnInit, OnDestroy {
     const q = value.trim().toUpperCase();
     if (!q) return undefined;
     return this.registry().find((s) => s.symbol === q);
+  }
+
+  private registryFor(plan: { symbol: string; isin?: string }): RegistryStock | undefined {
+    const symbol = plan.symbol.trim().toUpperCase();
+    const bySymbol = this.registry().find((s) => s.symbol === symbol);
+    if (bySymbol) return bySymbol;
+    const isin = normalizeIsin(plan.isin);
+    if (!isin) return undefined;
+    return this.registry().find((s) => normalizeIsin(s.isin) === isin);
+  }
+
+  private liveCmp(plan: { symbol: string; isin?: string }): number | undefined {
+    const price = this.registryFor(plan)?.currentPrice;
+    return price != null && price > 0 ? price : undefined;
+  }
+
+  private liveCmpAt(plan: { symbol: string; isin?: string }): number | undefined {
+    const at = this.registryFor(plan)?.updatedAt;
+    return at != null && at > 0 ? at : undefined;
+  }
+
+  private isCmpStale(plan: { symbol: string; isin?: string }): boolean {
+    const registry = this.registryFor(plan);
+    if (!registry || !(registry.currentPrice > 0) || !(registry.updatedAt > 0)) return true;
+    return Date.now() - registry.updatedAt > CMP_STALE_MS;
   }
 
   private applyRegistry(stock: RegistryStock): void {

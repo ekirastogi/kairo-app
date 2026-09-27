@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, of, shareReplay, switchMap } from 'rxjs';
+import { Observable, Subject, from, merge, of, shareReplay, switchMap } from 'rxjs';
 import { RegistryStock } from '../models/trading-journal.models';
 import { normalizeIsin, uniqueByKey } from '../utils/stock-identity.utils';
 import { AuthService } from './auth.service';
@@ -32,7 +32,10 @@ export class RegistryStockService {
     this.allStream ??= this.auth.user$.pipe(
       switchMap((user) => {
         if (!user) return of([]);
-        return this.supabase.watchTable('registry_stocks', () => this.listAll());
+        return merge(
+          this.supabase.watchTable('registry_stocks', () => this.listAll()),
+          this.refresh$.pipe(switchMap(() => from(this.listAll())))
+        );
       }),
       shareReplay({ bufferSize: 1, refCount: false })
     );
@@ -40,6 +43,11 @@ export class RegistryStockService {
   }
 
   private allStream?: Observable<RegistryStock[]>;
+  private refresh$ = new Subject<void>();
+
+  reload(): void {
+    this.refresh$.next();
+  }
 
   async getBySymbol(symbol: string): Promise<RegistryStock | null> {
     await this.auth.whenReady();

@@ -3,7 +3,7 @@ import { Observable, Subject, from, merge, of, switchMap } from 'rxjs';
 import { ExecutionLeg, TradeSegment } from '../models/trading-journal.models';
 import { TradePlanService } from './trade-plan.service';
 import { AuthService } from './auth.service';
-import { MarketQuote, MarketQuoteSource } from './market-quote.service';
+import { MarketQuoteSource } from './market-quote.service';
 import { objectToSnake, rowToCamel, SupabaseService } from './supabase.service';
 import {
   TrackerTarget,
@@ -44,9 +44,6 @@ export interface SavePriceTrackerInput {
   action: string;
   targetPrice: number;
   nextTargets?: Array<string | number>;
-  cmp?: number;
-  cmpSource?: MarketQuoteSource;
-  cmpFetchedAt?: number;
   notes?: string;
   quantity?: number | null;
   segment?: TradeSegment | null;
@@ -123,9 +120,6 @@ export class PriceTrackerService {
       action,
       targetPrice: input.targetPrice,
       nextTargets: parsePositivePrices(input.nextTargets ?? targets.map((t) => t.price)),
-      cmp: input.cmp ?? null,
-      cmpSource: input.cmpSource ?? 'screener',
-      cmpFetchedAt: input.cmpFetchedAt ?? null,
       notes: input.notes?.trim() ?? '',
       quantity,
       segment: quantity ? (input.segment === 'delivery' ? 'delivery' : 'intraday') : null,
@@ -161,26 +155,6 @@ export class PriceTrackerService {
       .delete()
       .eq('id', id)
       .eq('user_id', uid);
-    if (error) throw error;
-    this.notifyOpenChanged();
-  }
-
-  async applyQuote(symbol: string, quote: MarketQuote): Promise<void> {
-    const uid = await this.auth.getDataUserId();
-    if (!uid) throw new Error('Sign in to refresh CMP');
-    const { error } = await this.supabase.client
-      .from('price_trackers')
-      .update(
-        objectToSnake({
-          cmp: quote.price,
-          cmpSource: quote.source,
-          cmpFetchedAt: quote.fetchedAt,
-          updatedAt: Date.now(),
-        })
-      )
-      .eq('user_id', uid)
-      .eq('symbol', symbol.toUpperCase())
-      .eq('status', 'open');
     if (error) throw error;
     this.notifyOpenChanged();
   }
