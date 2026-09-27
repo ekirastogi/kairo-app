@@ -2,13 +2,15 @@ import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { combineLatest, distinctUntilChanged, from, map, switchMap } from 'rxjs';
 import { ExecutionLeg, RegistryStock, TradeSegment } from '../../models/trading-journal.models';
 import { TradePlanService } from '../../services/trade-plan.service';
 import { ChargesService } from '../../services/charges.service';
 import { MarketQuoteService } from '../../services/market-quote.service';
 import { PriceTracker, PriceTrackerService } from '../../services/price-tracker.service';
 import { RegistryStockService } from '../../services/registry-stock.service';
+import { STOCK_SEARCH_MIN_CHARS, StockSearchService } from '../../services/stock-search.service';
 import { ToastService } from '../../services/toast.service';
 import { formatDataAge } from '../../utils/data-age.utils';
 import { formatCurrency, formatPrice, formatPctSigned, pnlClass } from '../../utils/format.utils';
@@ -79,18 +81,36 @@ interface HistoryRow extends PriceTracker {
 export class TrackingComponent implements OnInit, OnDestroy {
   private trackerSvc = inject(PriceTrackerService);
   private registrySvc = inject(RegistryStockService);
+  private stockSearch = inject(StockSearchService);
   private quotes = inject(MarketQuoteService);
   private toast = inject(ToastService);
   private charges = inject(ChargesService);
 
   trackers = toSignal(this.trackerSvc.watchAll(), { initialValue: [] as PriceTracker[] });
-  registry = toSignal(this.registrySvc.watchAll(), { initialValue: [] as RegistryStock[] });
+  private planRegistryTick = signal(0);
+  planRegistry = toSignal(
+    combineLatest([
+      toObservable(this.trackers).pipe(
+        map((rows) => [...new Set(rows.map((row) => row.symbol.toUpperCase()))].sort().join('\0')),
+        distinctUntilChanged()
+      ),
+      toObservable(this.planRegistryTick),
+    ]).pipe(
+      switchMap(([key]) => from(this.registrySvc.listBySymbols(key ? key.split('\0') : [])))
+    ),
+    { initialValue: [] as RegistryStock[] }
+  );
+  pickedRegistry = signal<RegistryStock[]>([]);
+  symbolQuery = signal('');
+  private symbolSearch = this.stockSearch.bindQuery(this.symbolQuery);
+  symbolOptions = this.symbolSearch.results;
+  symbolSearchBusy = this.symbolSearch.busy;
+  readonly symbolSearchMinChars = STOCK_SEARCH_MIN_CHARS;
 
   formOpen = signal(false);
   editingId = signal<string | null>(null);
   expandedId = signal<string | null>(null);
   searchQuery = signal('');
-  symbolQuery = signal('');
   busy = signal(false);
   refreshBusy = signal(false);
   refreshDone = signal(0);
@@ -131,20 +151,6 @@ export class TrackingComponent implements OnInit, OnDestroy {
     entryPrice: '',
     stopLoss: '',
   };
-
-  symbolOptions = computed(() => {
-    const q = this.symbolQuery().trim().toLowerCase();
-    const rows = this.registry();
-    if (!q) return rows.slice(0, 30);
-    return rows
-      .filter(
-        (s) =>
-          s.symbol.toLowerCase().includes(q) ||
-          (s.name ?? '').toLowerCase().includes(q) ||
-          (s.exchange ?? 'NSE').toLowerCase().includes(q)
-      )
-      .slice(0, 30);
-  });
 
   rows = computed(() => {
     this.charges.rates();
@@ -647,6 +653,7 @@ export class TrackingComponent implements OnInit, OnDestroy {
         }
       }
       this.registrySvc.reload();
+      this.planRegistryTick.update((n) => n + 1);
       const skipNote = skipped ? ` ${skipped} already fresh.` : '';
       const failNote = failed.length
         ? ` ${failed.length} failed: ${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}.`
@@ -742,19 +749,28 @@ export class TrackingComponent implements OnInit, OnDestroy {
     }
   }
 
+  private registryPool(): RegistryStock[] {
+    const bySymbol = new Map<string, RegistryStock>();
+    for (const stock of [...this.planRegistry(), ...this.symbolOptions(), ...this.pickedRegistry()]) {
+      bySymbol.set(stock.symbol.toUpperCase(), stock);
+    }
+    return [...bySymbol.values()];
+  }
+
   private findRegistry(value: string): RegistryStock | undefined {
     const q = value.trim().toUpperCase();
     if (!q) return undefined;
-    return this.registry().find((s) => s.symbol === q);
+    return this.registryPool().find((s) => s.symbol === q);
   }
 
   private registryFor(plan: { symbol: string; isin?: string }): RegistryStock | undefined {
     const symbol = plan.symbol.trim().toUpperCase();
-    const bySymbol = this.registry().find((s) => s.symbol === symbol);
+    const pool = this.registryPool();
+    const bySymbol = pool.find((s) => s.symbol === symbol);
     if (bySymbol) return bySymbol;
     const isin = normalizeIsin(plan.isin);
     if (!isin) return undefined;
-    return this.registry().find((s) => normalizeIsin(s.isin) === isin);
+    return pool.find((s) => normalizeIsin(s.isin) === isin);
   }
 
   private liveCmp(plan: { symbol: string; isin?: string }): number | undefined {
@@ -779,6 +795,11 @@ export class TrackingComponent implements OnInit, OnDestroy {
     this.form.isin = stock.isin ?? '';
     this.form.exchange = stock.exchange || 'NSE';
     this.symbolQuery.set(stock.symbol);
+    this.pickedRegistry.update((rows) => {
+      const next = rows.filter((row) => row.symbol !== stock.symbol);
+      next.push(stock);
+      return next;
+    });
   }
 
   private parsedExits(): Array<{ price: number; quantity?: number }> {

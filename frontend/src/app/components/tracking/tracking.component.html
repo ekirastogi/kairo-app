@@ -84,7 +84,7 @@
             [ngModel]="symbolQuery()"
             (ngModelChange)="onSymbolQuery($event)"
             [disabled]="!!editingId()"
-            placeholder="Search the registry…"
+            placeholder="Type at least 2 letters to search…"
           />
           <datalist id="tracking-symbol-options">
             @for (opt of symbolOptions(); track opt.symbol) {
@@ -93,11 +93,14 @@
           </datalist>
           @if (form.name && form.symbol) {
             <em>{{ form.name }}{{ form.exchange ? ' · ' + form.exchange : '' }}</em>
-          }
-          @if (!registry().length) {
-            <em class="!text-amber-700">
-              Registry is empty.
-              <a routerLink="/registry" class="underline">Add stocks first</a>
+          } @else if (symbolSearchBusy()) {
+            <em>Searching…</em>
+          } @else if (symbolQuery().trim().length > 0 && symbolQuery().trim().length < symbolSearchMinChars) {
+            <em>Type at least {{ symbolSearchMinChars }} characters</em>
+          } @else if (symbolQuery().trim().length >= symbolSearchMinChars && !symbolOptions().length) {
+            <em>
+              No matching stocks.
+              <a routerLink="/registry" class="underline">Open registry</a>
             </em>
           }
         </label>

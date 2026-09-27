@@ -64,6 +64,43 @@ export class RegistryStockService {
     return data ? rowToCamel<RegistryStock>(data) : null;
   }
 
+  async listBySymbols(symbols: string[]): Promise<RegistryStock[]> {
+    await this.auth.whenReady();
+    const uid = await this.auth.getDataUserId();
+    const unique = [...new Set(symbols.map((s) => s.trim().toUpperCase()).filter(Boolean))];
+    if (!uid || !unique.length) return [];
+    const out: RegistryStock[] = [];
+    const chunkSize = 200;
+    for (let i = 0; i < unique.length; i += chunkSize) {
+      const chunk = unique.slice(i, i + chunkSize);
+      const { data, error } = await this.supabase.client
+        .from('registry_stocks')
+        .select('*')
+        .eq('user_id', uid)
+        .in('symbol', chunk);
+      if (error) throw error;
+      out.push(...rowsToCamel<RegistryStock>(data ?? []));
+    }
+    return out;
+  }
+
+  async search(query: string, limit = 25): Promise<RegistryStock[]> {
+    await this.auth.whenReady();
+    const uid = await this.auth.getDataUserId();
+    const safe = query.trim().replace(/[%_\\,().]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (!uid || !safe) return [];
+    const pattern = `"%${safe}%"`;
+    const { data, error } = await this.supabase.client
+      .from('registry_stocks')
+      .select('*')
+      .eq('user_id', uid)
+      .or(`symbol.ilike.${pattern},name.ilike.${pattern},isin.ilike.${pattern}`)
+      .order('symbol', { ascending: true })
+      .limit(Math.min(Math.max(limit, 1), 25));
+    if (error) throw error;
+    return rowsToCamel<RegistryStock>(data ?? []);
+  }
+
   async getByIsin(isin: string): Promise<RegistryStock | null> {
     await this.auth.whenReady();
     const uid = await this.auth.getDataUserId();
