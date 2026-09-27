@@ -1,4 +1,4 @@
-<div class="plan-page">
+<div class="plan-page" [class.plan-page-locked]="!!lockedSymbol()">
   <div class="plan-toolbar">
     <div class="plan-tabs" role="tablist" aria-label="Trade plan views">
       <button
@@ -22,15 +22,17 @@
         History
       </button>
     </div>
-    <input
-      class="plan-search"
-      type="search"
-      placeholder="Search"
-      [ngModel]="searchQuery()"
-      (ngModelChange)="searchQuery.set($event)"
-    />
+    @if (!lockedSymbol()) {
+      <input
+        class="plan-search"
+        type="search"
+        placeholder="Search"
+        [ngModel]="searchQuery()"
+        (ngModelChange)="searchQuery.set($event)"
+      />
+    }
     <p class="plan-count">
-      {{ trackers().length }}
+      {{ rows().length }}
       @if (hotCount()) {
         <span class="text-emerald-700">· {{ hotCount() }} hot</span>
       }
@@ -76,6 +78,15 @@
       </header>
 
       <div class="plan-form-grid">
+        @if (lockedSymbol()) {
+          <div class="plan-field plan-field-full">
+            <span>Stock</span>
+            <p class="plan-locked-stock">{{ form.symbol || lockedSymbol() }}</p>
+            @if (form.name) {
+              <em>{{ form.name }}{{ form.exchange ? ' · ' + form.exchange : '' }}</em>
+            }
+          </div>
+        } @else {
         <label class="plan-field plan-field-full">
           <span>Stock</span>
           <input
@@ -104,6 +115,7 @@
             </em>
           }
         </label>
+        }
 
         <div class="plan-field">
           <span>Side</span>
@@ -312,45 +324,65 @@
             <tr class="plan-expand">
               <td colspan="7">
                 <div class="ticket">
-                  <p class="ticket-meta">
-                    <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
-                    @if (row.quantity) {
-                      <span>{{ row.quantity | number }} qty</span>
-                    }
-                    @if (row.segment) {
-                      <span>{{ row.segment === 'intraday' ? 'Intraday' : 'Delivery' }}</span>
-                    }
-                    @if (row.cmp) {
-                      <span>CMP {{ formatPrice(row.cmp) }}</span>
-                    }
-                    <span>Entry {{ formatPrice(entryFor(row)) }}</span>
-                    <span>SL {{ row.stopLoss != null ? formatPrice(row.stopLoss) : '—' }}</span>
-                    @if (row.cmpFetchedAt) {
-                      <span class="mute">{{ formatDataAge(row.cmpFetchedAt) }}</span>
-                    }
-                  </p>
+                  <dl class="ticket-facts">
+                    <div>
+                      <dt>Side</dt>
+                      <dd><span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span></dd>
+                    </div>
+                    <div>
+                      <dt>Quantity</dt>
+                      <dd>{{ row.quantity ? (row.quantity | number) : '—' }}</dd>
+                    </div>
+                    <div>
+                      <dt>Product</dt>
+                      <dd>{{ row.segment === 'delivery' ? 'Delivery' : row.segment === 'intraday' ? 'Intraday' : '—' }}</dd>
+                    </div>
+                    <div>
+                      <dt>CMP</dt>
+                      <dd>
+                        {{ row.cmp ? formatPrice(row.cmp) : '—' }}
+                        @if (row.cmpFetchedAt) {
+                          <span class="ticket-age">{{ formatDataAge(row.cmpFetchedAt) }}</span>
+                        }
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Entry</dt>
+                      <dd>{{ formatPrice(entryFor(row)) }}</dd>
+                    </div>
+                    <div>
+                      <dt>Stop loss</dt>
+                      <dd>{{ row.stopLoss != null ? formatPrice(row.stopLoss) : '—' }}</dd>
+                    </div>
+                  </dl>
 
                   @if (row.economics?.slices?.length || row.nextTargets.length) {
-                    <table class="levels">
+                    <div class="ticket-levels">
+                      <div class="ticket-levels-head">
+                        <span>Target</span>
+                        <span>Price</span>
+                        <span>Qty</span>
+                        <span>Net</span>
+                      </div>
                       @if (row.economics?.slices; as slices) {
                         @for (slice of slices; track slice.key) {
-                          <tr>
-                            <td>{{ slice.label }}</td>
-                            <td class="num">{{ formatPrice(slice.price) }}</td>
-                            <td class="num">{{ slice.quantity | number }}</td>
-                            <td class="num" [class]="pnlClass(slice.netPnL)">{{ formatCurrency(slice.netPnL) }}</td>
-                          </tr>
+                          <div class="ticket-levels-row">
+                            <span>{{ slice.label }}</span>
+                            <span>{{ formatPrice(slice.price) }}</span>
+                            <span>{{ slice.quantity | number }}</span>
+                            <span [class]="pnlClass(slice.netPnL)">{{ formatCurrency(slice.netPnL) }}</span>
+                          </div>
                         }
                       }
                       @for (price of row.nextTargets; track price) {
-                        <tr class="next">
-                          <td>Next</td>
-                          <td class="num">{{ formatPrice(price) }}</td>
-                          <td class="num mute">—</td>
-                          <td class="num mute">scale-in</td>
-                        </tr>
+                        <div class="ticket-levels-row next">
+                          <span>Next</span>
+                          <span>{{ formatPrice(price) }}</span>
+                          <span>—</span>
+                          <span>Scale-in</span>
+                        </div>
                       }
-                    </table>
+                    </div>
                   }
 
                   @if (row.notes) {
@@ -359,14 +391,26 @@
 
                   <div class="ticket-foot">
                     @if (row.economics) {
-                      <p class="ticket-pnl">
-                        <span>Gross <b [class]="pnlClass(grossPnL(row.economics))">{{ formatCurrency(grossPnL(row.economics)) }}</b></span>
-                        <span>Chg <b class="text-red-600">−{{ formatPrice(row.economics.charges) }}</b></span>
-                        <span>Net <b [class]="pnlClass(row.economics.netPnL)">{{ formatCurrency(row.economics.netPnL) }}</b></span>
+                      <dl class="ticket-facts ticket-result">
+                        <div>
+                          <dt>Gross</dt>
+                          <dd [class]="pnlClass(grossPnL(row.economics))">{{ formatCurrency(grossPnL(row.economics)) }}</dd>
+                        </div>
+                        <div>
+                          <dt>Charges</dt>
+                          <dd class="text-red-600">−{{ formatPrice(row.economics.charges) }}</dd>
+                        </div>
+                        <div>
+                          <dt>Net</dt>
+                          <dd [class]="pnlClass(row.economics.netPnL)">{{ formatCurrency(row.economics.netPnL) }}</dd>
+                        </div>
                         @if (row.economics.slPnL != null) {
-                          <span>SL <b class="text-red-600">{{ formatCurrency(row.economics.slPnL) }}</b></span>
+                          <div>
+                            <dt>At stop</dt>
+                            <dd class="text-red-600">{{ formatCurrency(row.economics.slPnL) }}</dd>
+                          </div>
                         }
-                      </p>
+                      </dl>
                     } @else {
                       <p class="mute">Size the trade to see P&amp;L.</p>
                     }
@@ -409,11 +453,20 @@
                         </div>
                       </div>
                       @if (execPreview(row); as preview) {
-                        <p class="ticket-pnl">
-                          <span>Gross <b [class]="pnlClass(preview.gross)">{{ formatCurrency(preview.gross) }}</b></span>
-                          <span>Chg <b class="text-red-600">−{{ formatPrice(preview.charges) }}</b></span>
-                          <span>Net <b [class]="pnlClass(preview.net)">{{ formatCurrency(preview.net) }}</b></span>
-                        </p>
+                        <dl class="ticket-facts ticket-result">
+                          <div>
+                            <dt>Gross</dt>
+                            <dd [class]="pnlClass(preview.gross)">{{ formatCurrency(preview.gross) }}</dd>
+                          </div>
+                          <div>
+                            <dt>Charges</dt>
+                            <dd class="text-red-600">−{{ formatPrice(preview.charges) }}</dd>
+                          </div>
+                          <div>
+                            <dt>Net</dt>
+                            <dd [class]="pnlClass(preview.net)">{{ formatCurrency(preview.net) }}</dd>
+                          </div>
+                        </dl>
                       }
                       <div class="ticket-actions">
                         <button type="button" class="plan-tool-btn plan-tool-btn-primary" [disabled]="busy()" (click)="saveExecute(row)">
@@ -429,7 +482,7 @@
           }
         } @empty {
           <tr>
-            <td colspan="7" class="empty">No plans yet. Add a registry stock to start.</td>
+            <td colspan="7" class="empty">{{ lockedSymbol() ? 'No open plans for this stock.' : 'No plans yet. Add a registry stock to start.' }}</td>
           </tr>
         }
       </tbody>
@@ -508,21 +561,46 @@
                 <tr class="plan-expand">
                   <td colspan="7">
                     <div class="ticket">
-                      <p class="ticket-meta">
-                        <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
-                        <span>{{ row.closedQty | number }} qty</span>
-                        <span>Entry {{ formatPrice(row.entry) }}</span>
-                        <span>Exit {{ formatPrice(row.exit) }}</span>
-                        @if (row.segment) {
-                          <span>{{ row.segment === 'intraday' ? 'Intraday' : 'Delivery' }}</span>
-                        }
-                      </p>
-                      <p class="ticket-pnl">
-                        <span>Gross <b [class]="pnlClass(row.gross)">{{ formatCurrency(row.gross) }}</b></span>
-                        <span>Charges <b class="text-red-600">−{{ formatPrice(row.charges) }}</b></span>
-                        <span>Net <b [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</b></span>
-                        <span>Win <b [class]="pnlClass(row.winPct)">{{ formatPctSigned(row.winPct) }}</b></span>
-                      </p>
+                      <dl class="ticket-facts">
+                        <div>
+                          <dt>Side</dt>
+                          <dd><span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span></dd>
+                        </div>
+                        <div>
+                          <dt>Quantity</dt>
+                          <dd>{{ row.closedQty | number }}</dd>
+                        </div>
+                        <div>
+                          <dt>Product</dt>
+                          <dd>{{ row.segment === 'delivery' ? 'Delivery' : row.segment === 'intraday' ? 'Intraday' : '—' }}</dd>
+                        </div>
+                        <div>
+                          <dt>Entry</dt>
+                          <dd>{{ formatPrice(row.entry) }}</dd>
+                        </div>
+                        <div>
+                          <dt>Exit</dt>
+                          <dd>{{ formatPrice(row.exit) }}</dd>
+                        </div>
+                        <div>
+                          <dt>Win</dt>
+                          <dd [class]="pnlClass(row.winPct)">{{ formatPctSigned(row.winPct) }}</dd>
+                        </div>
+                      </dl>
+                      <dl class="ticket-facts ticket-result">
+                        <div>
+                          <dt>Gross</dt>
+                          <dd [class]="pnlClass(row.gross)">{{ formatCurrency(row.gross) }}</dd>
+                        </div>
+                        <div>
+                          <dt>Charges</dt>
+                          <dd class="text-red-600">−{{ formatPrice(row.charges) }}</dd>
+                        </div>
+                        <div>
+                          <dt>Net</dt>
+                          <dd [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</dd>
+                        </div>
+                      </dl>
                       <div class="ticket-actions">
                         <button type="button" class="plan-link" (click)="reopen(row); $event.stopPropagation()">Reopen</button>
                         <button type="button" class="plan-link text-red-600" (click)="remove(row); $event.stopPropagation()">Delete</button>
@@ -533,7 +611,7 @@
               }
             } @empty {
               <tr>
-                <td colspan="7" class="empty">No closed trades yet. Close a plan from Open to see it here.</td>
+                <td colspan="7" class="empty">{{ lockedSymbol() ? 'No closed plans for this stock.' : 'No closed trades yet. Close a plan from Open to see it here.' }}</td>
               </tr>
             }
           </tbody>

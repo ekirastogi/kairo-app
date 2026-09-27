@@ -47,6 +47,8 @@ export interface ScreenerSnapshot {
 
 export interface ScreenerFetchOpts {
   isin?: string;
+  /** Company name. Used when the stored symbol is not the exchange ticker. */
+  name?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -69,6 +71,7 @@ export class ScreenerService {
       body: JSON.stringify({
         symbol: resolved.symbol,
         isin: resolved.isin || undefined,
+        name: opts?.name?.trim() || undefined,
       }),
     });
 

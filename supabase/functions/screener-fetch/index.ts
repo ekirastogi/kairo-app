@@ -98,37 +98,107 @@ function isIsin(value: string): boolean {
   return /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(value);
 }
 
-async function resolveCompanyUrl(symbol: string, isin?: string): Promise<{ url: string; name?: string }> {
-  const ticker = symbol && !isIsin(symbol) ? symbol : '';
-  if (ticker) {
-    const hit = await searchCompany(ticker, ticker);
-    if (hit) return hit;
-    return { url: `https://www.screener.in/company/${encodeURIComponent(ticker)}/consolidated/` };
-  }
-  throw new Error(`No Screener page found for ${isin || symbol}`);
-}
-
-async function searchCompany(
-  query: string,
-  originalSymbol: string
-): Promise<{ url: string; name?: string } | null> {
-  const body = await fetchText(`https://www.screener.in/api/company/search/?q=${encodeURIComponent(query)}`);
-  let hits: SearchHit[] = [];
-  try {
-    hits = JSON.parse(body) as SearchHit[];
-  } catch {
-    hits = [];
-  }
-  if (!hits.length) return null;
-
-  const exact = hits.find((h) => {
-    const path = (h.url ?? '').toUpperCase();
-    return path.includes(`/COMPANY/${originalSymbol}/`);
-  });
-  const hit = exact ?? hits[0];
-  if (!hit?.url) return null;
+function companyUrl(hit: SearchHit): { url: string; name?: string } | null {
+  if (!hit.url) return null;
   const path = hit.url.startsWith('http') ? hit.url : `https://www.screener.in${hit.url}`;
   return { url: path, name: hit.name };
+}
+
+function urlMatchesTicker(url: string, ticker: string): boolean {
+  const path = url.toUpperCase();
+  const sym = ticker.toUpperCase();
+  return path.includes(`/COMPANY/${sym}/`) || path.endsWith(`/COMPANY/${sym}`);
+}
+
+/** Legal suffixes stripped so "Hindustan Foods Limited" and "Hindustan Foods Ltd" compare equal. */
+function nameTokens(value: string): string[] {
+  return value
+    .toUpperCase()
+    .replace(/\b(LTD|LIMITED|INC|CORP|CO|COMPANY|PVT|PRIVATE)\b/g, ' ')
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token.length > 1);
+}
+
+function sameCompanyName(query: string, hitName: string): boolean {
+  const wanted = nameTokens(query);
+  const got = nameTokens(hitName);
+  if (wanted.length < 2 || got.length !== wanted.length) return false;
+  return wanted.every((token) => got.includes(token));
+}
+
+async function searchHits(query: string): Promise<SearchHit[]> {
+  const body = await fetchText(`https://www.screener.in/api/company/search/?q=${encodeURIComponent(query)}`);
+  try {
+    const hits = JSON.parse(body) as SearchHit[];
+    return Array.isArray(hits) ? hits : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Exchange slug only. A fuzzy first hit maps HINDUSTANFOODS to Hindustan Zinc. */
+async function searchExactTicker(ticker: string): Promise<{ url: string; name?: string } | null> {
+  const hits = await searchHits(ticker);
+  const exact = hits.find((hit) => urlMatchesTicker(hit.url ?? '', ticker));
+  return exact ? companyUrl(exact) : null;
+}
+
+async function searchExactName(name: string): Promise<{ url: string; name?: string } | null> {
+  const hits = await searchHits(name);
+  const exact = hits.find((hit) => sameCompanyName(name, hit.name ?? ''));
+  return exact ? companyUrl(exact) : null;
+}
+
+/** Yahoo indexes ISINs. Screener does not, and name-derived symbols are not its tickers. */
+async function tickerFromIsin(isin: string): Promise<string | null> {
+  let body = '';
+  try {
+    body = await fetchText(
+      `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(isin)}&quotesCount=6&newsCount=0`
+    );
+  } catch {
+    return null;
+  }
+  let quotes: Array<{ symbol?: string; quoteType?: string }> = [];
+  try {
+    quotes = (JSON.parse(body) as { quotes?: Array<{ symbol?: string; quoteType?: string }> }).quotes ?? [];
+  } catch {
+    return null;
+  }
+  const equities = quotes.filter((quote) => quote.quoteType === 'EQUITY' && quote.symbol);
+  const preferred = equities.find((quote) => /\.NS$/i.test(quote.symbol ?? '')) ?? equities[0];
+  if (!preferred?.symbol) return null;
+  return preferred.symbol.toUpperCase().replace(/\.(NS|BO|BSE)$/i, '');
+}
+
+async function resolveCompanyUrl(
+  symbol: string,
+  isin?: string,
+  name?: string
+): Promise<{ url: string; name?: string }> {
+  const ticker = symbol && !isIsin(symbol) ? symbol : '';
+  if (isin) {
+    const fromIsin = await tickerFromIsin(isin);
+    if (fromIsin) {
+      const exact = await searchExactTicker(fromIsin);
+      if (exact) return exact;
+      return { url: `https://www.screener.in/company/${encodeURIComponent(fromIsin)}/consolidated/` };
+    }
+  }
+  if (ticker) {
+    const exact = await searchExactTicker(ticker);
+    if (exact) return exact;
+  }
+  if (name) {
+    const named = await searchExactName(name);
+    if (named) return named;
+  }
+  if (ticker && !isin) {
+    return { url: `https://www.screener.in/company/${encodeURIComponent(ticker)}/consolidated/` };
+  }
+  throw new Error(`No Screener page found for ${isin || name || symbol}`);
 }
 
 function parseTopRatios($: cheerio.CheerioAPI): Record<string, string> {
@@ -247,12 +317,17 @@ function parseScreenerHtml(html: string, url: string, symbol: string, fallbackNa
   };
 }
 
-async function fetchScreenerSnapshot(rawSymbol: string, rawIsin?: string): Promise<ScreenerSnapshot> {
+async function fetchScreenerSnapshot(
+  rawSymbol: string,
+  rawIsin?: string,
+  rawName?: string
+): Promise<ScreenerSnapshot> {
   const symbol = rawSymbol.trim().toUpperCase().replace(/\.(NS|BO|BSE)$/i, '');
   const isin = rawIsin?.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') ?? '';
+  const name = rawName?.trim() ?? '';
   if (!symbol && !isin) throw new Error('Symbol or ISIN is required');
   const ticker = symbol && !isIsin(symbol) ? symbol : '';
-  const resolved = await resolveCompanyUrl(ticker, isin && isIsin(isin) ? isin : undefined);
+  const resolved = await resolveCompanyUrl(ticker, isin && isIsin(isin) ? isin : undefined, name || undefined);
   const html = await fetchText(resolved.url);
   if (/page not found/i.test(html) || html.length < 2000) {
     throw new Error(`No Screener page found for ${isin || symbol}`);
@@ -269,6 +344,7 @@ serve(async (req) => {
     const body = await req.json();
     const symbol = String(body?.symbol ?? '').trim();
     const isin = String(body?.isin ?? '').trim();
+    const name = String(body?.name ?? '').trim();
     if (!symbol && !isin) {
       return new Response(JSON.stringify({ error: 'Symbol or ISIN is required' }), {
         status: 400,
@@ -276,7 +352,7 @@ serve(async (req) => {
       });
     }
 
-    const snapshot = await fetchScreenerSnapshot(symbol, isin || undefined);
+    const snapshot = await fetchScreenerSnapshot(symbol, isin || undefined, name || undefined);
     return new Response(JSON.stringify(snapshot), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

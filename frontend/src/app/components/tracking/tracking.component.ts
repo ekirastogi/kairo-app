@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -79,6 +79,11 @@ interface HistoryRow extends PriceTracker {
   templateUrl: './tracking.component.html',
 })
 export class TrackingComponent implements OnInit, OnDestroy {
+  /** When set, the blotter and form stay on this symbol (stock detail tab). */
+  readonly lockedSymbol = input('');
+  readonly lockedName = input('');
+  readonly lockedIsin = input('');
+
   private trackerSvc = inject(PriceTrackerService);
   private registrySvc = inject(RegistryStockService);
   private stockSearch = inject(StockSearchService);
@@ -169,15 +174,16 @@ export class TrackingComponent implements OnInit, OnDestroy {
         economics,
       };
     });
+    const forSymbol = mapped.filter((row) => this.matchesLocked(row));
     const filtered = q
-      ? mapped.filter(
+      ? forSymbol.filter(
           (t) =>
             t.symbol.toLowerCase().includes(q) ||
             (t.stockName ?? '').toLowerCase().includes(q) ||
             this.displayAction(t.action).toLowerCase().includes(q) ||
             t.action.toLowerCase().includes(q)
         )
-      : mapped;
+      : forSymbol;
     return this.tableSort.sort(filtered, (row, column) => this.sortValue(row, column as TrackerColumn));
   });
 
@@ -189,6 +195,7 @@ export class TrackingComponent implements OnInit, OnDestroy {
     this.charges.rates();
     const q = this.searchQuery().trim().toLowerCase();
     const mapped = this.history()
+      .filter((plan) => this.matchesLocked(plan))
       .map((plan) => this.toHistoryRow(plan))
       .filter((row): row is HistoryRow => row != null);
     const filtered = q
@@ -232,6 +239,16 @@ export class TrackingComponent implements OnInit, OnDestroy {
     return total ? `Refreshing ${this.refreshDone() + 1}/${total}…` : 'Refreshing…';
   });
 
+  private readonly loadLockedStock = effect(() => {
+    const sym = this.lockedSymbol().trim().toUpperCase();
+    if (!sym) return;
+    void this.registrySvc.getBySymbol(sym).then((row) => {
+      if (!row || this.lockedSymbol().trim().toUpperCase() !== sym) return;
+      this.rememberRegistry(row);
+      if (!this.formOpen()) this.applyRegistry(row);
+    });
+  }, { allowSignalWrites: true });
+
   async ngOnInit(): Promise<void> {
     if (typeof localStorage !== 'undefined' && localStorage.getItem(AUTO_REFRESH_KEY) === '1') {
       this.setAutoRefresh(true);
@@ -265,6 +282,17 @@ export class TrackingComponent implements OnInit, OnDestroy {
   openAddForm(): void {
     this.resetForm();
     this.editingId.set(null);
+    const locked = this.lockedSymbol().trim().toUpperCase();
+    if (locked) {
+      const known = this.findRegistry(locked);
+      if (known) this.applyRegistry(known);
+      else {
+        this.form.symbol = locked;
+        this.form.name = this.lockedName().trim() || locked;
+        this.form.isin = normalizeIsin(this.lockedIsin());
+        this.symbolQuery.set(locked);
+      }
+    }
     this.formOpen.set(true);
   }
 
@@ -555,7 +583,16 @@ export class TrackingComponent implements OnInit, OnDestroy {
   }
 
   async save(): Promise<void> {
-    const picked = this.findRegistry(this.form.symbol || this.symbolQuery());
+    const locked = this.lockedSymbol().trim().toUpperCase();
+    let picked = this.findRegistry(locked || this.form.symbol || this.symbolQuery());
+    if (!picked && locked) {
+      picked = await this.registrySvc.ensureListed(locked, {
+        name: this.lockedName().trim() || this.form.name || locked,
+        isin: normalizeIsin(this.lockedIsin()) || this.form.isin,
+        exchange: this.form.exchange || undefined,
+      });
+      this.rememberRegistry(picked);
+    }
     if (!picked) {
       this.toast.error('Pick a stock from the registry');
       return;
@@ -613,7 +650,10 @@ export class TrackingComponent implements OnInit, OnDestroy {
   }
 
   async refreshAll(opts: { silent?: boolean } = {}): Promise<void> {
-    const symbols = [...new Set(this.trackers().map((t) => t.symbol))];
+    const source = this.lockedSymbol().trim()
+      ? this.trackers().filter((row) => this.matchesLocked(row))
+      : this.trackers();
+    const symbols = [...new Set(source.map((t) => t.symbol))];
     if (!symbols.length) {
       if (!opts.silent) this.toast.success('Nothing to refresh yet. Add a plan first.');
       return;
@@ -645,6 +685,7 @@ export class TrackingComponent implements OnInit, OnDestroy {
         try {
           const quote = await this.quotes.quote(symbol, {
             isin: plan?.isin || registry.isin,
+            name: plan?.stockName || registry.name,
           });
           await this.registrySvc.save({ ...registry, currentPrice: quote.price });
           updated++;
@@ -789,17 +830,29 @@ export class TrackingComponent implements OnInit, OnDestroy {
     return Date.now() - registry.updatedAt > CMP_STALE_MS;
   }
 
+  private matchesLocked(row: { symbol: string; isin?: string }): boolean {
+    const locked = this.lockedSymbol().trim().toUpperCase();
+    if (!locked) return true;
+    if (row.symbol.trim().toUpperCase() === locked) return true;
+    const isin = normalizeIsin(this.lockedIsin());
+    return !!isin && normalizeIsin(row.isin) === isin;
+  }
+
+  private rememberRegistry(stock: RegistryStock): void {
+    this.pickedRegistry.update((rows) => {
+      const next = rows.filter((row) => row.symbol !== stock.symbol);
+      next.push(stock);
+      return next;
+    });
+  }
+
   private applyRegistry(stock: RegistryStock): void {
     this.form.symbol = stock.symbol;
     this.form.name = stock.name;
     this.form.isin = stock.isin ?? '';
     this.form.exchange = stock.exchange || 'NSE';
     this.symbolQuery.set(stock.symbol);
-    this.pickedRegistry.update((rows) => {
-      const next = rows.filter((row) => row.symbol !== stock.symbol);
-      next.push(stock);
-      return next;
-    });
+    this.rememberRegistry(stock);
   }
 
   private parsedExits(): Array<{ price: number; quantity?: number }> {

@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal, effect, OnInit } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { switchMap, of } from 'rxjs';
 import { StockFirestoreService } from '../../services/stock-firestore.service';
@@ -13,12 +13,11 @@ import { PageShellService } from '../../services/page-shell.service';
 import { RegistryStockService } from '../../services/registry-stock.service';
 import { StockLabelsStore } from '../../services/stock-labels.store';
 import { ScreenerService } from '../../services/screener.service';
-import { OPEN_TRADE_POOL_DATE, TradePlanService } from '../../services/trade-plan.service';
 import { TradingChartComponent } from '../trading-chart/trading-chart.component';
 import { ScreenerFundamentalsComponent } from '../screener-fundamentals/screener-fundamentals.component';
 import { StockLabelsManagerComponent } from '../stock-labels/stock-labels-manager.component';
-import { TradePlanFormComponent } from '../trade-plans/trade-plan-form.component';
-import { PlannedTrade, RegistryStock } from '../../models/trading-journal.models';
+import { TrackingComponent } from '../tracking/tracking.component';
+import { RegistryStock } from '../../models/trading-journal.models';
 import { StockSnapshot } from '../../models/market.models';
 import { formatCurrency, formatDate, formatPct, formatPrice, pnlClass } from '../../utils/format.utils';
 import { formatDataAge, formatFetchedAt } from '../../utils/data-age.utils';
@@ -37,11 +36,10 @@ import { normalizeSymbol } from '../../utils/upload-merge.utils';
   imports: [
     CommonModule,
     FormsModule,
-    RouterLink,
     TradingChartComponent,
     ScreenerFundamentalsComponent,
     StockLabelsManagerComponent,
-    TradePlanFormComponent,
+    TrackingComponent,
   ],
   templateUrl: './stock-detail.component.html',
 })
@@ -57,7 +55,6 @@ export class StockDetailComponent implements OnInit {
   private registrySvc = inject(RegistryStockService);
   readonly labelStore = inject(StockLabelsStore);
   private screenerSvc = inject(ScreenerService);
-  private planSvc = inject(TradePlanService);
 
   newLevelPrice = '';
   newLevelLabel = '';
@@ -202,7 +199,6 @@ export class StockDetailComponent implements OnInit {
     this.screenerError.set(null);
     this.screenerSuccess.set(null);
     this.expandedDayKey.set(null);
-    this.showPlanForm.set(false);
   }, { allowSignalWrites: true });
 
   private registryLoadGen = 0;
@@ -319,23 +315,6 @@ export class StockDetailComponent implements OnInit {
 
   expandedDayKey = signal<string | null>(null);
 
-  stockPlans = signal<PlannedTrade[]>([]);
-  plansLoading = signal(false);
-  showPlanForm = signal(false);
-
-  private readonly _loadStockPlans = effect(() => {
-    const sym = this.symbol();
-    if (!sym) {
-      this.stockPlans.set([]);
-      return;
-    }
-    this.plansLoading.set(true);
-    void this.planSvc
-      .fetchForSymbol(sym)
-      .then((rows) => this.stockPlans.set(rows))
-      .finally(() => this.plansLoading.set(false));
-  }, { allowSignalWrites: true });
-
   chargeRatio = computed(() => this.reportState.analysis()?.summary.chargeRatio ?? 0);
 
   tradeAllocatedCharge(trade: Trade): number {
@@ -359,27 +338,6 @@ export class StockDetailComponent implements OnInit {
     this.expandedDayKey.set(this.expandedDayKey() === date ? null : date);
   }
 
-  planDateLabel(plan: PlannedTrade): string {
-    if (plan.status === 'open' || plan.tradeDate === OPEN_TRADE_POOL_DATE) return 'Open book';
-    return this.formatDate(plan.tradeDate);
-  }
-
-  async reloadStockPlans(): Promise<void> {
-    const sym = this.symbol();
-    if (!sym) return;
-    this.plansLoading.set(true);
-    try {
-      this.stockPlans.set(await this.planSvc.fetchForSymbol(sym));
-    } finally {
-      this.plansLoading.set(false);
-    }
-  }
-
-  onPlanSaved(): void {
-    this.showPlanForm.set(false);
-    void this.reloadStockPlans();
-  }
-
   goBack(): void {
     this.location.back();
   }
@@ -397,7 +355,10 @@ export class StockDetailComponent implements OnInit {
     this.screenerSuccess.set(null);
 
     try {
-      const data = await this.screenerSvc.fetchStock(sym, { isin: this.displayIsin() });
+      const data = await this.screenerSvc.fetchStock(sym, {
+        isin: this.displayIsin(),
+        name: this.displayName(),
+      });
       const existing = this.registryStock() ?? {
         symbol: sym,
         name: data.name,

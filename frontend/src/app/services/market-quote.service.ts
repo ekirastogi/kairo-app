@@ -21,17 +21,17 @@ export class MarketQuoteService {
   /** Change to `'groww'` once a Groww quote client exists. */
   readonly source: MarketQuoteSource = 'screener';
 
-  async quote(symbol: string, opts?: { isin?: string }): Promise<MarketQuote> {
+  async quote(symbol: string, opts?: { isin?: string; name?: string }): Promise<MarketQuote> {
     switch (this.source) {
       case 'groww':
         return this.quoteFromGroww(symbol);
       default:
-        return this.quoteFromScreener(symbol, opts?.isin);
+        return this.quoteFromScreener(symbol, opts?.isin, opts?.name);
     }
   }
 
-  private async quoteFromScreener(symbol: string, isin?: string): Promise<MarketQuote> {
-    const snap = await this.screener.fetchStock(symbol, { isin });
+  private async quoteFromScreener(symbol: string, isin?: string, name?: string): Promise<MarketQuote> {
+    const snap = await this.screener.fetchStock(symbol, { isin, name });
     const price = snap.currentPrice ?? 0;
     if (!(price > 0)) {
       throw new Error(`Screener returned no CMP for ${symbol.toUpperCase()}`);
