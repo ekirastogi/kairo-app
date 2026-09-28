@@ -1,0 +1,27 @@
+<input
+  class="input-field w-full !py-2"
+  type="text"
+  autocomplete="off"
+  [attr.list]="listId"
+  [ngModel]="query()"
+  (ngModelChange)="onQuery($event)"
+  [disabled]="disabled()"
+  [placeholder]="placeholder()"
+/>
+<datalist [id]="listId">
+  @for (opt of options(); track opt.symbol) {
+    <option [value]="opt.symbol">{{ opt.name }} · {{ opt.exchange || 'NSE' }}</option>
+  }
+</datalist>
+@if (selectedName() && query()) {
+  <em class="stock-search-hint">{{ selectedName() }}{{ selectedExchange() ? ' · ' + selectedExchange() : '' }}</em>
+} @else if (busy()) {
+  <em class="stock-search-hint">Searching…</em>
+} @else if (query().trim().length > 0 && query().trim().length < minChars) {
+  <em class="stock-search-hint">Type at least {{ minChars }} characters</em>
+} @else if (query().trim().length >= minChars && !options().length) {
+  <em class="stock-search-hint">
+    No matching stocks.
+    <a routerLink="/registry" class="underline">Open registry</a>
+  </em>
+}

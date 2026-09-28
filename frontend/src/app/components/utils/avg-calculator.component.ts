@@ -24,6 +24,8 @@ import {
 import { ChargesService } from '../../services/charges.service';
 import { TradePlanService } from '../../services/trade-plan.service';
 import { readJson, writeJson } from '../../utils/local-store.utils';
+import { RegistryStock } from '../../models/trading-journal.models';
+import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
 
 const PLANS_KEY = 'kairo-stock-plans-v2';
 const LEGACY_PLANS_KEY = 'kairo-stock-plans-v1';
@@ -107,7 +109,7 @@ function loadStore(): PlansStore {
 @Component({
   selector: 'app-avg-calculator',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, StockSearchInputComponent],
   templateUrl: './avg-calculator.component.html',
   styles: `
     .blotter-row {
@@ -164,6 +166,10 @@ export class AvgCalculatorComponent {
   }
 
   symbol = signal<string>(this.activePlan().symbol);
+  symbolQuery = signal<string>(this.activePlan().symbol);
+  stockName = signal('');
+  stockExchange = signal('');
+  pickedRegistry = signal<RegistryStock[]>([]);
   segment = signal<ChargeSegment>(this.activePlan().segment);
   fills = signal<AvgFill[]>(this.activePlan().fills);
   exits = signal<AvgFill[]>(this.activePlan().exits);
@@ -323,9 +329,21 @@ export class AvgCalculatorComponent {
     this.persist();
   }
 
-  setSymbol(value: string): void {
-    this.symbol.set(value.toUpperCase());
+  onSymbolQuery(value: string): void {
+    this.symbolQuery.set(value);
+    const match = this.findRegistry(value);
+    if (match) {
+      this.applyRegistry(match);
+      return;
+    }
+    this.symbol.set(value.trim().toUpperCase());
+    this.stockName.set('');
+    this.stockExchange.set('');
     this.persist();
+  }
+
+  onStockPicked(stock: RegistryStock): void {
+    this.applyRegistry(stock);
   }
 
   setRightTab(tab: RightTab): void {
@@ -552,6 +570,10 @@ export class AvgCalculatorComponent {
     if (!plan) return;
     this.planId.set(id);
     this.symbol.set(plan.symbol);
+    this.symbolQuery.set(plan.symbol);
+    const match = this.findRegistry(plan.symbol);
+    this.stockName.set(match?.name ?? '');
+    this.stockExchange.set(match?.exchange ?? '');
     this.segment.set(plan.segment);
     this.fills.set(plan.fills);
     this.exits.set(plan.exits);
@@ -687,5 +709,24 @@ export class AvgCalculatorComponent {
 
   private writeStore(): void {
     writeJson(PLANS_KEY, { plans: this.plans(), activeId: this.planId() } satisfies PlansStore);
+  }
+
+  private findRegistry(value: string): RegistryStock | undefined {
+    const q = value.trim().toUpperCase();
+    if (!q) return undefined;
+    return this.pickedRegistry().find((stock) => stock.symbol.toUpperCase() === q);
+  }
+
+  private applyRegistry(stock: RegistryStock): void {
+    this.symbol.set(stock.symbol);
+    this.stockName.set(stock.name);
+    this.stockExchange.set(stock.exchange || 'NSE');
+    this.symbolQuery.set(stock.symbol);
+    this.pickedRegistry.update((rows) => {
+      const next = rows.filter((row) => row.symbol !== stock.symbol);
+      next.push(stock);
+      return next;
+    });
+    this.persist();
   }
 }

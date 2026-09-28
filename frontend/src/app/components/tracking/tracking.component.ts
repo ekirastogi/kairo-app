@@ -10,8 +10,8 @@ import { ChargesService } from '../../services/charges.service';
 import { MarketQuoteService } from '../../services/market-quote.service';
 import { PriceTracker, PriceTrackerService } from '../../services/price-tracker.service';
 import { RegistryStockService } from '../../services/registry-stock.service';
-import { STOCK_SEARCH_MIN_CHARS, StockSearchService } from '../../services/stock-search.service';
 import { ToastService } from '../../services/toast.service';
+import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
 import { formatDataAge } from '../../utils/data-age.utils';
 import { formatCurrency, formatPrice, formatPctSigned, pnlClass } from '../../utils/format.utils';
 import { normalizeIsin } from '../../utils/stock-identity.utils';
@@ -92,7 +92,7 @@ interface HistoryRow extends PriceTracker {
 @Component({
   selector: 'app-tracking',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, StockSearchInputComponent],
   templateUrl: './tracking.component.html',
 })
 export class TrackingComponent implements OnInit, OnDestroy {
@@ -104,7 +104,6 @@ export class TrackingComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private trackerSvc = inject(PriceTrackerService);
   private registrySvc = inject(RegistryStockService);
-  private stockSearch = inject(StockSearchService);
   private quotes = inject(MarketQuoteService);
   private toast = inject(ToastService);
   private charges = inject(ChargesService);
@@ -127,10 +126,6 @@ export class TrackingComponent implements OnInit, OnDestroy {
   /** Quotes saved in this session. Wins over the last registry fetch so CMP updates without a reload. */
   private refreshedRegistry = signal<RegistryStock[]>([]);
   symbolQuery = signal('');
-  private symbolSearch = this.stockSearch.bindQuery(this.symbolQuery);
-  symbolOptions = this.symbolSearch.results;
-  symbolSearchBusy = this.symbolSearch.busy;
-  readonly symbolSearchMinChars = STOCK_SEARCH_MIN_CHARS;
 
   formOpen = signal(false);
   editingId = signal<string | null>(null);
@@ -402,6 +397,10 @@ export class TrackingComponent implements OnInit, OnDestroy {
       return;
     }
     this.form.symbol = value.trim().toUpperCase();
+  }
+
+  onStockPicked(stock: RegistryStock): void {
+    this.applyRegistry(stock);
   }
 
   setAction(action: (typeof ACTION_PRESETS)[number]): void {
@@ -954,14 +953,9 @@ export class TrackingComponent implements OnInit, OnDestroy {
       : this.trackers();
   }
 
-  private registryPool(): RegistryStock[] {
+  registryPool(): RegistryStock[] {
     const bySymbol = new Map<string, RegistryStock>();
-    for (const stock of [
-      ...this.symbolOptions(),
-      ...this.pickedRegistry(),
-      ...this.planRegistry(),
-      ...this.refreshedRegistry(),
-    ]) {
+    for (const stock of [...this.pickedRegistry(), ...this.planRegistry(), ...this.refreshedRegistry()]) {
       bySymbol.set(stock.symbol.toUpperCase(), stock);
     }
     return [...bySymbol.values()];
