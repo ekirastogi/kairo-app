@@ -902,6 +902,18 @@
     background: #fffbeb;
   }
 
+  .plan-row-trigger > td {
+    background: #ecfeff;
+  }
+
+  .plan-row-trigger > td:first-child {
+    box-shadow: inset 3px 0 0 #22d3ee;
+  }
+
+  .plan-row-trigger.plan-row-open > td {
+    background: #cffafe;
+  }
+
   .side {
     @apply inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none tracking-wide;
   }
@@ -912,6 +924,10 @@
 
   .side-short {
     @apply bg-rose-600 text-white;
+  }
+
+  .side-trigger {
+    @apply bg-cyan-600 text-white;
   }
 
   .plan-expand > td {

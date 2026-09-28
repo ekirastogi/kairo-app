@@ -81,6 +81,16 @@ export function trackerIsSell(action: string): boolean {
   return value === 'sell' || value === 'short';
 }
 
+/** CMP has reached or crossed the trigger: long at/below, short at/above. */
+export function trackerTriggerHit(
+  action: string,
+  cmp: number | undefined | null,
+  trigger: number | undefined | null
+): boolean {
+  if (cmp == null || cmp <= 0 || trigger == null || trigger <= 0) return false;
+  return trackerIsSell(action) ? cmp >= trigger : cmp <= trigger;
+}
+
 export function trackerDirection(action: string): TradeDirection {
   return trackerIsSell(action) ? 'short' : 'long';
 }

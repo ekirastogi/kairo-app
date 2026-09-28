@@ -14,6 +14,9 @@
         {{ historyRows().length }}
       } @else {
         {{ rows().length }}
+        @if (triggerCount()) {
+          <span class="text-cyan-700">· {{ triggerCount() }} at trigger</span>
+        }
         @if (hotCount()) {
           <span class="text-emerald-700">· {{ hotCount() }} hot</span>
         }
@@ -337,13 +340,16 @@
                   (click)="$event.stopPropagation()"
                 >{{ row.symbol }}</a>
                 <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
+                @if (row.triggerHit) {
+                  <span class="side side-trigger">Hit</span>
+                }
               </span>
               <span class="name">{{ row.stockName || row.isin || row.symbol }}</span>
             </td>
-            <td class="num col-pair">
+            <td class="num col-pair" [class.text-cyan-800]="row.triggerHit">
               <span class="pair">
                 <span class="pair-main">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</span>
-                <span class="pair-sub">{{ formatPrice(row.targetPrice) }}</span>
+                <span class="pair-sub" [class.text-cyan-700]="row.triggerHit">{{ formatPrice(row.targetPrice) }}</span>
               </span>
             </td>
             <td class="num col-pair">

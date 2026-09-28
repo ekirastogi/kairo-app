@@ -25,6 +25,7 @@ import {
   trackerIsSized,
   trackerProximity,
   trackerSegment,
+  trackerTriggerHit,
 } from '../../utils/price-tracker.utils';
 import { TableSortState } from '../../utils/table-sort.utils';
 
@@ -65,6 +66,7 @@ interface TrackerRow extends PriceTracker {
   diffPct: number | null;
   absDiffPct: number | null;
   proximity: ReturnType<typeof trackerProximity>;
+  triggerHit: boolean;
   sized: boolean;
   economics: TrackerEconomics | null;
 }
@@ -216,6 +218,7 @@ export class TrackingComponent implements OnInit, OnDestroy {
         diffPct: trackerDiffPct(cmp, t.targetPrice),
         absDiffPct: trackerAbsDiffPct(cmp, t.targetPrice),
         proximity: trackerProximity(cmp, t.targetPrice),
+        triggerHit: trackerTriggerHit(t.action, cmp, t.targetPrice),
         sized: economics != null,
         economics,
       };
@@ -230,11 +233,15 @@ export class TrackingComponent implements OnInit, OnDestroy {
             t.action.toLowerCase().includes(q)
         )
       : forSymbol;
-    return this.tableSort.sort(filtered, (row, column) => this.sortValue(row, column as TrackerColumn));
+    const sorted = this.tableSort.sort(filtered, (row, column) => this.sortValue(row, column as TrackerColumn));
+    const hits = sorted.filter((row) => row.triggerHit);
+    const rest = sorted.filter((row) => !row.triggerHit);
+    return [...hits, ...rest];
   });
 
-  nearCount = computed(() => this.rows().filter((r) => r.proximity === 'near').length);
-  hotCount = computed(() => this.rows().filter((r) => r.proximity === 'hot').length);
+  nearCount = computed(() => this.rows().filter((r) => !r.triggerHit && r.proximity === 'near').length);
+  hotCount = computed(() => this.rows().filter((r) => !r.triggerHit && r.proximity === 'hot').length);
+  triggerCount = computed(() => this.rows().filter((r) => r.triggerHit).length);
   sizedCount = computed(() => this.rows().filter((r) => r.sized).length);
 
   historyRows = computed(() => {
@@ -435,8 +442,13 @@ export class TrackingComponent implements OnInit, OnDestroy {
   rowClass(row: TrackerRow): string {
     const parts = ['plan-row'];
     if (this.isExpanded(row)) parts.push('plan-row-open');
-    if (row.proximity === 'hot') parts.push('plan-row-hot');
-    if (row.proximity === 'near') parts.push('plan-row-near');
+    if (row.triggerHit) {
+      parts.push('plan-row-trigger');
+    } else if (row.proximity === 'hot') {
+      parts.push('plan-row-hot');
+    } else if (row.proximity === 'near') {
+      parts.push('plan-row-near');
+    }
     return parts.join(' ');
   }
 
@@ -444,7 +456,8 @@ export class TrackingComponent implements OnInit, OnDestroy {
     return this.displayAction(action) === 'Short' ? 'side-short' : 'side-long';
   }
 
-  proximityClass(row: { proximity: 'hot' | 'near' | null; diffPct?: number | null }): string {
+  proximityClass(row: { proximity: 'hot' | 'near' | null; diffPct?: number | null; triggerHit?: boolean }): string {
+    if (row.triggerHit) return 'text-cyan-700';
     if (row.proximity === 'hot') return 'text-emerald-700';
     if (row.proximity === 'near') return 'text-amber-700';
     return this.pnlClass(row.diffPct ?? 0);
