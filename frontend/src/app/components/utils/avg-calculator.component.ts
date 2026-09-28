@@ -22,6 +22,8 @@ import {
   tradeSegmentForCharge,
 } from '../../utils/charges.utils';
 import { ChargesService } from '../../services/charges.service';
+import { RegistryStockService } from '../../services/registry-stock.service';
+import { ScreenerService, ScreenerSnapshot } from '../../services/screener.service';
 import { TradePlanService } from '../../services/trade-plan.service';
 import { readJson, writeJson } from '../../utils/local-store.utils';
 import { RegistryStock } from '../../models/trading-journal.models';
@@ -119,7 +121,7 @@ function loadStore(): PlansStore {
       @apply text-[10px] font-semibold uppercase tracking-wide text-slate-400;
     }
     .mini-toggle {
-      @apply rounded-md px-2.5 py-1 text-[11px] font-semibold text-slate-500 transition hover:text-slate-800;
+      @apply shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold text-slate-500 transition hover:text-slate-800;
     }
     .mini-toggle-active {
       @apply bg-slate-900 text-white hover:text-white;
@@ -156,6 +158,8 @@ function loadStore(): PlansStore {
 export class AvgCalculatorComponent {
   private readonly charges = inject(ChargesService);
   private readonly tradePlans = inject(TradePlanService);
+  private readonly registrySvc = inject(RegistryStockService);
+  private readonly screenerSvc = inject(ScreenerService);
   private store = loadStore();
 
   plans = signal<StockPlan[]>(this.store.plans);
@@ -169,7 +173,10 @@ export class AvgCalculatorComponent {
   symbolQuery = signal<string>(this.activePlan().symbol);
   stockName = signal('');
   stockExchange = signal('');
+  stockIsin = signal('');
+  stockPrice = signal<number | null>(null);
   pickedRegistry = signal<RegistryStock[]>([]);
+  refreshBusy = signal(false);
   segment = signal<ChargeSegment>(this.activePlan().segment);
   fills = signal<AvgFill[]>(this.activePlan().fills);
   exits = signal<AvgFill[]>(this.activePlan().exits);
@@ -200,6 +207,13 @@ export class AvgCalculatorComponent {
   readonly segmentLabels = CHARGE_SEGMENT_LABELS;
   readonly segments = CHARGE_SEGMENTS.filter((segment) => segment !== 'mtf');
   readonly profitPresets = PROFIT_PRESETS;
+
+  stockHintName = computed(() => {
+    const name = this.stockName();
+    const price = this.stockPrice();
+    if (!name) return '';
+    return price != null && price > 0 ? `${name} · ${formatPrice(price)}` : name;
+  });
 
   book = computed(() => summarizeFills([...this.fills(), ...this.exits()]));
   position = computed(() => openPosition(this.book()));
@@ -339,11 +353,42 @@ export class AvgCalculatorComponent {
     this.symbol.set(value.trim().toUpperCase());
     this.stockName.set('');
     this.stockExchange.set('');
+    this.stockIsin.set('');
+    this.stockPrice.set(null);
     this.persist();
   }
 
   onStockPicked(stock: RegistryStock): void {
     this.applyRegistry(stock);
+  }
+
+  async refreshStockDetails(): Promise<void> {
+    const sym = this.symbol().trim().toUpperCase();
+    if (!sym || this.refreshBusy()) return;
+    this.refreshBusy.set(true);
+    this.notice.set(null);
+    try {
+      const existing =
+        (await this.registrySvc.getBySymbol(sym)) ??
+        this.findRegistry(sym) ??
+        emptyRegistry(sym, this.stockName(), this.stockIsin(), this.stockExchange());
+      const data = await this.screenerSvc.fetchStock(sym, {
+        isin: existing.isin || this.stockIsin() || undefined,
+        name: existing.name || this.stockName() || undefined,
+      });
+      const updated = applyScreenerSnapshot(existing, data);
+      await this.registrySvc.save(updated);
+      this.applyRegistry(updated);
+      this.notice.set(
+        updated.currentPrice > 0
+          ? `Refreshed ${sym} · CMP ${formatPrice(updated.currentPrice)}`
+          : `Refreshed stock details for ${sym}`
+      );
+    } catch (error) {
+      this.notice.set(error instanceof Error ? error.message : 'Could not refresh stock details');
+    } finally {
+      this.refreshBusy.set(false);
+    }
   }
 
   setRightTab(tab: RightTab): void {
@@ -574,6 +619,8 @@ export class AvgCalculatorComponent {
     const match = this.findRegistry(plan.symbol);
     this.stockName.set(match?.name ?? '');
     this.stockExchange.set(match?.exchange ?? '');
+    this.stockIsin.set(match?.isin ?? '');
+    this.stockPrice.set(match?.currentPrice && match.currentPrice > 0 ? match.currentPrice : null);
     this.segment.set(plan.segment);
     this.fills.set(plan.fills);
     this.exits.set(plan.exits);
@@ -721,6 +768,8 @@ export class AvgCalculatorComponent {
     this.symbol.set(stock.symbol);
     this.stockName.set(stock.name);
     this.stockExchange.set(stock.exchange || 'NSE');
+    this.stockIsin.set(stock.isin ?? '');
+    this.stockPrice.set(stock.currentPrice > 0 ? stock.currentPrice : null);
     this.symbolQuery.set(stock.symbol);
     this.pickedRegistry.update((rows) => {
       const next = rows.filter((row) => row.symbol !== stock.symbol);
@@ -729,4 +778,58 @@ export class AvgCalculatorComponent {
     });
     this.persist();
   }
+}
+
+function emptyRegistry(symbol: string, name: string, isin: string, exchange: string): RegistryStock {
+  return {
+    symbol,
+    name: name || symbol,
+    isin: isin || undefined,
+    exchange: exchange || 'NSE',
+    currentPrice: 0,
+    supports: [],
+    resistances: [],
+    updatedAt: Date.now(),
+  };
+}
+
+function applyScreenerSnapshot(stock: RegistryStock, data: ScreenerSnapshot): RegistryStock {
+  return {
+    ...stock,
+    name: data.name || stock.name,
+    currentPrice: data.currentPrice ?? stock.currentPrice,
+    marketCap: data.marketCap ?? stock.marketCap,
+    pe: data.pe ?? stock.pe,
+    bookValue: data.bookValue,
+    dividendYield: data.dividendYield,
+    roce: data.roce,
+    roe: data.roe,
+    faceValue: data.faceValue,
+    highLow: data.highLow,
+    salesGrowth3y: data.salesGrowth3y,
+    salesGrowth5y: data.salesGrowth5y,
+    salesGrowth10y: data.salesGrowth10y,
+    salesGrowthTtm: data.salesGrowthTtm,
+    profitGrowth3y: data.profitGrowth3y,
+    profitGrowth5y: data.profitGrowth5y,
+    profitGrowth10y: data.profitGrowth10y,
+    profitGrowthTtm: data.profitGrowthTtm,
+    stockCagr1y: data.stockCagr1y,
+    stockCagr3y: data.stockCagr3y,
+    stockCagr5y: data.stockCagr5y,
+    stockCagr10y: data.stockCagr10y,
+    promoterHolding: data.promoterHolding,
+    fiiHolding: data.fiiHolding,
+    diiHolding: data.diiHolding,
+    publicHolding: data.publicHolding,
+    governmentHolding: data.governmentHolding,
+    otherHolding: data.otherHolding,
+    quarterlyResults: data.quarterlyResults,
+    profitLoss: data.profitLoss,
+    balanceSheet: data.balanceSheet,
+    cashFlow: data.cashFlow,
+    shareholding: data.shareholding,
+    screenerUrl: data.url,
+    screenerFetchedAt: data.fetchedAt,
+  };
 }

@@ -1,13 +1,16 @@
-<input
-  class="input-field w-full !py-2"
-  type="text"
-  autocomplete="off"
-  [attr.list]="listId"
-  [ngModel]="query()"
-  (ngModelChange)="onQuery($event)"
-  [disabled]="disabled()"
-  [placeholder]="placeholder()"
-/>
+<div class="flex min-w-0 flex-nowrap items-center gap-2">
+  <input
+    class="input-field min-w-0 flex-1 !py-2"
+    type="text"
+    autocomplete="off"
+    [attr.list]="listId"
+    [ngModel]="query()"
+    (ngModelChange)="onQuery($event)"
+    [disabled]="disabled()"
+    [placeholder]="placeholder()"
+  />
+  <ng-content />
+</div>
 <datalist [id]="listId">
   @for (opt of options(); track opt.symbol) {
     <option [value]="opt.symbol">{{ opt.name }} · {{ opt.exchange || 'NSE' }}</option>

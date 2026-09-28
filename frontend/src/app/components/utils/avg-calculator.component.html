@@ -40,27 +40,40 @@
         <button type="button" class="text-xs font-semibold text-slate-500 hover:text-red-600" (click)="resetLots()">Reset</button>
       </div>
       <div class="space-y-3 p-4">
-        <div class="flex flex-wrap items-end gap-2">
-          <label class="min-w-[12rem] flex-1">
-            <span class="field-label">Stock</span>
-            <app-stock-search-input
-              class="mt-0.5"
-              [query]="symbolQuery()"
-              [extraStocks]="pickedRegistry()"
-              [selectedName]="stockName()"
-              [selectedExchange]="stockExchange()"
-              (queryChange)="onSymbolQuery($event)"
-              (picked)="onStockPicked($event)"
-            />
-          </label>
-          <div class="flex rounded-lg bg-slate-100 p-0.5">
-            @for (seg of segments; track seg) {
-              <button type="button" class="mini-toggle" [class.mini-toggle-active]="segment() === seg" (click)="setSegment(seg)">
-                {{ segmentLabels[seg] }}
+        <label class="block">
+          <span class="field-label">Stock</span>
+          <app-stock-search-input
+            class="mt-0.5"
+            [query]="symbolQuery()"
+            [extraStocks]="pickedRegistry()"
+            [selectedName]="stockHintName()"
+            [selectedExchange]="stockExchange()"
+            (queryChange)="onSymbolQuery($event)"
+            (picked)="onStockPicked($event)"
+          >
+            <div class="flex shrink-0 items-center gap-1">
+              <div class="flex rounded-lg bg-slate-100 p-0.5">
+                @for (seg of segments; track seg) {
+                  <button type="button" class="mini-toggle" [class.mini-toggle-active]="segment() === seg" (click)="setSegment(seg)">
+                    {{ segmentLabels[seg] }}
+                  </button>
+                }
+              </div>
+              <button
+                type="button"
+                class="plan-tool-btn plan-icon-btn"
+                [disabled]="refreshBusy() || !symbol().trim()"
+                (click)="refreshStockDetails()"
+                aria-label="Refresh stock details"
+                title="Refresh stock details"
+              >
+                <svg class="h-4 w-4" [class.animate-spin]="refreshBusy()" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V2.929a.75.75 0 00-1.5 0V5.36l-.31-.31a7 7 0 00-11.712 3.138.75.75 0 101.45.388A5.5 5.5 0 0113.89 6.11l.311.31h-2.432a.75.75 0 000 1.5h4.243a.75.75 0 00.53-.219z" clip-rule="evenodd" />
+                </svg>
               </button>
-            }
-          </div>
-        </div>
+            </div>
+          </app-stock-search-input>
+        </label>
 
         <div class="flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-slate-50/80 p-2.5">
           <div class="flex rounded-full bg-white p-0.5 shadow-sm">
