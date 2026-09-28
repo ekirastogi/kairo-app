@@ -391,113 +391,10 @@
           </div>
         }
 
-        <ng-container *ngTemplateOutlet="periodHeatmaps" />
-
-        <div class="card overflow-hidden">
-          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-            <div>
-              <h3 class="text-sm font-semibold text-slate-900">Trading weeks</h3>
-              <p class="text-xs text-slate-500">
-                @if (weeklyCalendarMode() === 'all') {
-                  All weeks in the top filter
-                } @else {
-                  Click a week to open that week’s stocks below
-                }
-              </p>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <button
-                type="button"
-                class="btn-secondary px-2.5 py-1 text-xs"
-                [class.period-seg-active]="weeklyCalendarMode() === 'all'"
-                (click)="setWeeklyCalendarMode('all')"
-              >
-                All
-              </button>
-              <button
-                type="button"
-                class="btn-secondary px-2.5 py-1 text-xs disabled:opacity-40"
-                [disabled]="weeklyCalendarMode() === 'year' && !canPrevWeeklyCalendarYear()"
-                (click)="prevWeeklyCalendarYear()"
-                aria-label="Previous year"
-              >
-                ←
-              </button>
-              <button
-                type="button"
-                class="min-w-[4rem] px-2 py-1 text-center text-sm font-semibold text-slate-800"
-                [class.text-kairo-700]="weeklyCalendarMode() === 'year'"
-                (click)="setWeeklyCalendarMode('year')"
-              >
-                {{ weeklyCalendarMode() === 'all' ? 'By year' : weeklyCalendarYear() }}
-              </button>
-              <button
-                type="button"
-                class="btn-secondary px-2.5 py-1 text-xs disabled:opacity-40"
-                [disabled]="weeklyCalendarMode() === 'year' && !canNextWeeklyCalendarYear()"
-                (click)="nextWeeklyCalendarYear()"
-                aria-label="Next year"
-              >
-                →
-              </button>
-            </div>
-          </div>
-          <div class="max-h-80 divide-y divide-slate-100 overflow-y-auto">
-            @for (week of weeksInCalendarYear(); track week.period) {
-              <button
-                type="button"
-                class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
-                [class.bg-kairo-50]="selectedWeek() === week.period"
-                (click)="toggleWeek(week.period)"
-              >
-                <div class="min-w-0">
-                  <p class="font-medium text-slate-900">{{ week.label }}</p>
-                  <p class="text-xs text-slate-500">{{ week.tradeCount }} trades · {{ week.winRate | number:'1.0-0' }}% win</p>
-                </div>
-                <p class="shrink-0 font-bold tabular-nums" [class]="pnlClass(week.netPnL)">{{ formatCurrency(week.netPnL) }}</p>
-              </button>
-            } @empty {
-              <p class="px-4 py-8 text-center text-sm text-slate-400">
-                No weeks{{ weeklyCalendarMode() === 'all' ? '' : ' in ' + weeklyCalendarYear() }}
-              </p>
-            }
-          </div>
-          @if (weeklyYearSummary(); as summary) {
-            <div
-              class="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-t border-slate-200 bg-slate-50/90 px-3 py-1.5 text-[11px] tabular-nums"
-              aria-live="polite"
-            >
-              <span class="font-semibold uppercase tracking-wide text-slate-500">{{ summary.label }}</span>
-              <span class="text-slate-500">{{ summary.periodCount }}w · {{ summary.green }}g · {{ summary.red }}r</span>
-              <span [class]="pnlClass(summary.netPnL)">Net {{ formatCompactCurrency(summary.netPnL) }}</span>
-              <span class="text-red-600">Chg {{ formatCompactCurrency(summary.allocatedCharges) }}</span>
-              <span class="text-slate-700">{{ summary.tradeCount | number }}t · {{ summary.winRate | number:'1.0-0' }}%</span>
-            </div>
-          }
-        </div>
-
-        @if (selectedWeekBucket(); as week) {
-          <div class="card overflow-hidden">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-kairo-500 px-4 py-3">
-              <div>
-                <h3 class="text-sm font-semibold text-slate-900">{{ week.label }}</h3>
-                <p class="text-xs text-slate-500">
-                  {{ selectedWeekStocks().length }} stocks · {{ week.tradeCount }} trades ·
-                  net <span [class]="pnlClass(week.netPnL)">{{ formatCurrency(week.netPnL) }}</span>
-                </p>
-              </div>
-              <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="selectedWeek.set(null)">Close</button>
-            </div>
-            <app-expandable-stocks-table
-              [stocks]="selectedWeekStocks()"
-              periodTab="weekly"
-              [periodKey]="selectedWeek()"
-              [emptyMessage]="isSelectedWeekLoading() ? 'Loading trades for this week…' : 'No stock detail for this week'"
-            />
-          </div>
-        } @else if (weeksInCalendarYear().length) {
-          <p class="text-center text-sm text-slate-400">Select a trading week to expand stocks.</p>
-        }
+        <ng-container *ngTemplateOutlet="tradingWeeksCard" />
+        <ng-container *ngTemplateOutlet="tradingDaysCard" />
+        <ng-container *ngTemplateOutlet="weekdayHeatmapCard" />
+        <ng-container *ngTemplateOutlet="tradingMonthsCard" />
 
         <div class="grid gap-4 lg:grid-cols-2">
           <app-chart-card [config]="weeklyChartConfig()" title="Weekly net P&amp;L" subtitle="Performance by trading week" size="lg" />
@@ -927,8 +824,125 @@
 
 <ng-template #periodHeatmaps>
   <ng-container *ngTemplateOutlet="tradingDaysCard" />
+  <ng-container *ngTemplateOutlet="tradingWeeksCard" />
   <ng-container *ngTemplateOutlet="weekdayHeatmapCard" />
   <ng-container *ngTemplateOutlet="tradingMonthsCard" />
+</ng-template>
+
+<ng-template #tradingWeeksCard>
+  <div class="card overflow-hidden">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+      <div>
+        <h3 class="text-sm font-semibold text-slate-900">Trading weeks</h3>
+        <p class="text-xs text-slate-500">
+          @if (weeklyCalendarMode() === 'all') {
+            Each week-of-year summed across years in the top filter
+          } @else {
+            Click a week to open that week’s stocks below
+          }
+        </p>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button
+          type="button"
+          class="btn-secondary px-2.5 py-1 text-xs"
+          [class.period-seg-active]="weeklyCalendarMode() === 'all'"
+          (click)="setWeeklyCalendarMode('all')"
+        >
+          All
+        </button>
+        <button
+          type="button"
+          class="btn-secondary px-2.5 py-1 text-xs disabled:opacity-40"
+          [disabled]="weeklyCalendarMode() === 'year' && !canPrevWeeklyCalendarYear()"
+          (click)="prevWeeklyCalendarYear()"
+          aria-label="Previous year"
+        >
+          ←
+        </button>
+        <button
+          type="button"
+          class="min-w-[4rem] px-2 py-1 text-center text-sm font-semibold text-slate-800"
+          [class.text-kairo-700]="weeklyCalendarMode() === 'year'"
+          (click)="setWeeklyCalendarMode('year')"
+        >
+          {{ weeklyCalendarMode() === 'all' ? 'By year' : weeklyCalendarYear() }}
+        </button>
+        <button
+          type="button"
+          class="btn-secondary px-2.5 py-1 text-xs disabled:opacity-40"
+          [disabled]="weeklyCalendarMode() === 'year' && !canNextWeeklyCalendarYear()"
+          (click)="nextWeeklyCalendarYear()"
+          aria-label="Next year"
+        >
+          →
+        </button>
+      </div>
+    </div>
+    <div class="grid grid-cols-7 gap-1 p-3 sm:grid-cols-10 sm:gap-2.5 sm:p-4 lg:grid-cols-[repeat(13,minmax(0,1fr))]">
+      @for (week of weeksInCalendarView(); track week.key) {
+        @if (week.bucket; as bucket) {
+          <button
+            type="button"
+            class="heat-cell overview-weekday-cell"
+            [class]="heatClass(bucket.netPnL, weeklyYearMaxAbs())"
+            [class.trading-day-cell-active]="selectedWeek() === week.key"
+            [title]="week.label + (bucket.label && bucket.label !== week.label ? ' · ' + bucket.label : '') + ': ' + formatCurrency(bucket.netPnL)"
+            (click)="toggleWeek(week.key)"
+          >
+            <span class="heat-day uppercase">{{ week.label }}</span>
+            <span class="heat-pnl lg:hidden">{{ formatCompactCurrency(bucket.netPnL) }}</span>
+            <span class="heat-pnl hidden lg:inline">{{ formatCurrency(bucket.netPnL) }}</span>
+            <span class="text-[9px] leading-none text-slate-500 sm:text-[10px]">{{ bucket.tradeCount }}t</span>
+          </button>
+        } @else {
+          <div
+            class="heat-cell overview-weekday-cell heat-neutral opacity-40"
+            [title]="week.label + ': No trades'"
+          >
+            <span class="heat-day uppercase">{{ week.label }}</span>
+            <span class="heat-pnl">—</span>
+            <span class="text-[9px] leading-none text-slate-500 sm:text-[10px]">0t</span>
+          </div>
+        }
+      }
+    </div>
+    @if (weeklyYearSummary(); as summary) {
+      <div
+        class="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-t border-slate-200 bg-slate-50/90 px-3 py-1.5 text-[11px] tabular-nums"
+        aria-live="polite"
+      >
+        <span class="font-semibold uppercase tracking-wide text-slate-500">{{ summary.label }}</span>
+        <span class="text-slate-500">{{ summary.periodCount }}w · {{ summary.green }}g · {{ summary.red }}r</span>
+        <span [class]="pnlClass(summary.netPnL)">Net {{ formatCompactCurrency(summary.netPnL) }}</span>
+        <span class="text-red-600">Chg {{ formatCompactCurrency(summary.allocatedCharges) }}</span>
+        <span class="text-slate-700">{{ summary.tradeCount | number }}t · {{ summary.winRate | number:'1.0-0' }}%</span>
+      </div>
+    }
+  </div>
+
+  @if (selectedWeekBucket(); as week) {
+    <div class="card overflow-hidden">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b-2 border-kairo-500 px-4 py-3">
+        <div>
+          <h3 class="text-sm font-semibold text-slate-900">
+            {{ week.label }}{{ weeklyCalendarMode() === 'all' ? ' (all years)' : '' }}
+          </h3>
+          <p class="text-xs text-slate-500">
+            {{ selectedWeekStocks().length }} stocks · {{ week.tradeCount }} trades ·
+            net <span [class]="pnlClass(week.netPnL)">{{ formatCurrency(week.netPnL) }}</span>
+          </p>
+        </div>
+        <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="selectedWeek.set(null)">Close</button>
+      </div>
+      <app-expandable-stocks-table
+        [stocks]="selectedWeekStocks()"
+        [periodTab]="selectedWeek()?.startsWith('woy-') ? 'weekOfYear' : 'weekly'"
+        [periodKey]="selectedWeek()?.startsWith('woy-') ? selectedWeek()!.slice(4) : selectedWeek()"
+        [emptyMessage]="isSelectedWeekLoading() ? 'Loading trades for this week…' : 'No stock detail for this week'"
+      />
+    </div>
+  }
 </ng-template>
 
 <ng-template #calendarDayGrid>

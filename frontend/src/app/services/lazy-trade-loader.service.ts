@@ -8,6 +8,7 @@ import { sortTradesBySellDateDesc, storedTradeToTrade } from '../utils/trade.uti
 import { tradeMatchesTypeFilter } from '../utils/trade-type-filter.utils';
 import { effectiveAnalysisDateRange } from '../utils/filter-stock-profiles.utils';
 import { tradeDateKey } from '../utils/trade-date.utils';
+import { getISOWeek } from '../utils/analytics-aggregation.utils';
 
 @Injectable({ providedIn: 'root' })
 export class LazyTradeLoaderService {
@@ -257,7 +258,8 @@ export type PeriodScopeTab =
   | 'monthly'
   | 'weekday'
   | 'dayOfMonth'
-  | 'monthOfYear';
+  | 'monthOfYear'
+  | 'weekOfYear';
 
 function tradeWeekday(trade: Trade): number {
   return new Date(`${trade.sellDate}T12:00:00`).getDay();
@@ -271,15 +273,21 @@ function tradeMonthOfYear(trade: Trade): string {
   return trade.sellDate.slice(5, 7);
 }
 
+function tradeIsoWeekOfYear(trade: Trade): string {
+  const { week } = getISOWeek(new Date(`${trade.sellDate}T00:00:00`));
+  return String(week).padStart(2, '0');
+}
+
 function matchesPeriodScope(trade: Trade, tab: PeriodScopeTab, periodKey: string): boolean {
   if (tab === 'weekday') return tradeWeekday(trade) === Number(periodKey);
   if (tab === 'dayOfMonth') return tradeDayOfMonth(trade) === Number(periodKey);
   if (tab === 'monthOfYear') return tradeMonthOfYear(trade) === periodKey.padStart(2, '0');
+  if (tab === 'weekOfYear') return tradeIsoWeekOfYear(trade) === periodKey.padStart(2, '0');
   return true;
 }
 
 function usesFullFilterRange(tab: PeriodScopeTab): boolean {
-  return tab === 'weekday' || tab === 'dayOfMonth' || tab === 'monthOfYear';
+  return tab === 'weekday' || tab === 'dayOfMonth' || tab === 'monthOfYear' || tab === 'weekOfYear';
 }
 
 export function periodDateRange(

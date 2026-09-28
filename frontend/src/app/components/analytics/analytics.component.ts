@@ -445,12 +445,17 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     this.selectedWeek.set(next);
     if (next) {
       this.clearOtherPeriodSelections('week');
-      const year = Number(period.slice(0, 4));
-      if (year) {
-        this.weeklyCalendarMode.set('year');
-        this.weeklyCalendarYear.set(year);
+      if (period.startsWith('woy-')) {
+        this.weeklyCalendarMode.set('all');
+        void this.loadSelectedPeriodTrades('weekOfYear', period.slice(4));
+      } else {
+        const year = Number(period.slice(0, 4));
+        if (year) {
+          this.weeklyCalendarMode.set('year');
+          this.weeklyCalendarYear.set(year);
+        }
+        void this.loadSelectedPeriodTrades('weekly', next);
       }
-      void this.loadSelectedPeriodTrades('weekly', next);
     }
   }
 
@@ -529,7 +534,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   }
 
   private async loadSelectedPeriodTrades(
-    tab: 'daily' | 'weekly' | 'monthly' | 'weekday' | 'dayOfMonth' | 'monthOfYear',
+    tab: 'daily' | 'weekly' | 'monthly' | 'weekday' | 'dayOfMonth' | 'monthOfYear' | 'weekOfYear',
     period: string
   ): Promise<void> {
     const report = this.state.report();
@@ -548,9 +553,14 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     () => this.analysis()?.daily.find((d) => d.period === this.selectedDate()) ?? null
   );
 
-  selectedWeekBucket = computed(
-    () => this.analysis()?.weekly.find((d) => d.period === this.selectedWeek()) ?? null
-  );
+  selectedWeekBucket = computed(() => {
+    const key = this.selectedWeek();
+    if (!key) return null;
+    if (key.startsWith('woy-')) {
+      return this.weeksInCalendarView().find((w) => w.key === key)?.bucket ?? null;
+    }
+    return this.analysis()?.weekly.find((d) => d.period === key) ?? null;
+  });
 
   selectedMonthBucket = computed(() => {
     const key = this.selectedMonth();
@@ -578,7 +588,9 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   isSelectedWeekLoading = computed(() => {
     const period = this.selectedWeek();
     if (!period) return false;
-    return this.lazyTrades.isLoading(this.lazyTrades.cacheKeyForPeriod('weekly', period));
+    const tab = period.startsWith('woy-') ? 'weekOfYear' : 'weekly';
+    const key = period.startsWith('woy-') ? period.slice(4) : period;
+    return this.lazyTrades.isLoading(this.lazyTrades.cacheKeyForPeriod(tab, key));
   });
 
   isSelectedMonthLoading = computed(() => {
@@ -602,7 +614,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   });
 
   private stocksForPeriodTrades(
-    tab: 'daily' | 'weekly' | 'monthly' | 'weekday' | 'dayOfMonth' | 'monthOfYear',
+    tab: 'daily' | 'weekly' | 'monthly' | 'weekday' | 'dayOfMonth' | 'monthOfYear' | 'weekOfYear',
     period: string | null,
     embeddedTrades: Trade[] | undefined
   ): StockSummary[] {
@@ -773,9 +785,14 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     this.stocksForPeriodTrades('daily', this.selectedDate(), this.selectedDay()?.trades)
   );
 
-  selectedWeekStocks = computed(() =>
-    this.stocksForPeriodTrades('weekly', this.selectedWeek(), this.selectedWeekBucket()?.trades)
-  );
+  selectedWeekStocks = computed(() => {
+    const period = this.selectedWeek();
+    if (!period) return [];
+    if (period.startsWith('woy-')) {
+      return this.stocksForPeriodTrades('weekOfYear', period.slice(4), undefined);
+    }
+    return this.stocksForPeriodTrades('weekly', period, this.selectedWeekBucket()?.trades);
+  });
 
   selectedMonthStocks = computed(() => {
     const period = this.selectedMonth();
@@ -799,16 +816,78 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     return (bucket.winningTrades / bucket.tradeCount) * 100;
   }
 
-  weeksInCalendarYear = computed(() => {
-    const weeks = [...(this.analysis()?.weekly ?? [])];
+  weeksInCalendarView = computed(() => {
+    const weekly = this.analysis()?.weekly ?? [];
     if (this.weeklyCalendarMode() === 'all') {
-      return weeks.sort((a, b) => b.period.localeCompare(a.period));
+      const byWeek = new Map<string, PeriodBucket>();
+      for (const week of weekly) {
+        const ww = week.period.match(/W(\d{2})$/)?.[1];
+        if (!ww) continue;
+        const existing = byWeek.get(ww);
+        if (!existing) {
+          byWeek.set(ww, {
+            period: `woy-${ww}`,
+            label: `W${Number(ww)}`,
+            tradeCount: week.tradeCount,
+            totalBuyValue: week.totalBuyValue,
+            totalSellValue: week.totalSellValue,
+            realisedPnL: week.realisedPnL,
+            winningTrades: week.winningTrades,
+            losingTrades: week.losingTrades,
+            winRate: 0,
+            allocatedCharges: week.allocatedCharges,
+            netPnL: week.netPnL,
+            trades: [],
+          });
+        } else {
+          byWeek.set(ww, {
+            ...existing,
+            tradeCount: existing.tradeCount + week.tradeCount,
+            totalBuyValue: existing.totalBuyValue + week.totalBuyValue,
+            totalSellValue: existing.totalSellValue + week.totalSellValue,
+            realisedPnL: existing.realisedPnL + week.realisedPnL,
+            allocatedCharges: existing.allocatedCharges + week.allocatedCharges,
+            netPnL: existing.netPnL + week.netPnL,
+            winningTrades: existing.winningTrades + week.winningTrades,
+            losingTrades: existing.losingTrades + week.losingTrades,
+            winRate: 0,
+            trades: [],
+          });
+        }
+      }
+      for (const bucket of byWeek.values()) {
+        const decided = bucket.winningTrades + bucket.losingTrades;
+        bucket.winRate = decided ? (bucket.winningTrades / decided) * 100 : 0;
+      }
+      return Array.from({ length: 53 }, (_, i) => {
+        const ww = String(i + 1).padStart(2, '0');
+        return {
+          key: `woy-${ww}`,
+          label: `W${i + 1}`,
+          bucket: byWeek.get(ww) ?? null,
+        };
+      });
     }
+
     const year = this.weeklyCalendarYear();
-    return weeks
-      .filter((w) => w.period.startsWith(`${year}-`))
-      .sort((a, b) => b.period.localeCompare(a.period));
+    const byKey = new Map(weekly.map((week) => [week.period, week]));
+    return Array.from({ length: 53 }, (_, i) => {
+      const ww = String(i + 1).padStart(2, '0');
+      const key = `${year}-W${ww}`;
+      const bucket = byKey.get(key) ?? null;
+      return {
+        key,
+        label: `W${i + 1}`,
+        bucket,
+      };
+    });
   });
+
+  weeksInCalendarYear = computed(() =>
+    this.weeksInCalendarView()
+      .map((week) => week.bucket)
+      .filter((bucket): bucket is PeriodBucket => !!bucket)
+  );
 
   monthsInCalendarYear = computed(() => this.monthsInCalendarView());
 
@@ -905,7 +984,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   );
 
   weeklyYearMaxAbs = computed(() =>
-    Math.max(...this.weeksInCalendarYear().map((w) => Math.abs(w.netPnL)), 1)
+    Math.max(...this.weeksInCalendarView().map((week) => Math.abs(week.bucket?.netPnL ?? 0)), 1)
   );
 
   private summarisePeriodBuckets(buckets: PeriodBucket[]) {

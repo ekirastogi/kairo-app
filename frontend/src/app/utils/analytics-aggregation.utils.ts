@@ -90,7 +90,7 @@ export function buildSummaryFromDaily(rows: DailyAnalyticsRow[]) {
   };
 }
 
-function getISOWeek(d: Date): { year: number; week: number } {
+export function getISOWeek(d: Date): { year: number; week: number } {
   const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
   const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
