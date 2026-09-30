@@ -258,6 +258,8 @@ export class TrackingComponent implements OnInit, OnDestroy {
       switch (column) {
         case 'symbol':
           return row.symbol;
+        case 'executedAt':
+          return row.executedAt ?? row.updatedAt;
         case 'netPnL':
           return row.netPnL;
         case 'charges':
@@ -413,6 +415,17 @@ export class TrackingComponent implements OnInit, OnDestroy {
 
   displayAction(action: string): (typeof ACTION_PRESETS)[number] {
     return this.normalizeAction(action);
+  }
+
+  tradeDate(row: Pick<PriceTracker, 'executedAt' | 'updatedAt'>): string {
+    const ms = row.executedAt ?? row.updatedAt;
+    if (!ms) return '—';
+    return new Date(ms).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata',
+    });
   }
 
   private normalizeAction(action: string): (typeof ACTION_PRESETS)[number] {

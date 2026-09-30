@@ -565,6 +565,11 @@
                   Stock <span>{{ historySort.indicator('symbol') }}</span>
                 </button>
               </th>
+              <th class="num col-date">
+                <button type="button" class="sort-btn" [class.sort-btn-active]="historySort.isActive('executedAt')" (click)="historySort.toggle('executedAt', $event)">
+                  Date <span>{{ historySort.indicator('executedAt') }}</span>
+                </button>
+              </th>
               <th class="num col-pair">
                 <span class="pair-head"><span>Entry</span><span class="pair-sub">Exit</span></span>
               </th>
@@ -585,7 +590,10 @@
                     <a class="sym" [routerLink]="['/stock', row.symbol]" (click)="$event.stopPropagation()">{{ row.symbol }}</a>
                     <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
                   </span>
-                  <span class="name">{{ row.stockName || row.symbol }}{{ row.executedAt ? ' · ' + (row.executedAt | date:'d MMM') : '' }}</span>
+                  <span class="name">{{ row.stockName || row.symbol }}</span>
+                </td>
+                <td class="num col-date">
+                  <span class="tabular-nums text-slate-700">{{ tradeDate(row) }}</span>
                 </td>
                 <td class="num col-pair">
                   <span class="pair">
@@ -607,9 +615,13 @@
               </tr>
               @if (isExpanded(row)) {
                 <tr class="plan-expand">
-                  <td colspan="5">
+                  <td colspan="6">
                     <div class="ticket">
                       <dl class="ticket-facts">
+                        <div>
+                          <dt>Date</dt>
+                          <dd>{{ tradeDate(row) }}</dd>
+                        </div>
                         <div>
                           <dt>Side</dt>
                           <dd><span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span></dd>
@@ -659,7 +671,7 @@
               }
             } @empty {
               <tr>
-                <td colspan="5" class="empty">{{ lockedSymbol() ? 'No closed plans for this stock.' : 'No closed trades yet. Close a plan from Open to see it here.' }}</td>
+                <td colspan="6" class="empty">{{ lockedSymbol() ? 'No closed plans for this stock.' : 'No closed trades yet. Close a plan from Open to see it here.' }}</td>
               </tr>
             }
           </tbody>
