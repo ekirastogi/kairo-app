@@ -1,4 +1,4 @@
-import { TradeDirection } from '../models/trading-journal.models';
+import { ExecutionLeg, TradeDirection } from '../models/trading-journal.models';
 
 export type FillSide = 'buy' | 'sell';
 
@@ -147,4 +147,19 @@ export function openPosition(summary: AvgCalculatorSummary): AvgPosition | null 
 /** Position direction in the terms the charges service and trade book use. */
 export function positionDirection(position: AvgPosition): TradeDirection {
   return position.side === 'buy' ? 'long' : 'short';
+}
+
+/** Buy and sell fills as execution legs for trade history. */
+export function fillsToExecutionLegs(fills: AvgFill[]): {
+  buyLegs: ExecutionLeg[];
+  sellLegs: ExecutionLeg[];
+} {
+  const buyLegs: ExecutionLeg[] = [];
+  const sellLegs: ExecutionLeg[] = [];
+  for (const fill of fills) {
+    const leg = { quantity: fill.quantity, price: fill.price };
+    if (fill.side === 'buy') buyLegs.push(leg);
+    else sellLegs.push(leg);
+  }
+  return { buyLegs, sellLegs };
 }

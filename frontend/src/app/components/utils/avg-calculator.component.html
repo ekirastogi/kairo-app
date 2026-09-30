@@ -166,16 +166,6 @@
             </div>
           }
         </div>
-
-        <div class="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-          <button type="button" class="btn-primary !px-3 !py-1.5 text-xs" [disabled]="!canAddToBook() || savingToBook()" (click)="addToTradeBook()">
-            {{ savingToBook() ? 'Adding…' : 'Add to trade book' }}
-          </button>
-          <a routerLink="/trade-plans" class="text-xs font-semibold text-kairo-700 hover:underline">Open trade book</a>
-          @if (notice()) {
-            <span class="text-xs text-slate-500">{{ notice() }}</span>
-          }
-        </div>
       </div>
     </section>
 
@@ -271,6 +261,17 @@
           </div>
         }
 
+        @if (fullyClosed() && bookedTrip(); as booked) {
+          <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-center sm:text-left">
+            <p class="text-sm font-medium text-slate-700">Fully closed</p>
+            <p class="mt-1 text-xs text-slate-500">
+              Booked
+              <span class="font-semibold tabular-nums" [class]="pnlClass(booked.netPnL)">{{ formatCurrency(booked.netPnL) }}</span>
+              net after charges · {{ historyDayLabel() }}. Add it to the trade book as a closed trade.
+            </p>
+          </div>
+        }
+
         @if (rightTab() === 'guide') {
           @if (position()) {
             <div class="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 sm:grid-cols-3">
@@ -350,19 +351,10 @@
                 </tbody>
               </table>
             </div>
-          } @else {
+          } @else if (!fullyClosed()) {
             <div class="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center">
-              @if (bookedTrip(); as booked) {
-                <p class="text-sm font-medium text-slate-700">Fully closed</p>
-                <p class="mt-1 text-xs text-slate-500">
-                  Booked
-                  <span class="font-semibold tabular-nums" [class]="pnlClass(booked.netPnL)">{{ formatCurrency(booked.netPnL) }}</span>
-                  net after charges.
-                </p>
-              } @else {
-                <p class="text-sm font-medium text-slate-700">No open quantity</p>
-                <p class="mt-1 text-xs text-slate-500">Add lots on the left, then a partial exit on the right.</p>
-              }
+              <p class="text-sm font-medium text-slate-700">No open quantity</p>
+              <p class="mt-1 text-xs text-slate-500">Add lots on the left, then a partial exit on the right.</p>
             </div>
           }
         }
@@ -534,6 +526,27 @@
           }
         }
       </div>
+
+      <div class="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-3">
+        <button
+          type="button"
+          class="btn-primary !px-3 !py-1.5 text-xs"
+          [disabled]="!canAddToBook() || savingToBook() || savingToHistory()"
+          (click)="addToTradeBook()"
+        >
+          {{ savingToBook() || savingToHistory() ? 'Adding…' : historySavedAt() ? 'Added as closed trade' : 'Add to trade book' }}
+        </button>
+        <a routerLink="/trade-plans" class="text-xs font-semibold text-kairo-700 hover:underline">Open trade book</a>
+        @if (historySavedAt()) {
+          <a routerLink="/trade-plans/history" class="text-xs font-semibold text-kairo-700 hover:underline">Open history</a>
+        }
+        @if (addToBookHint(); as hint) {
+          <span class="text-xs text-slate-500">{{ hint }}</span>
+        }
+        @if (notice()) {
+          <span class="text-xs text-slate-500">{{ notice() }}</span>
+        }
+      </div>
     </section>
   </div>
 </div>
@@ -548,6 +561,7 @@
     <div class="space-y-3 text-sm text-slate-600">
       <p><span class="font-semibold text-slate-800">Lots</span> open the position. <span class="font-semibold text-slate-800">Custom exit</span> is a partial cover or book-out — the table then uses remaining qty and FIFO average.</p>
       <p><span class="font-semibold text-slate-800">Booked net</span> is closed P&amp;L after charges. <span class="font-semibold text-slate-800">Stop to stay green</span> is the remaining exit that keeps the whole trade at least flat.</p>
+      <p><span class="font-semibold text-slate-800">Fully closed</span> means buys and sells match. Add it to the trade book as a closed trade for today — it shows up in trade history with entry, exit, and net P&amp;L.</p>
       <p><span class="font-semibold text-slate-800">+₹1,000 more</span> is extra net profit on the still-open qty, after charges.</p>
     </div>
   </div>

@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { formatCurrency, formatPrice, formatPctSigned, pnlClass } from '../../utils/format.utils';
+import { formatCurrency, formatPrice, formatPctSigned, formatDate, pnlClass } from '../../utils/format.utils';
 import {
   AvgFill,
   AvgPosition,
@@ -10,6 +10,7 @@ import {
   FillSide,
   createFill,
   createTarget,
+  fillsToExecutionLegs,
   openPosition,
   positionDirection,
   summarizeFills,
@@ -25,9 +26,11 @@ import { ChargesService } from '../../services/charges.service';
 import { RegistryStockService } from '../../services/registry-stock.service';
 import { ScreenerService, ScreenerSnapshot } from '../../services/screener.service';
 import { TradePlanService } from '../../services/trade-plan.service';
+import { PriceTrackerService } from '../../services/price-tracker.service';
 import { readJson, writeJson } from '../../utils/local-store.utils';
-import { RegistryStock } from '../../models/trading-journal.models';
+import { ExecutionLeg, RegistryStock } from '../../models/trading-journal.models';
 import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
+import { istTodayIso } from '../../utils/market-calendar.utils';
 
 const PLANS_KEY = 'kairo-stock-plans-v2';
 const LEGACY_PLANS_KEY = 'kairo-stock-plans-v1';
@@ -46,6 +49,7 @@ interface StockPlan {
   fills: AvgFill[];
   exits: AvgFill[];
   targets: AvgTarget[];
+  historySavedAt?: number;
   updatedAt: number;
 }
 
@@ -77,6 +81,7 @@ function normalizePlan(raw: Partial<StockPlan> & { id?: string; markPrice?: numb
     targets: Array.isArray(raw.targets)
       ? raw.targets.map((t) => ({ ...t, quantity: t.quantity ?? 0 }))
       : [],
+    historySavedAt: raw.historySavedAt,
     updatedAt: raw.updatedAt ?? Date.now(),
   });
 }
@@ -158,6 +163,7 @@ function loadStore(): PlansStore {
 export class AvgCalculatorComponent {
   private readonly charges = inject(ChargesService);
   private readonly tradePlans = inject(TradePlanService);
+  private readonly trackers = inject(PriceTrackerService);
   private readonly registrySvc = inject(RegistryStockService);
   private readonly screenerSvc = inject(ScreenerService);
   private store = loadStore();
@@ -181,6 +187,7 @@ export class AvgCalculatorComponent {
   fills = signal<AvgFill[]>(this.activePlan().fills);
   exits = signal<AvgFill[]>(this.activePlan().exits);
   targets = signal<AvgTarget[]>(this.activePlan().targets);
+  historySavedAt = signal<number | null>(this.activePlan().historySavedAt ?? null);
 
   draftSide = signal<FillSide>('buy');
   draftExitSide = signal<FillSide>('sell');
@@ -199,6 +206,7 @@ export class AvgCalculatorComponent {
   targetError = signal<string | null>(null);
   notice = signal<string | null>(null);
   savingToBook = signal(false);
+  savingToHistory = signal(false);
 
   readonly formatCurrency = formatCurrency;
   readonly formatPrice = formatPrice;
@@ -315,9 +323,28 @@ export class AvgCalculatorComponent {
     });
   });
 
-  canAddToBook = computed(
-    () => this.symbol().trim().length > 0 && this.position() != null && this.targets().length > 0
+  canAddToBook = computed(() => {
+    if (!this.symbol().trim()) return false;
+    if (this.fullyClosed()) return this.book().matchedQty > 0 && !this.historySavedAt();
+    return this.position() != null && this.targets().length > 0;
+  });
+
+  addToBookHint = computed(() => {
+    if (this.canAddToBook()) return null;
+    if (!this.symbol().trim()) return 'Pick a stock first';
+    if (this.fullyClosed() && this.historySavedAt()) return 'Already added as a closed trade';
+    if (!this.position()) return 'Add lots to open a position';
+    if (!this.targets().length) return 'Add an exit target first';
+    return null;
+  });
+
+  fullyClosed = computed(() => this.position() == null && this.bookedTrip() != null);
+
+  canSaveToHistory = computed(
+    () => this.fullyClosed() && this.symbol().trim().length > 0 && this.book().matchedQty > 0
   );
+
+  historyDayLabel = computed(() => formatDate(istTodayIso()));
 
   suggestedExitSide(): FillSide {
     const position = this.position();
@@ -410,6 +437,7 @@ export class AvgCalculatorComponent {
     this.fills.update((rows) => [...rows, createFill(this.draftSide(), parsed.price, parsed.quantity)]);
     this.draftPrice = '';
     this.draftQty = '';
+    this.markUnsavedHistory();
     this.persist();
     this.draftExitSide.set(this.suggestedExitSide());
   }
@@ -422,22 +450,26 @@ export class AvgCalculatorComponent {
     this.exits.update((rows) => [...rows, createFill(side, parsed.price, parsed.quantity)]);
     this.draftExitPrice = '';
     this.draftExitQty = '';
+    this.markUnsavedHistory();
     this.persist();
   }
 
   removeFill(id: string): void {
     this.fills.update((rows) => rows.filter((row) => row.id !== id));
+    this.markUnsavedHistory();
     this.persist();
   }
 
   removeExit(id: string): void {
     this.exits.update((rows) => rows.filter((row) => row.id !== id));
+    this.markUnsavedHistory();
     this.persist();
   }
 
   resetLots(): void {
     this.fills.set([]);
     this.addError.set(null);
+    this.markUnsavedHistory();
     this.persist();
   }
 
@@ -446,6 +478,7 @@ export class AvgCalculatorComponent {
     this.targets.set([]);
     this.exitError.set(null);
     this.targetError.set(null);
+    this.markUnsavedHistory();
     this.persist();
   }
 
@@ -604,6 +637,7 @@ export class AvgCalculatorComponent {
       ...current,
       id: crypto.randomUUID(),
       symbol: current.symbol ? `${current.symbol} copy` : '',
+      historySavedAt: undefined,
     });
     this.plans.update((rows) => [...rows, copy]);
     this.selectPlan(copy.id);
@@ -625,6 +659,7 @@ export class AvgCalculatorComponent {
     this.fills.set(plan.fills);
     this.exits.set(plan.exits);
     this.targets.set(plan.targets.map((t) => ({ ...t, quantity: t.quantity ?? 0 })));
+    this.historySavedAt.set(plan.historySavedAt ?? null);
     this.notice.set(null);
     this.targetError.set(null);
     this.addError.set(null);
@@ -649,6 +684,11 @@ export class AvgCalculatorComponent {
   }
 
   async addToTradeBook(): Promise<void> {
+    if (this.fullyClosed()) {
+      await this.saveToTradeHistory();
+      return;
+    }
+
     const position = this.position();
     const symbol = this.symbol().trim().toUpperCase();
     if (!position || !symbol) return;
@@ -678,6 +718,46 @@ export class AvgCalculatorComponent {
       this.notice.set(error instanceof Error ? error.message : 'Could not add to trade book');
     } finally {
       this.savingToBook.set(false);
+    }
+  }
+
+  async saveToTradeHistory(): Promise<void> {
+    if (!this.canSaveToHistory() || this.savingToHistory() || this.historySavedAt()) return;
+    const symbol = this.symbol().trim().toUpperCase();
+    const book = this.book();
+    const legs = this.closedExecutionLegs();
+    if (!symbol || !legs || book.matchedAvgBuy == null || book.matchedAvgSell == null) {
+      this.notice.set('Add matching buys and sells before saving history');
+      return;
+    }
+
+    const isShort = this.openingWasShort();
+    const entryPrice = isShort ? book.matchedAvgSell : book.matchedAvgBuy;
+    const exitPrice = isShort ? book.matchedAvgBuy : book.matchedAvgSell;
+    this.savingToHistory.set(true);
+    this.notice.set(null);
+    try {
+      await this.trackers.saveExecuted({
+        symbol,
+        stockName: this.stockName() || symbol,
+        isin: this.stockIsin() || undefined,
+        action: isShort ? 'Short' : 'Long',
+        quantity: book.matchedQty,
+        segment: tradeSegmentForCharge(this.segment()),
+        entryPrice,
+        targetPrice: exitPrice,
+        targets: [{ quantity: book.matchedQty, price: exitPrice }],
+        buyLegs: legs.buyLegs,
+        sellLegs: legs.sellLegs,
+        notes: 'From utility',
+      });
+      this.historySavedAt.set(Date.now());
+      this.persist();
+      this.notice.set(`${symbol} added to the trade book as a closed trade for ${this.historyDayLabel()}`);
+    } catch (error) {
+      this.notice.set(error instanceof Error ? error.message : 'Could not save to trade history');
+    } finally {
+      this.savingToHistory.set(false);
     }
   }
 
@@ -732,6 +812,25 @@ export class AvgCalculatorComponent {
     return first?.side === 'sell';
   }
 
+  private closedExecutionLegs(): { buyLegs: ExecutionLeg[]; sellLegs: ExecutionLeg[] } | null {
+    const book = this.book();
+    if (book.matchedQty <= 0 || book.matchedAvgBuy == null || book.matchedAvgSell == null) {
+      return null;
+    }
+    const fromFills = fillsToExecutionLegs([...this.fills(), ...this.exits()]);
+    if (!TradePlanService.validateExecutionLegs(fromFills.buyLegs, fromFills.sellLegs)) {
+      return fromFills;
+    }
+    return {
+      buyLegs: [{ quantity: book.matchedQty, price: book.matchedAvgBuy }],
+      sellLegs: [{ quantity: book.matchedQty, price: book.matchedAvgSell }],
+    };
+  }
+
+  private markUnsavedHistory(): void {
+    if (this.historySavedAt() != null) this.historySavedAt.set(null);
+  }
+
   private snapshot(): StockPlan {
     return {
       id: this.planId(),
@@ -740,6 +839,7 @@ export class AvgCalculatorComponent {
       fills: this.fills(),
       exits: this.exits(),
       targets: this.targets(),
+      historySavedAt: this.historySavedAt() ?? undefined,
       updatedAt: Date.now(),
     };
   }

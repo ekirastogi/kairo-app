@@ -52,6 +52,12 @@ export interface SavePriceTrackerInput {
   targets?: TrackerTarget[];
 }
 
+export interface SaveExecutedTrackerInput extends SavePriceTrackerInput {
+  buyLegs: ExecutionLeg[];
+  sellLegs: ExecutionLeg[];
+  executedAt?: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PriceTrackerService {
   private supabase = inject(SupabaseService);
@@ -144,6 +150,55 @@ export class PriceTrackerService {
     const { error } = await this.supabase.client.from('price_trackers').insert(row);
     if (error) throw error;
     this.notifyOpenChanged();
+    return rowId;
+  }
+
+  async saveExecuted(input: SaveExecutedTrackerInput): Promise<string> {
+    const uid = await this.auth.getDataUserId();
+    if (!uid) throw new Error('Sign in to save history');
+    const validation = TradePlanService.validateExecutionLegs(input.buyLegs, input.sellLegs);
+    if (validation) throw new Error(validation);
+
+    const symbol = input.symbol.toUpperCase().trim();
+    if (!symbol) throw new Error('Symbol is required');
+    const action = input.action.trim();
+    if (!action) throw new Error('Action is required');
+    if (!(input.targetPrice > 0)) throw new Error('Target price is required');
+
+    const quantity = TradePlanService.legTotalQty(input.buyLegs);
+    const entryPrice = input.entryPrice != null && input.entryPrice > 0 ? input.entryPrice : null;
+    const targets = parseTrackerTargets(
+      input.targets ?? [{ quantity, price: input.targetPrice }]
+    );
+    const now = Date.now();
+    const executedAt = input.executedAt != null && input.executedAt > 0 ? input.executedAt : now;
+    const rowId = crypto.randomUUID();
+    const row = objectToSnake({
+      id: rowId,
+      userId: uid,
+      symbol,
+      stockName: input.stockName?.trim() || symbol,
+      isin: input.isin?.trim() || '',
+      action,
+      targetPrice: input.targetPrice,
+      nextTargets: parsePositivePrices(input.nextTargets ?? targets.map((t) => t.price)),
+      notes: input.notes?.trim() ?? '',
+      quantity,
+      segment: input.segment === 'delivery' ? 'delivery' : 'intraday',
+      entryPrice,
+      stopLoss: null,
+      targets,
+      status: 'executed',
+      executedAt,
+      buyLegs: input.buyLegs,
+      sellLegs: input.sellLegs,
+      realizedPnl: TradePlanService.realizedPnLFromLegs(input.buyLegs, input.sellLegs),
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const { error } = await this.supabase.client.from('price_trackers').insert(row);
+    if (error) throw error;
     return rowId;
   }
 
