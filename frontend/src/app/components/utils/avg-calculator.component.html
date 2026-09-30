@@ -236,7 +236,15 @@
         @if (exits().length) {
           <div class="space-y-2">
             @for (fill of exits(); track fill.id) {
-              <div class="blotter-row">
+              <div class="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                <div>
+                  <p class="field-label">Exit at</p>
+                  <p class="text-sm font-semibold tabular-nums text-slate-900">{{ formatPrice(fill.price) }}</p>
+                </div>
+                <div>
+                  <p class="field-label">Qty</p>
+                  <p class="text-sm font-semibold tabular-nums text-slate-900">{{ fill.quantity | number }}</p>
+                </div>
                 <span
                   class="rounded-full px-2 py-0.5 text-center text-[10px] font-bold uppercase tracking-wide"
                   [class.bg-emerald-50]="fill.side === 'buy'"
@@ -246,14 +254,6 @@
                 >
                   {{ fill.side }}
                 </span>
-                <div>
-                  <p class="field-label">Price</p>
-                  <p class="text-sm font-semibold tabular-nums text-slate-900">{{ formatPrice(fill.price) }}</p>
-                </div>
-                <div>
-                  <p class="field-label">Qty</p>
-                  <p class="text-sm font-semibold tabular-nums text-slate-900">{{ fill.quantity | number }}</p>
-                </div>
                 <button type="button" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-red-600" (click)="removeExit(fill.id)" aria-label="Remove exit">
                   <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -299,7 +299,7 @@
                   <tr>
                     <th class="px-3 py-2">Goal</th>
                     <th class="px-3 py-2">Exit at</th>
-                    <th class="px-3 py-2">₹ / sh</th>
+                    <th class="px-3 py-2">Move / sh</th>
                     <th class="px-3 py-2">Move %</th>
                     <th class="px-3 py-2">Charges</th>
                     <th class="px-3 py-2 text-right"></th>
@@ -309,7 +309,9 @@
                   @if (stayGreen(); as stop) {
                     <tr class="border-t border-slate-100 bg-amber-50/70">
                       <td class="px-3 py-2 font-semibold text-amber-900">{{ stop.label }}</td>
-                      <td class="px-3 py-2 font-bold tabular-nums text-slate-900">{{ formatPrice(stop.price) }}</td>
+                      <td class="px-3 py-2 font-bold tabular-nums text-slate-900 whitespace-nowrap">
+                        {{ formatPrice(stop.price) }}
+                      </td>
                       <td class="px-3 py-2 tabular-nums" [class]="pnlClass(stop.movePerShare)">{{ signedMove(stop.movePerShare) }}</td>
                       <td class="px-3 py-2 tabular-nums" [class]="pnlClass(stop.movePct)">{{ formatPctSigned(stop.movePct) }}</td>
                       <td class="px-3 py-2 tabular-nums text-red-600">{{ formatPrice(stop.charges) }}</td>
@@ -321,7 +323,7 @@
                   @for (row of exitGuideRows(); track row.profit) {
                     <tr class="border-t border-slate-100">
                       <td class="px-3 py-2 font-semibold tabular-nums text-slate-800">+{{ formatCurrency(row.profit) }} more</td>
-                      <td class="px-3 py-2 font-bold tabular-nums text-slate-900">
+                      <td class="px-3 py-2 font-bold tabular-nums text-slate-900 whitespace-nowrap">
                         {{ row.price != null ? formatPrice(row.price) : '—' }}
                       </td>
                       <td class="px-3 py-2 tabular-nums" [class]="row.movePerShare != null ? pnlClass(row.movePerShare) : 'text-slate-400'">
