@@ -323,10 +323,12 @@
                   [routerLink]="['/stock', row.symbol]"
                   (click)="$event.stopPropagation()"
                 >{{ row.symbol }}</a>
-                <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
-                @if (row.triggerHit) {
-                  <span class="side side-trigger">Hit</span>
-                }
+                <span class="stock-tags">
+                  <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
+                  @if (row.triggerHit) {
+                    <span class="side side-trigger">Hit</span>
+                  }
+                </span>
               </span>
               <span class="name">{{ row.stockName || row.isin || row.symbol }}</span>
             </td>
@@ -588,7 +590,9 @@
                 <td class="stock col-stock">
                   <span class="stock-id">
                     <a class="sym" [routerLink]="['/stock', row.symbol]" (click)="$event.stopPropagation()">{{ row.symbol }}</a>
-                    <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
+                    <span class="stock-tags">
+                      <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
+                    </span>
                   </span>
                   <span class="name">{{ row.stockName || row.symbol }}</span>
                 </td>

@@ -796,15 +796,17 @@
   }
 
   .plan-blotter .col-stock {
-    width: 32%;
+    width: 42%;
+    white-space: normal;
+    overflow: hidden;
   }
 
   .plan-blotter .col-date {
-    width: 22%;
+    width: 20%;
   }
 
   .plan-blotter .col-pair {
-    width: 20%;
+    width: 18%;
     white-space: normal;
   }
 
@@ -821,15 +823,19 @@
   }
 
   .plan-blotter .stock-id {
-    @apply flex min-w-0 items-center gap-1.5;
+    @apply flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5;
   }
 
   .plan-blotter .sym {
-    @apply min-w-0 truncate font-semibold tracking-wide text-slate-900;
+    @apply min-w-0 max-w-full basis-full truncate font-semibold tracking-wide text-slate-900;
+  }
+
+  .plan-blotter .stock-tags {
+    @apply flex min-w-0 flex-wrap items-center gap-1;
   }
 
   .plan-blotter .name {
-    @apply block truncate text-[11px] text-slate-400;
+    @apply mt-0.5 block truncate text-[11px] text-slate-400;
   }
 
   .plan-blotter .trigger {
@@ -1057,7 +1063,15 @@
     }
 
     .plan-blotter .col-stock {
-      width: 24%;
+      width: 28%;
+    }
+
+    .plan-blotter .stock-id {
+      @apply flex-nowrap;
+    }
+
+    .plan-blotter .sym {
+      @apply basis-auto;
     }
 
     .plan-blotter .col-date {
