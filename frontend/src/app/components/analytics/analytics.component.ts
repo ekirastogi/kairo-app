@@ -67,12 +67,14 @@ import {
 } from '../../utils/analytics-insights.utils';
 import {
   currentMonthMarketDays,
+  istTodayIso,
   type MarketDayInfo,
 } from '../../utils/market-calendar.utils';
 import {
   aggregateDayOfMonthFromDaily,
   aggregateWeekdayFromDaily,
   filterDailyAnalytics,
+  getISOWeek,
 } from '../../utils/analytics-aggregation.utils';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
 import { WatchlistsComponent } from '../watchlists/watchlists.component';
@@ -176,6 +178,11 @@ const ANALYTICS_TABS: AnalyticsTab[] = [
     }
     .trading-day-cell-active {
       @apply ring-2 ring-inset ring-kairo-500;
+    }
+    .calendar-today {
+      outline: 2px solid #0f172a;
+      outline-offset: -2px;
+      opacity: 1;
     }
     .heat-neutral { @apply bg-slate-50 text-slate-400; }
     .heat-pos-soft { @apply bg-emerald-50 text-emerald-700; }
@@ -1238,6 +1245,47 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     Math.max(...this.weekdayBuckets().map((b) => Math.abs(b.netPnL)), 1)
   );
 
+  /** IST calendar keys so Overview heatmaps can mark “today”. */
+  todayCalendar = computed(() => {
+    const iso = istTodayIso();
+    const [year, month, day] = iso.split('-').map(Number);
+    const { year: isoYear, week } = getISOWeek(new Date(Date.UTC(year, month - 1, day)));
+    const weekday = new Date(`${iso}T12:00:00+05:30`).getUTCDay();
+    const mm = String(month).padStart(2, '0');
+    const ww = String(week).padStart(2, '0');
+    return {
+      iso,
+      dayOfMonth: String(day),
+      weekday: String(weekday),
+      weekAll: `woy-${ww}`,
+      weekYear: `${isoYear}-W${ww}`,
+      monthAll: `moy-${mm}`,
+      monthYear: `${year}-${mm}`,
+    };
+  });
+
+  isTodayWeekday(key: string): boolean {
+    return key === this.todayCalendar().weekday;
+  }
+
+  isTodayDayOfMonth(key: string): boolean {
+    return key === this.todayCalendar().dayOfMonth;
+  }
+
+  isTodayDate(date: string | null): boolean {
+    return !!date && date === this.todayCalendar().iso;
+  }
+
+  isTodayWeek(key: string): boolean {
+    const today = this.todayCalendar();
+    return key === today.weekAll || key === today.weekYear;
+  }
+
+  isTodayMonth(key: string): boolean {
+    const today = this.todayCalendar();
+    return key === today.monthAll || key === today.monthYear;
+  }
+
   dayOfMonthMaxAbs = computed(() =>
     Math.max(
       ...this.dayOfMonthBuckets().filter((b) => b.tradeCount).map((b) => Math.abs(b.netPnL)),
@@ -1298,9 +1346,10 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
       ? `${bucket.label}: ${formatCurrency(bucket.netPnL)}`
       : `${bucket.label}: no trades`;
     const session = this.currentMonthSessions().get(Number(bucket.key));
-    if (!session) return pnl;
+    const today = this.isTodayDayOfMonth(bucket.key) ? ' · Today' : '';
+    if (!session) return `${pnl}${today}`;
     const status = session.session === 'open' ? 'Open' : 'Closed';
-    return `${pnl} · ${status} this month (${session.reason})`;
+    return `${pnl} · ${status} this month (${session.reason})${today}`;
   }
 
   sortedDaily = computed(() =>

@@ -769,7 +769,8 @@
             class="heat-cell overview-weekday-cell"
             [class]="heatClass(bucket.netPnL, weekdayMaxAbs())"
             [class.trading-day-cell-active]="selectedWeekday() === bucket.key"
-            [title]="bucket.label + ': ' + formatCurrency(bucket.netPnL)"
+            [class.calendar-today]="isTodayWeekday(bucket.key)"
+            [title]="bucket.label + ': ' + formatCurrency(bucket.netPnL) + (isTodayWeekday(bucket.key) ? ' · Today' : '')"
             (click)="toggleWeekday(bucket.key)"
           >
             <span class="heat-day uppercase">
@@ -783,7 +784,8 @@
         } @else {
           <div
             class="heat-cell overview-weekday-cell heat-neutral opacity-40"
-            [title]="bucket.label + ': No trades'"
+            [class.calendar-today]="isTodayWeekday(bucket.key)"
+            [title]="bucket.label + ': No trades' + (isTodayWeekday(bucket.key) ? ' · Today' : '')"
           >
             <span class="heat-day uppercase">
               <span class="sm:hidden">{{ bucket.label.slice(0, 2) }}</span>
@@ -887,7 +889,8 @@
             class="heat-cell overview-weekday-cell"
             [class]="heatClass(bucket.netPnL, weeklyYearMaxAbs())"
             [class.trading-day-cell-active]="selectedWeek() === week.key"
-            [title]="week.label + (bucket.label && bucket.label !== week.label ? ' · ' + bucket.label : '') + ': ' + formatCurrency(bucket.netPnL)"
+            [class.calendar-today]="isTodayWeek(week.key)"
+            [title]="week.label + (bucket.label && bucket.label !== week.label ? ' · ' + bucket.label : '') + ': ' + formatCurrency(bucket.netPnL) + (isTodayWeek(week.key) ? ' · Today' : '')"
             (click)="toggleWeek(week.key)"
           >
             <span class="heat-day uppercase">{{ week.label }}</span>
@@ -898,7 +901,8 @@
         } @else {
           <div
             class="heat-cell overview-weekday-cell heat-neutral opacity-40"
-            [title]="week.label + ': No trades'"
+            [class.calendar-today]="isTodayWeek(week.key)"
+            [title]="week.label + ': No trades' + (isTodayWeek(week.key) ? ' · Today' : '')"
           >
             <span class="heat-day uppercase">{{ week.label }}</span>
             <span class="heat-pnl">—</span>
@@ -971,6 +975,7 @@
           class="heat-cell overview-weekday-cell"
           [class]="heatClass(bucket.netPnL, dayOfMonthMaxAbs())"
           [class.trading-day-cell-active]="selectedDayOfMonth() === bucket.key"
+          [class.calendar-today]="isTodayDayOfMonth(bucket.key)"
           [title]="calendarCellTitle(bucket)"
           (click)="toggleDayOfMonth(bucket.key)"
         >
@@ -984,6 +989,7 @@
           class="heat-cell overview-weekday-cell"
           [class]="bucket.tradeCount ? heatClass(bucket.netPnL, dayOfMonthMaxAbs()) : 'heat-neutral opacity-40'"
           [class.heat-session-muted]="isCalendarSessionMuted(bucket.key)"
+          [class.calendar-today]="isTodayDayOfMonth(bucket.key)"
           [attr.aria-disabled]="isCalendarSessionMuted(bucket.key) || null"
           [title]="calendarCellTitle(bucket)"
         >
@@ -1077,6 +1083,7 @@
                   class="trading-day-cell"
                   [ngClass]="dailyCellHeatClass(date)"
                   [class.trading-day-cell-active]="selectedDate() === date"
+                  [class.calendar-today]="isTodayDate(date)"
                   (click)="toggleDate(date)"
                 >
                   <span class="text-xs font-semibold sm:text-sm">{{ cell.day }}</span>
@@ -1084,7 +1091,10 @@
                   <span class="text-[9px] leading-tight opacity-70 sm:text-[10px]">{{ dailyBucketFor(date)!.tradeCount }}t · {{ dailyBucketFor(date)!.winRate | number:'1.0-0' }}%</span>
                 </button>
               } @else {
-                <div class="trading-day-cell trading-day-cell-empty text-slate-300">
+                <div
+                  class="trading-day-cell trading-day-cell-empty text-slate-300"
+                  [class.calendar-today]="isTodayDate(date)"
+                >
                   <span class="text-xs sm:text-sm">{{ cell.day }}</span>
                 </div>
               }
@@ -1214,7 +1224,8 @@
             class="heat-cell overview-weekday-cell"
             [class]="heatClass(bucket.netPnL, monthlyYearMaxAbs())"
             [class.trading-day-cell-active]="selectedMonth() === month.key"
-            [title]="month.label + ': ' + formatCurrency(bucket.netPnL)"
+            [class.calendar-today]="isTodayMonth(month.key)"
+            [title]="month.label + ': ' + formatCurrency(bucket.netPnL) + (isTodayMonth(month.key) ? ' · Today' : '')"
             (click)="toggleMonth(month.key)"
           >
             <span class="heat-day uppercase">{{ month.label }}</span>
@@ -1225,7 +1236,8 @@
         } @else {
           <div
             class="heat-cell overview-weekday-cell heat-neutral opacity-40"
-            [title]="month.label + ': No trades'"
+            [class.calendar-today]="isTodayMonth(month.key)"
+            [title]="month.label + ': No trades' + (isTodayMonth(month.key) ? ' · Today' : '')"
           >
             <span class="heat-day uppercase">{{ month.label }}</span>
             <span class="heat-pnl">—</span>
