@@ -8,7 +8,7 @@
   <div class="card px-4 py-8 text-center text-sm text-slate-500">Loading list…</div>
 } @else {
   <div class="mb-3 flex flex-wrap items-center gap-2">
-    <a routerLink="/analytics" [queryParams]="{ tab: 'custom' }" class="btn-ghost px-2 py-1 text-xs">← Back to Stocks · Custom</a>
+    <button type="button" class="btn-ghost px-2 py-1 text-xs" (click)="leaveEditor()">← Back to Stocks · Custom</button>
   </div>
 
   @if (error()) {
@@ -34,6 +34,9 @@
           <button type="button" class="btn-secondary px-3 py-1.5 text-xs" (click)="selectVisible()">Select visible</button>
           <button type="button" class="btn-ghost px-3 py-1.5 text-xs" (click)="clearVisible()">Clear visible</button>
           <button type="button" class="btn-ghost px-3 py-1.5 text-xs text-red-600" (click)="clearAll()">Clear all</button>
+          <button type="button" class="btn-ghost px-3 py-1.5 text-xs" (click)="cancelEdits()">
+            {{ isEditing() ? 'Cancel edits' : 'Cancel' }}
+          </button>
           <button
             type="button"
             class="btn-primary px-3 py-1.5 text-xs"
@@ -45,7 +48,48 @@
         </div>
       </div>
 
+      <label class="flex items-start gap-2 text-sm text-slate-700">
+        <input
+          type="checkbox"
+          class="mt-0.5 h-4 w-4 rounded border-slate-300 text-kairo-600"
+          [ngModel]="makeDefault()"
+          (ngModelChange)="makeDefault.set($event)"
+        />
+        <span>
+          <span class="font-medium">Set as default list</span>
+          <span class="mt-0.5 block text-xs text-slate-500">
+            @if (replacingDefaultName(); as current) {
+              This replaces “{{ current }}” as the default. Only one list can be default, and it opens first on Custom.
+            } @else {
+              Only one list can be default. It will be selected automatically on Custom.
+            }
+          </span>
+        </span>
+      </label>
+
       <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div class="flex rounded-lg border border-slate-200 p-0.5 text-xs font-medium">
+          <button
+            type="button"
+            class="rounded-md px-2.5 py-1"
+            [class.bg-slate-900]="showMode() === 'selected'"
+            [class.text-white]="showMode() === 'selected'"
+            [class.text-slate-600]="showMode() !== 'selected'"
+            (click)="showMode.set('selected')"
+          >
+            In this list ({{ selectedCount() }})
+          </button>
+          <button
+            type="button"
+            class="rounded-md px-2.5 py-1"
+            [class.bg-slate-900]="showMode() === 'all'"
+            [class.text-white]="showMode() === 'all'"
+            [class.text-slate-600]="showMode() !== 'all'"
+            (click)="showMode.set('all')"
+          >
+            All stocks
+          </button>
+        </div>
         <div class="relative min-w-0 flex-1 sm:max-w-xs">
           <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -60,9 +104,25 @@
           />
         </div>
         <span class="text-xs text-slate-500">
-          {{ selectedCount() }} selected · showing {{ visibleStocks().length }} of {{ allStocks().length }}
+          {{ selectedCount() }} selected · showing {{ visibleStocks().length }} of {{ showMode() === 'selected' ? selectedCount() : allStocks().length }}
         </span>
       </div>
+
+      @if (showMode() === 'selected' && orphanSymbols().length) {
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-amber-800">In this list, not in current report</p>
+          <div class="mt-2 flex flex-wrap gap-1.5">
+            @for (symbol of orphanSymbols(); track symbol) {
+              <span class="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs text-slate-700 ring-1 ring-amber-200">
+                {{ symbol }}
+                <button type="button" class="text-red-600 hover:text-red-700" (click)="removeSymbol(symbol, $event)" [attr.aria-label]="'Remove ' + symbol">
+                  Remove
+                </button>
+              </span>
+            }
+          </div>
+        </div>
+      }
     </div>
 
     <div class="overflow-x-auto">
@@ -73,6 +133,7 @@
             <th class="text-left">Stock</th>
             <th class="hidden text-right sm:table-cell">Trades</th>
             <th class="text-right">Net P&amp;L</th>
+            <th class="w-20 text-right"> </th>
           </tr>
         </thead>
         <tbody>
@@ -95,10 +156,28 @@
               <td class="text-right font-semibold tabular-nums" [class]="pnlClass(stock.netPnL)">
                 {{ formatCurrency(stock.netPnL) }}
               </td>
+              <td class="text-right">
+                @if (isSelected(stock)) {
+                  <button
+                    type="button"
+                    class="text-xs font-medium text-red-600 hover:text-red-700"
+                    (click)="removeStock(stock, $event)"
+                  >
+                    Remove
+                  </button>
+                }
+              </td>
             </tr>
           } @empty {
             <tr>
-              <td colspan="4" class="py-8 text-center text-slate-400">No stocks match this search</td>
+              <td colspan="5" class="py-8 text-center text-slate-400">
+                @if (showMode() === 'selected') {
+                  No stocks in this list.
+                  <button type="button" class="ml-1 font-medium text-kairo-700 hover:underline" (click)="showMode.set('all')">Browse all stocks</button>
+                } @else {
+                  No stocks match this search
+                }
+              </td>
             </tr>
           }
         </tbody>

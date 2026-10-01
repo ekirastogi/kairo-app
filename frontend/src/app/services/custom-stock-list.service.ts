@@ -5,6 +5,7 @@ import { LazyTradeLoaderService } from './lazy-trade-loader.service';
 import { WatchlistService } from './watchlist.service';
 
 const SELECTED_ID_KEY = 'kairo.dashboard.customListId';
+const DEFAULT_ID_KEY = 'kairo.dashboard.customListDefaultId';
 
 @Injectable({ providedIn: 'root' })
 export class CustomStockListService {
@@ -13,7 +14,8 @@ export class CustomStockListService {
 
   readonly lists = signal<Watchlist[]>([]);
   readonly listsLoading = signal(false);
-  readonly selectedListId = signal<string | null>(this.readStoredId());
+  readonly defaultListId = signal<string | null>(this.readDefaultId());
+  readonly selectedListId = signal<string | null>(this.readDefaultId() ?? this.readStoredId());
   readonly error = signal<string | null>(null);
 
   private loaded = false;
@@ -60,6 +62,15 @@ export class CustomStockListService {
     this.storeId(id);
   }
 
+  isDefault(id: string | null | undefined): boolean {
+    return !!id && this.defaultListId() === id;
+  }
+
+  setDefault(id: string | null): void {
+    this.defaultListId.set(id);
+    this.storeDefaultId(id);
+  }
+
   stocksForList(list: Watchlist, universe: StockSummary[]): StockSummary[] {
     const fingerprint = `${list.id}|${list.updatedAt}|${universe.length}|${this.universeFingerprint(universe)}`;
     const cached = this.stockViewCache.get(fingerprint);
@@ -74,7 +85,7 @@ export class CustomStockListService {
     return rows;
   }
 
-  async create(name: string, symbols: string[]): Promise<string> {
+  async create(name: string, symbols: string[], options?: { isDefault?: boolean }): Promise<string> {
     const id = await this.watchlists.create({
       name: name.trim(),
       type: 'manual',
@@ -82,28 +93,31 @@ export class CustomStockListService {
       sortOrder: Date.now(),
       stockSymbols: this.normalizeSymbols(symbols),
     });
+    this.applyDefaultFlag(id, options?.isDefault === true);
     this.loaded = false;
     await this.reload();
     this.select(id);
     return id;
   }
 
-  async update(id: string, name: string, symbols: string[]): Promise<void> {
+  async update(id: string, name: string, symbols: string[], options?: { isDefault?: boolean }): Promise<void> {
     await this.watchlists.update(id, {
       name: name.trim(),
       stockSymbols: this.normalizeSymbols(symbols),
     });
+    this.applyDefaultFlag(id, options?.isDefault === true);
     this.loaded = false;
     await this.reload();
     this.select(id);
   }
 
   async remove(id: string): Promise<void> {
+    if (this.isDefault(id)) this.setDefault(null);
     await this.watchlists.remove(id);
     this.loaded = false;
     const lists = await this.reload();
     if (this.selectedListId() === id) {
-      this.select(lists[0]?.id ?? null);
+      this.select(this.pickFallbackId(lists));
     }
   }
 
@@ -115,7 +129,21 @@ export class CustomStockListService {
   private ensureSelection(lists: Watchlist[]): void {
     const current = this.selectedListId();
     if (current && lists.some((list) => list.id === current)) return;
-    this.select(lists[0]?.id ?? null);
+    this.select(this.pickFallbackId(lists));
+  }
+
+  private pickFallbackId(lists: Watchlist[]): string | null {
+    const defaultId = this.defaultListId();
+    if (defaultId && lists.some((list) => list.id === defaultId)) return defaultId;
+    return lists[0]?.id ?? null;
+  }
+
+  private applyDefaultFlag(id: string, makeDefault: boolean): void {
+    if (makeDefault) {
+      this.setDefault(id);
+      return;
+    }
+    if (this.isDefault(id)) this.setDefault(null);
   }
 
   private universeFingerprint(universe: StockSummary[]): string {
@@ -133,17 +161,33 @@ export class CustomStockListService {
   }
 
   private readStoredId(): string | null {
+    return this.readStorage(SELECTED_ID_KEY);
+  }
+
+  private storeId(id: string | null): void {
+    this.writeStorage(SELECTED_ID_KEY, id);
+  }
+
+  private readDefaultId(): string | null {
+    return this.readStorage(DEFAULT_ID_KEY);
+  }
+
+  private storeDefaultId(id: string | null): void {
+    this.writeStorage(DEFAULT_ID_KEY, id);
+  }
+
+  private readStorage(key: string): string | null {
     try {
-      return localStorage.getItem(SELECTED_ID_KEY);
+      return localStorage.getItem(key);
     } catch {
       return null;
     }
   }
 
-  private storeId(id: string | null): void {
+  private writeStorage(key: string, id: string | null): void {
     try {
-      if (id) localStorage.setItem(SELECTED_ID_KEY, id);
-      else localStorage.removeItem(SELECTED_ID_KEY);
+      if (id) localStorage.setItem(key, id);
+      else localStorage.removeItem(key);
     } catch {
       /* ignore quota / private mode */
     }

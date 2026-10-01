@@ -644,7 +644,7 @@
                       <option value="">No saved lists</option>
                     }
                     @for (list of customLists.lists(); track list.id) {
-                      <option [value]="list.id">{{ list.name }} ({{ list.stockSymbols.length }})</option>
+                      <option [value]="list.id">{{ list.name }} ({{ list.stockSymbols.length }}){{ customLists.isDefault(list.id) ? ' · Default' : '' }}</option>
                     }
                   </select>
                 }
