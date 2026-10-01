@@ -28,6 +28,12 @@ export class CustomStockListService {
     return this.lists().find((list) => list.id === id) ?? null;
   });
 
+  readonly defaultList = computed(() => {
+    const id = this.defaultListId();
+    if (!id) return null;
+    return this.lists().find((list) => list.id === id) ?? null;
+  });
+
   async ensureLoaded(): Promise<Watchlist[]> {
     if (this.loaded) return this.lists();
     if (this.inFlight) return this.inFlight;

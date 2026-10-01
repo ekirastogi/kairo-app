@@ -82,8 +82,8 @@ import { WatchlistsComponent } from '../watchlists/watchlists.component';
 /** Calendar heatmap scope: every date, or only the days the market actually traded. */
 type CalendarSessionFilter = 'all' | 'open';
 
-/** Stocks tab: show every stock, only profit/loss, or a custom list. */
-type StockPnLFilter = 'all' | 'profitable' | 'losing' | 'custom';
+/** Stocks tab: show every stock, only profit/loss, the default list, or a custom list. */
+type StockPnLFilter = 'all' | 'profitable' | 'losing' | 'default' | 'custom';
 
 type AnalyticsTab =
   | 'overview'
@@ -235,12 +235,6 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     { id: 'all', label: 'All' },
     { id: 'open', label: 'Open' },
   ];
-  readonly stockPnLFilters: { id: StockPnLFilter; label: string }[] = [
-    { id: 'all', label: 'All' },
-    { id: 'profitable', label: 'Profitable' },
-    { id: 'losing', label: 'Losing' },
-    { id: 'custom', label: 'Custom' },
-  ];
 
   private chartVersion = signal(0);
   winRateShowDots = signal(false);
@@ -256,6 +250,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
       .subscribe(() => this.syncTabFromUrl());
     // Aggregate-first: profiles + daily analytics. Trades load on day/stock expand.
     await this.state.ensureLoadedFromFirebase();
+    void this.customLists.ensureLoaded();
     this.syncDailyCalendarToLatest();
   }
 
@@ -307,6 +302,12 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
       void this.customLists.ensureLoaded();
       const listId = this.route.snapshot.queryParamMap.get('list');
       if (listId) this.customLists.select(listId);
+      return;
+    }
+    if (tab === 'default') {
+      this.activeTab.set('stocks');
+      this.stockPnLFilter.set('default');
+      void this.customLists.ensureLoaded();
       return;
     }
     if (tab && ANALYTICS_TABS.includes(tab as AnalyticsTab)) {
@@ -1082,19 +1083,33 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   });
 
   stockPnLFilter = signal<StockPnLFilter>('all');
+  readonly stockPnLFilters = computed(() => {
+    const filters: { id: StockPnLFilter; label: string }[] = [
+      { id: 'all', label: 'All' },
+      { id: 'profitable', label: 'Profitable' },
+      { id: 'losing', label: 'Losing' },
+    ];
+    const defaultList = this.customLists.defaultList();
+    if (defaultList) {
+      filters.push({ id: 'default', label: defaultList.name });
+    }
+    filters.push({ id: 'custom', label: 'Custom' });
+    return filters;
+  });
   stockFilterRules = signal<StockFilterRule[]>([]);
   scenarioPanelOpen = signal(false);
   stockSearchQuery = signal('');
 
   setStockPnLFilter(id: StockPnLFilter): void {
     this.stockPnLFilter.set(id);
-    if (id === 'custom') {
+    if (id === 'custom' || id === 'default') {
       void this.customLists.ensureLoaded();
     }
+    const tab = id === 'custom' ? 'custom' : id === 'default' ? 'default' : 'stocks';
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: {
-        tab: 'stocks',
+        tab,
         list: id === 'custom' ? this.customLists.selectedListId() : null,
       },
       queryParamsHandling: 'merge',
@@ -1126,6 +1141,9 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     if (filter === 'custom') {
       const list = this.customLists.selectedList();
       stocks = list ? this.customLists.stocksForList(list, stocks) : [];
+    } else if (filter === 'default') {
+      const list = this.customLists.defaultList();
+      stocks = list ? this.customLists.stocksForList(list, stocks) : [];
     } else {
       if (filter === 'profitable') stocks = stocks.filter((stock) => stock.netPnL > 0);
       else if (filter === 'losing') stocks = stocks.filter((stock) => stock.netPnL < 0);
@@ -1152,6 +1170,12 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
       }
       if (!this.customLists.selectedList()) {
         return 'Select or create a list to see stocks.';
+      }
+      return 'None of the stocks in this list appear in the current filters.';
+    }
+    if (this.stockPnLFilter() === 'default') {
+      if (!this.customLists.defaultList()) {
+        return 'No default list yet. Mark a custom list as default to show it here.';
       }
       return 'None of the stocks in this list appear in the current filters.';
     }

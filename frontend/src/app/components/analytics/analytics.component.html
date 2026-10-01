@@ -613,7 +613,7 @@
                 <p class="text-xs text-slate-500">{{ stocksTabRows().length }} realised stocks in filtered view</p>
               </div>
               <div class="period-track shrink-0" role="radiogroup" aria-label="Stock P&amp;L filter">
-                @for (opt of stockPnLFilters; track opt.id) {
+                @for (opt of stockPnLFilters(); track opt.id) {
                   <button
                     type="button"
                     role="radio"
@@ -693,7 +693,7 @@
                     >✕</button>
                   }
                 </div>
-                @if (stockPnLFilter() !== 'custom') {
+                @if (stockPnLFilter() !== 'custom' && stockPnLFilter() !== 'default') {
                   <app-stock-scenario-panel
                     [(open)]="scenarioPanelOpen"
                     [(rules)]="stockFilterRules"
