@@ -43,14 +43,6 @@
         <button
           type="button"
           class="tab-btn"
-          [class.tab-btn-active]="activeTab() === 'ai-keys'"
-          (click)="setTab('ai-keys')"
-        >
-          AI keys
-        </button>
-        <button
-          type="button"
-          class="tab-btn"
           [class.tab-btn-active]="activeTab() === 'backfill'"
           (click)="setTab('backfill')"
         >
@@ -82,10 +74,6 @@
     } @else if (activeTab() === 'contract-notes') {
       <div class="px-4 py-4 sm:px-5">
         <app-contract-note-upload />
-      </div>
-    } @else if (activeTab() === 'ai-keys') {
-      <div class="px-4 py-4 sm:px-5">
-        <app-ai-keys-settings />
       </div>
     } @else if (activeTab() === 'backfill') {
       <div class="space-y-4 px-4 py-4 sm:px-5">

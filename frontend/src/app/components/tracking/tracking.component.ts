@@ -11,7 +11,6 @@ import { MarketQuoteService } from '../../services/market-quote.service';
 import { PriceTracker, PriceTrackerService } from '../../services/price-tracker.service';
 import { RegistryStockService } from '../../services/registry-stock.service';
 import { ToastService } from '../../services/toast.service';
-import { ViewContextService } from '../../services/view-context.service';
 import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
 import { formatDataAge } from '../../utils/data-age.utils';
 import { formatCurrency, formatPrice, formatPctSigned, pnlClass } from '../../utils/format.utils';
@@ -108,7 +107,6 @@ export class TrackingComponent implements OnInit, OnDestroy {
   private quotes = inject(MarketQuoteService);
   private toast = inject(ToastService);
   private charges = inject(ChargesService);
-  private viewContext = inject(ViewContextService);
 
   trackers = toSignal(this.trackerSvc.watchAll(), { initialValue: [] as PriceTracker[] });
   private planRegistryTick = signal(0);
@@ -284,56 +282,6 @@ export class TrackingComponent implements OnInit, OnDestroy {
       netPnL: rows.reduce((sum, row) => sum + row.netPnL, 0),
     };
   });
-
-  private readonly _publishViewContext = effect(() => {
-    const view = this.planView();
-    if (view === 'history') {
-      const rows = this.historyRows();
-      this.viewContext.publish({
-        page: 'Trade history',
-        title: 'Trade history',
-        data: {
-          view,
-          summary: this.historySummary(),
-          trades: rows.slice(0, 40).map((row) => ({
-            symbol: row.symbol,
-            action: row.action,
-            entry: row.entry,
-            exit: row.exit,
-            quantity: row.closedQty,
-            netPnL: row.netPnL,
-            executedAt: row.executedAt ?? row.updatedAt,
-          })),
-        },
-      });
-      return;
-    }
-    const rows = this.rows();
-    this.viewContext.publish({
-      page: 'Trade plans',
-      title: 'Trade plans',
-      data: {
-        view,
-        counts: {
-          total: rows.length,
-          triggerHit: this.triggerCount(),
-          near: this.nearCount(),
-          hot: this.hotCount(),
-          sized: this.sizedCount(),
-        },
-        plans: rows.slice(0, 40).map((row) => ({
-          symbol: row.symbol,
-          action: row.action,
-          targetPrice: row.targetPrice,
-          cmp: row.cmp,
-          diffPct: row.diffPct,
-          triggerHit: row.triggerHit,
-          netPnL: row.economics?.netPnL ?? null,
-          quantity: row.economics?.quantity ?? null,
-        })),
-      },
-    });
-  }, { allowSignalWrites: true });
 
   refreshLabel = computed(() => {
     if (!this.refreshBusy()) return 'Refresh CMP';
