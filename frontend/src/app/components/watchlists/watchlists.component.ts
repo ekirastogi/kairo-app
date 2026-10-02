@@ -337,19 +337,6 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
           ...countOptions.plugins,
           ...baseLegendPublic(true),
         },
-        scales: {
-          ...countOptions.scales,
-          x: {
-            ...countOptions.scales?.['x'],
-            ticks: {
-              ...countOptions.scales?.['x']?.ticks,
-              maxRotation: mobile ? 40 : 0,
-              minRotation: mobile ? 40 : 0,
-              autoSkip: false,
-              font: { size: mobile ? 8 : 11 },
-            },
-          },
-        },
       },
       plugins: [stockCountBarLabelPlugin],
     };
