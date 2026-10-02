@@ -112,6 +112,23 @@
               <app-brand-logo variant="dark" [compact]="true" [showTagline]="false" class="lg:hidden" />
             }
           </div>
+          <button
+            type="button"
+            class="relative z-[1] inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-1.5 rounded-xl px-2.5 py-2 text-sm font-semibold text-kairo-700 transition hover:bg-kairo-50 active:bg-kairo-100 sm:px-3"
+            (click)="aiChat.toggle()"
+            [attr.aria-expanded]="aiChat.open()"
+            aria-label="Ask AI"
+          >
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.8"
+                d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-4 4v-4z"
+              />
+            </svg>
+            <span class="hidden sm:inline">Ask AI</span>
+          </button>
         </div>
       </header>
     }
@@ -141,6 +158,21 @@
     }
   </nav>
 </div>
+
+@if (aiChat.open()) {
+  <div
+    class="fixed inset-0 z-[95] bg-slate-950/50 lg:bg-slate-950/30"
+    (click)="aiChat.close()"
+    aria-hidden="true"
+  ></div>
+  <aside
+    class="fixed inset-y-0 right-0 z-[96] flex w-full flex-col shadow-2xl lg:w-1/2"
+    role="dialog"
+    aria-label="Ask AI"
+  >
+    <app-ai-chat-panel class="block h-full min-h-0" />
+  </aside>
+}
 
 @if (toasts.toasts(); as items) {
   @if (items.length) {

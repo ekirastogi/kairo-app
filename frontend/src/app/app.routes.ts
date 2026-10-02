@@ -148,7 +148,7 @@ export const routes: Routes = [
         path: 'settings',
         loadComponent: () =>
           import('./components/settings/settings.component').then((m) => m.SettingsComponent),
-        data: { title: 'Settings', subtitle: 'Upload P&L, backfill, and data management' },
+        data: { title: 'Settings', subtitle: 'Upload P&L, AI keys, backfill, and data management' },
       },
     ],
   },

@@ -1,9 +1,10 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { RecommendationService } from '../../services/recommendation.service';
 import { VolumeShockerService } from '../../services/stock-levels.service';
 import { AuthService } from '../../services/auth.service';
+import { ViewContextService } from '../../services/view-context.service';
 import { TradeHorizon, TradeSuggestion } from '../../models/signal.models';
 import { formatCurrency, formatPct } from '../../utils/format.utils';
 import { TableSortState } from '../../utils/table-sort.utils';
@@ -20,6 +21,7 @@ export class SignalsComponent implements OnInit {
   private recSvc = inject(RecommendationService);
   private shockerSvc = inject(VolumeShockerService);
   readonly auth = inject(AuthService);
+  private viewContext = inject(ViewContextService);
 
   recommendations = signal<TradeSuggestion[]>([]);
   shockers = signal<{ symbols: Array<{ symbol: string; rank: number; ratio: number; daysRemaining: number }> } | undefined>(
@@ -52,6 +54,27 @@ export class SignalsComponent implements OnInit {
   });
 
   shockerList = computed(() => this.shockers()?.symbols ?? []);
+
+  private readonly _publishViewContext = effect(() => {
+    this.viewContext.publish({
+      page: 'Signals',
+      title: 'Signals',
+      data: {
+        horizonFilter: this.horizonFilter(),
+        recommendations: this.ranked().slice(0, 30).map((rec) => ({
+          symbol: rec.symbol,
+          horizon: rec.horizon,
+          side: rec.side,
+          status: rec.status,
+          confidence: rec.confidence,
+          entry: rec.entry,
+          targets: rec.targets,
+          stopLoss: rec.sl,
+        })),
+        volumeShockers: this.shockerList().slice(0, 20),
+      },
+    });
+  }, { allowSignalWrites: true });
 
   ngOnInit(): void {
     void this.refresh();

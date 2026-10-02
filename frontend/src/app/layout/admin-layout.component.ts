@@ -10,7 +10,11 @@ import { NotificationService } from '../services/notification.service';
 import { ToastService } from '../services/toast.service';
 import { FilterUrlService } from '../services/filter-url.service';
 import { BrandLogoComponent } from '../components/shared/brand-logo/brand-logo.component';
+import { AiChatPanelComponent } from '../components/shared/ai-chat-panel/ai-chat-panel.component';
 import { BRAND } from '../constants/brand';
+import { AiChatService } from '../services/ai-chat.service';
+import { UserConfigService } from '../services/user-config.service';
+import { ViewContextService } from '../services/view-context.service';
 
 interface NavItem {
   label: string;
@@ -34,7 +38,7 @@ interface MobileNavItem {
 @Component({
   selector: 'app-admin-layout',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, BrandLogoComponent],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, BrandLogoComponent, AiChatPanelComponent],
   templateUrl: './admin-layout.component.html',
 })
 export class AdminLayoutComponent implements OnInit, OnDestroy {
@@ -45,8 +49,11 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
   readonly pageShell = inject(PageShellService);
   readonly auth = inject(AuthService);
   readonly brand = BRAND;
+  readonly aiChat = inject(AiChatService);
   private notifications = inject(NotificationService);
   private filterUrl = inject(FilterUrlService);
+  private userConfig = inject(UserConfigService);
+  private viewContext = inject(ViewContextService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private navSub?: Subscription;
@@ -197,6 +204,7 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     }
     const data = child?.snapshot.data ?? {};
     this.pageShell.setRouteHeader(data['title'] ?? '', data['subtitle'] ?? null);
+    this.viewContext.captureRoute();
   }
 
   @HostListener('window:resize')
@@ -283,6 +291,9 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     // next person to sign in on this browser.
     this.state.stopPeriodicRefresh();
     this.state.clear();
+    this.userConfig.clearAiSession();
+    this.aiChat.close();
+    this.aiChat.clearThread();
     await this.auth.logout();
     await this.router.navigate(['/login']);
   }

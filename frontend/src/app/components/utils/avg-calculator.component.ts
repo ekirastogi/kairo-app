@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -27,6 +27,7 @@ import { RegistryStockService } from '../../services/registry-stock.service';
 import { ScreenerService, ScreenerSnapshot } from '../../services/screener.service';
 import { TradePlanService } from '../../services/trade-plan.service';
 import { PriceTrackerService } from '../../services/price-tracker.service';
+import { ViewContextService } from '../../services/view-context.service';
 import { readJson, writeJson } from '../../utils/local-store.utils';
 import { ExecutionLeg, RegistryStock } from '../../models/trading-journal.models';
 import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
@@ -166,6 +167,7 @@ export class AvgCalculatorComponent {
   private readonly trackers = inject(PriceTrackerService);
   private readonly registrySvc = inject(RegistryStockService);
   private readonly screenerSvc = inject(ScreenerService);
+  private readonly viewContext = inject(ViewContextService);
   private store = loadStore();
 
   plans = signal<StockPlan[]>(this.store.plans);
@@ -225,6 +227,26 @@ export class AvgCalculatorComponent {
 
   book = computed(() => summarizeFills([...this.fills(), ...this.exits()]));
   position = computed(() => openPosition(this.book()));
+
+  private readonly _publishViewContext = effect(() => {
+    const position = this.position();
+    const book = this.book();
+    this.viewContext.publish({
+      page: 'Utility',
+      title: `Utility — ${this.symbol() || 'no stock'}`,
+      data: {
+        symbol: this.symbol(),
+        name: this.stockName(),
+        segment: this.segment(),
+        cmp: this.stockPrice(),
+        book,
+        position,
+        fills: this.fills().map((fill) => ({ side: fill.side, price: fill.price, quantity: fill.quantity })),
+        exits: this.exits().map((fill) => ({ side: fill.side, price: fill.price, quantity: fill.quantity })),
+        targets: this.targets().map((target) => ({ price: target.price, quantity: target.quantity })),
+      },
+    });
+  }, { allowSignalWrites: true });
 
   ladder = computed(() => {
     const position = this.position();

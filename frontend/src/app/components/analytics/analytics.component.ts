@@ -20,6 +20,7 @@ import { FilteredStockService } from '../../services/filtered-stock.service';
 import { LazyTradeLoaderService } from '../../services/lazy-trade-loader.service';
 import { CustomStockListService } from '../../services/custom-stock-list.service';
 import { AnalysisService } from '../../services/analysis.service';
+import { ViewContextService } from '../../services/view-context.service';
 import { PeriodBucket, StockSummary, TRADE_TYPE_LABELS, Trade, TradeType } from '../../models/trade.models';
 import { formatCompactCurrency, formatCurrency, formatDate, formatPctSigned, pnlClass } from '../../utils/format.utils';
 import { holdingsTotals } from '../../utils/holdings.utils';
@@ -220,6 +221,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   readonly lazyTrades = inject(LazyTradeLoaderService);
   readonly customLists = inject(CustomStockListService);
   private analysisSvc = inject(AnalysisService);
+  private viewContext = inject(ViewContextService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private navSub?: Subscription;
@@ -1107,6 +1109,40 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     if (filtered.length) return filtered;
     return this.analysis()?.stocks ?? [];
   });
+
+  private readonly _publishViewContext = effect(() => {
+    const analysis = this.analysis();
+    const stocks = this.visibleStocks();
+    const tab = this.activeTab();
+    const equityRange = this.equityRange();
+    const dailyRange = this.dailyRange();
+    this.viewContext.publish({
+      page: 'Performance',
+      title: `Performance — ${this.tabs.find((item) => item.id === tab)?.label ?? tab}`,
+      data: {
+        tab,
+        filters: {
+          startDate: this.state.startDate(),
+          endDate: this.state.endDate(),
+          tradeTypes: this.state.selectedTradeTypes(),
+        },
+        summary: analysis?.summary ?? null,
+        stockCount: stocks.length,
+        equityRange,
+        dailyRange,
+        topStocks: [...stocks]
+          .sort((a, b) => Math.abs(b.netPnL) - Math.abs(a.netPnL))
+          .slice(0, 40)
+          .map((stock) => ({
+            symbol: stock.symbol || stock.stockName,
+            name: stock.stockName,
+            netPnL: stock.netPnL,
+            trades: stock.tradeCount,
+            winRate: stock.winRate,
+          })),
+      },
+    });
+  }, { allowSignalWrites: true });
 
   overviewTierChartConfig = computed(() => {
     if (this.activeTab() !== 'overview') return null;

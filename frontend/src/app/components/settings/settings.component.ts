@@ -7,14 +7,15 @@ import { TradeLedgerService } from '../../services/trade-ledger.service';
 import { WorkerJobService } from '../../services/worker-job.service';
 import { UploadComponent } from '../upload/upload.component';
 import { ContractNoteUploadComponent } from '../contract-note-upload/contract-note-upload.component';
+import { AiKeysSettingsComponent } from './ai-keys-settings.component';
 import { formatCurrency } from '../../utils/format.utils';
 
-type SettingsTab = 'upload' | 'contract-notes' | 'backfill' | 'worker' | 'reset';
+type SettingsTab = 'upload' | 'contract-notes' | 'ai-keys' | 'backfill' | 'worker' | 'reset';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, UploadComponent, ContractNoteUploadComponent],
+  imports: [CommonModule, UploadComponent, ContractNoteUploadComponent, AiKeysSettingsComponent],
   templateUrl: './settings.component.html',
 })
 export class SettingsComponent {
