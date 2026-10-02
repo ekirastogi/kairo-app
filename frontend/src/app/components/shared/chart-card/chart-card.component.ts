@@ -10,7 +10,7 @@ import {
   HostListener,
   computed,
 } from '@angular/core';
-import { Chart, ChartConfiguration, ChartEvent, registerables } from 'chart.js';
+import { ActiveElement, Chart, ChartConfiguration, ChartEvent, registerables } from 'chart.js';
 
 Chart.register(...registerables);
 
@@ -142,7 +142,7 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
         ...config.options,
         responsive: true,
         maintainAspectRatio: false,
-        onClick: (event, elements, chart) => {
+        onClick: (event: ChartEvent, elements: ActiveElement[], chart: Chart) => {
           config.options?.onClick?.(event, elements, chart);
           this.emitPointClick(event, chart);
         },
@@ -152,7 +152,9 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
 
   private emitPointClick(event: ChartEvent, chart: Chart): void {
     if (!this.interactive()) return;
-    const points = chart.getElementsAtEventForMode(event, 'index', { intersect: false }, true);
+    const native = event.native;
+    if (!native) return;
+    const points = chart.getElementsAtEventForMode(native, 'index', { intersect: false }, true);
     const index = points[0]?.index;
     if (index == null) return;
     this.pointClick.emit(index);
