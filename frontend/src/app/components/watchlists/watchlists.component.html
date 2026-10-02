@@ -80,7 +80,18 @@
             title="Stocks by P&amp;L tier"
             subtitle="How many profitable vs losing stocks sit in each band"
             emptyMessage="No stocks in this view"
-          />
+          >
+            <div chartHeader class="flex shrink-0 items-center gap-3 pt-0.5">
+              <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                Profitable
+              </span>
+              <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                <span class="h-2 w-2 rounded-full bg-red-500"></span>
+                Losing
+              </span>
+            </div>
+          </app-chart-card>
         </div>
         <div class="h-[260px] min-h-0 min-w-0 sm:h-[300px]">
           <app-chart-card

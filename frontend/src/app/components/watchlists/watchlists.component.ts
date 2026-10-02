@@ -344,10 +344,10 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
       },
       options: {
         ...countOptions,
-        layout: { padding: { top: 22, right: mobile ? 8 : 12, bottom: 40, left: 4 } },
+        layout: { padding: { top: 8, right: mobile ? 8 : 12, bottom: 40, left: 4 } },
         plugins: {
           ...countOptions.plugins,
-          ...baseLegendPublic(true),
+          ...baseLegendPublic(false),
           stockCountBarLabels: { display: true, netPnL: netByTier },
         } as ChartOptions['plugins'],
       },
