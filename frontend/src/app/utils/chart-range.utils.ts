@@ -1,4 +1,4 @@
-import { Plugin } from 'chart.js';
+import { ChartOptions, Plugin } from 'chart.js';
 import { CHART_COLORS } from './chart-theme';
 
 export interface PeriodValue {
@@ -66,25 +66,36 @@ export function chartRangeStats(
   };
 }
 
-/** Vertical marker for the first click while waiting for an end point. */
-export function rangeAnchorPlugin(index: number | null): Plugin {
+export function withRangeAnchor(options: ChartOptions, index: number | null): ChartOptions {
   return {
-    id: 'rangeAnchorLine',
-    afterDraw(chart) {
-      if (index == null || index < 0) return;
-      const meta = chart.getDatasetMeta(0);
-      const point = meta.data[index];
-      if (!point) return;
-      const { ctx, chartArea } = chart;
-      ctx.save();
-      ctx.strokeStyle = CHART_COLORS.secondary;
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 3]);
-      ctx.beginPath();
-      ctx.moveTo(point.x, chartArea.top);
-      ctx.lineTo(point.x, chartArea.bottom);
-      ctx.stroke();
-      ctx.restore();
-    },
+    ...options,
+    plugins: {
+      ...options.plugins,
+      rangeAnchorLine: { index },
+    } as ChartOptions['plugins'],
   };
 }
+
+/** Vertical marker for the first click. Enable with options.plugins.rangeAnchorLine.index. */
+export const rangeAnchorPlugin: Plugin = {
+  id: 'rangeAnchorLine',
+  afterDraw(chart) {
+    const index = (
+      chart.options.plugins as { rangeAnchorLine?: { index?: number | null } } | undefined
+    )?.rangeAnchorLine?.index;
+    if (index == null || index < 0) return;
+    const meta = chart.getDatasetMeta(0);
+    const point = meta.data[index];
+    if (!point) return;
+    const { ctx, chartArea } = chart;
+    ctx.save();
+    ctx.strokeStyle = CHART_COLORS.secondary;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(point.x, chartArea.top);
+    ctx.lineTo(point.x, chartArea.bottom);
+    ctx.stroke();
+    ctx.restore();
+  },
+};

@@ -2,6 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { StockSummary } from '../models/trade.models';
 import { Watchlist } from '../models/watchlist.models';
 import { LazyTradeLoaderService } from './lazy-trade-loader.service';
+import { UserConfigService } from './user-config.service';
 import { WatchlistService } from './watchlist.service';
 
 const SELECTED_ID_KEY = 'kairo.dashboard.customListId';
@@ -11,6 +12,7 @@ const DEFAULT_ID_KEY = 'kairo.dashboard.customListDefaultId';
 export class CustomStockListService {
   private watchlists = inject(WatchlistService);
   private lazyTrades = inject(LazyTradeLoaderService);
+  private userConfig = inject(UserConfigService);
 
   readonly lists = signal<Watchlist[]>([]);
   readonly listsLoading = signal(false);
@@ -53,6 +55,7 @@ export class CustomStockListService {
       this.lists.set(lists);
       this.loaded = true;
       this.stockViewCache.clear();
+      await this.hydrateDefaultFromCloud(lists);
       this.ensureSelection(lists);
       return lists;
     } catch (err) {
@@ -75,6 +78,7 @@ export class CustomStockListService {
   setDefault(id: string | null): void {
     this.defaultListId.set(id);
     this.storeDefaultId(id);
+    void this.userConfig.setDefaultCustomListId(id);
   }
 
   stocksForList(list: Watchlist, universe: StockSummary[]): StockSummary[] {
@@ -142,6 +146,29 @@ export class CustomStockListService {
     const defaultId = this.defaultListId();
     if (defaultId && lists.some((list) => list.id === defaultId)) return defaultId;
     return lists[0]?.id ?? null;
+  }
+
+  private async hydrateDefaultFromCloud(lists: Watchlist[]): Promise<void> {
+    try {
+      const cloudId = await this.userConfig.getDefaultCustomListId();
+      if (cloudId && lists.some((list) => list.id === cloudId)) {
+        this.defaultListId.set(cloudId);
+        this.storeDefaultId(cloudId);
+        return;
+      }
+      const localId = this.defaultListId();
+      if (localId && lists.some((list) => list.id === localId)) {
+        await this.userConfig.setDefaultCustomListId(localId);
+        return;
+      }
+      if (cloudId && !lists.some((list) => list.id === cloudId)) {
+        this.defaultListId.set(null);
+        this.storeDefaultId(null);
+        await this.userConfig.setDefaultCustomListId(null);
+      }
+    } catch {
+      /* keep the local default if Firestore is unreachable */
+    }
   }
 
   private applyDefaultFlag(id: string, makeDefault: boolean): void {

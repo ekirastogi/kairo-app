@@ -45,7 +45,7 @@ export class WatchlistService {
     if (!uid) return [];
     const { data, error } = await this.supabase.client
       .from('watchlists')
-      .select('*')
+      .select('id, name, list_type, symbols, updated_at')
       .eq('user_id', uid)
       .order('updated_at', { ascending: true });
     if (error) throw error;
@@ -57,7 +57,7 @@ export class WatchlistService {
     if (!uid) return [];
     const { data, error } = await this.supabase.client
       .from('watchlists')
-      .select('*')
+      .select('id, name, list_type, symbols, updated_at')
       .eq('user_id', uid)
       .eq('list_type', 'manual')
       .order('updated_at', { ascending: false });

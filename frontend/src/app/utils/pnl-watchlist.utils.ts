@@ -164,37 +164,68 @@ export interface PnlAnalyseBucket {
   netPnL: number;
 }
 
+function emptyAnalyseBuckets(side: 'profit' | 'loss'): PnlAnalyseBucket[] {
+  const colors = side === 'profit' ? ANALYSE_PROFIT_COLORS : ANALYSE_LOSS_COLORS;
+  const buckets: PnlAnalyseBucket[] = [];
+  let floor = 0;
+  for (let i = 0; i < ANALYSE_PNL_CEILINGS.length; i++) {
+    const ceiling = ANALYSE_PNL_CEILINGS[i];
+    buckets.push({
+      label: `${formatTierAmountShort(floor)}–${formatTierAmountShort(ceiling)}`,
+      count: 0,
+      color: colors[i],
+      netPnL: 0,
+    });
+    floor = ceiling;
+  }
+  buckets.push({
+    label: `${formatTierAmountShort(floor)}+`,
+    count: 0,
+    color: colors[ANALYSE_PNL_CEILINGS.length],
+    netPnL: 0,
+  });
+  return buckets;
+}
+
+function analyseBucketIndex(magnitude: number): number {
+  for (let i = 0; i < ANALYSE_PNL_CEILINGS.length; i++) {
+    const floor = i === 0 ? 0 : ANALYSE_PNL_CEILINGS[i - 1];
+    if (magnitude > floor && magnitude <= ANALYSE_PNL_CEILINGS[i]) return i;
+  }
+  return ANALYSE_PNL_CEILINGS.length;
+}
+
+/** One pass over stocks → profit and loss histogram buckets. */
+export function analysePnlTierSplit(summaries: StockSummary[]): {
+  profit: PnlAnalyseBucket[];
+  loss: PnlAnalyseBucket[];
+  flat: number;
+} {
+  const profit = emptyAnalyseBuckets('profit');
+  const loss = emptyAnalyseBuckets('loss');
+  let flat = 0;
+  for (const stock of summaries) {
+    const value = stock.netPnL;
+    if (value > 0) {
+      const bucket = profit[analyseBucketIndex(value)];
+      bucket.count += 1;
+      bucket.netPnL += value;
+    } else if (value < 0) {
+      const bucket = loss[analyseBucketIndex(Math.abs(value))];
+      bucket.count += 1;
+      bucket.netPnL += value;
+    } else {
+      flat += 1;
+    }
+  }
+  return { profit, loss, flat };
+}
+
 export function analysePnlStockBuckets(
   summaries: StockSummary[],
   side: 'profit' | 'loss'
 ): PnlAnalyseBucket[] {
-  const rows = summaries.filter((stock) => (side === 'profit' ? stock.netPnL > 0 : stock.netPnL < 0));
-  const colors = side === 'profit' ? ANALYSE_PROFIT_COLORS : ANALYSE_LOSS_COLORS;
-
-  const buckets: PnlAnalyseBucket[] = [];
-  let floor = 0;
-  const addBucket = (label: string, color: string, ceiling: number | null) => {
-    const inBucket = rows.filter((stock) => {
-      const magnitude = Math.abs(stock.netPnL);
-      return ceiling == null ? magnitude > floor : magnitude > floor && magnitude <= ceiling;
-    });
-    buckets.push({
-      label,
-      count: inBucket.length,
-      color,
-      netPnL: inBucket.reduce((sum, stock) => sum + stock.netPnL, 0),
-    });
-  };
-
-  for (let i = 0; i < ANALYSE_PNL_CEILINGS.length; i++) {
-    const ceiling = ANALYSE_PNL_CEILINGS[i];
-    addBucket(
-      `${formatTierAmountShort(floor)}–${formatTierAmountShort(ceiling)}`,
-      colors[i],
-      ceiling
-    );
-    floor = ceiling;
-  }
-  addBucket(`${formatTierAmountShort(floor)}+`, colors[ANALYSE_PNL_CEILINGS.length], null);
-  return buckets;
+  return side === 'profit'
+    ? analysePnlTierSplit(summaries).profit
+    : analysePnlTierSplit(summaries).loss;
 }

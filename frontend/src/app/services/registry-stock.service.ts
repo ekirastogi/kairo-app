@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { objectToSnake, rowToCamel, rowsToCamel, SupabaseService } from './supabase.service';
 
 const UPSERT_BATCH_LIMIT = 400;
+const REGISTRY_SEARCH_COLUMNS = 'symbol, name, isin, exchange, current_price, source, updated_at';
 
 function isMissingColumnError(error: { message?: string; code?: string }, column: string): boolean {
   const message = (error.message ?? '').toLowerCase();
@@ -92,7 +93,7 @@ export class RegistryStockService {
     const pattern = `"%${safe}%"`;
     const { data, error } = await this.supabase.client
       .from('registry_stocks')
-      .select('*')
+      .select(REGISTRY_SEARCH_COLUMNS)
       .eq('user_id', uid)
       .or(`symbol.ilike.${pattern},name.ilike.${pattern},isin.ilike.${pattern}`)
       .order('symbol', { ascending: true })

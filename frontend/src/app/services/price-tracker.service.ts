@@ -58,6 +58,9 @@ export interface SaveExecutedTrackerInput extends SavePriceTrackerInput {
   executedAt?: number;
 }
 
+const PRICE_TRACKER_COLUMNS =
+  'id, symbol, stock_name, isin, action, target_price, next_targets, cmp, cmp_source, cmp_fetched_at, notes, quantity, segment, entry_price, stop_loss, targets, status, executed_at, buy_legs, sell_legs, realized_pnl, created_at, updated_at';
+
 @Injectable({ providedIn: 'root' })
 export class PriceTrackerService {
   private supabase = inject(SupabaseService);
@@ -94,7 +97,7 @@ export class PriceTrackerService {
     if (!uid) return [];
     const { data, error } = await this.supabase.client
       .from('price_trackers')
-      .select('*')
+      .select(PRICE_TRACKER_COLUMNS)
       .eq('user_id', uid)
       .eq('status', status)
       .order(orderCol, { ascending: false });

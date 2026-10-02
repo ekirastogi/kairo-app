@@ -47,8 +47,8 @@ import {
   chartRangeStats,
   cumulativePeriodValues,
   orderedChartRange,
-  rangeAnchorPlugin,
   slicePeriodRange,
+  withRangeAnchor,
 } from '../../utils/chart-range.utils';
 import { TradeTypeFilterComponent } from '../shared/trade-type-filter/trade-type-filter.component';
 import { DateRangeFilterComponent } from '../shared/date-range-filter/date-range-filter.component';
@@ -1743,14 +1743,16 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
           },
         ],
       },
-      options: {
-        ...lineChartOptions(''),
-        plugins: {
-          ...lineChartOptions('').plugins,
-          ...baseLegendPublic(true),
+      options: withRangeAnchor(
+        {
+          ...lineChartOptions(''),
+          plugins: {
+            ...lineChartOptions('').plugins,
+            ...baseLegendPublic(true),
+          },
         },
-      },
-      plugins: [rangeAnchorPlugin(anchorIndex >= 0 ? anchorIndex : null)],
+        anchorIndex >= 0 ? anchorIndex : null
+      ),
     };
   });
 
@@ -1842,8 +1844,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
         labels: periodData.map((d) => abbreviateLabel(d.label, mobile ? 8 : 14)),
         datasets: [dataset],
       },
-      options: lineChartOptions(''),
-      plugins: [rangeAnchorPlugin(anchorIndex >= 0 ? anchorIndex : null)],
+      options: withRangeAnchor(lineChartOptions(''), anchorIndex >= 0 ? anchorIndex : null),
     };
   });
 

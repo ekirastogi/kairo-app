@@ -11,8 +11,10 @@ import {
   computed,
 } from '@angular/core';
 import { ActiveElement, Chart, ChartConfiguration, ChartEvent, registerables } from 'chart.js';
+import { rangeAnchorPlugin } from '../../../utils/chart-range.utils';
+import { stockCountBarLabelPlugin } from '../../../utils/chart-theme';
 
-Chart.register(...registerables);
+Chart.register(...registerables, stockCountBarLabelPlugin, rangeAnchorPlugin);
 
 @Component({
   selector: 'app-chart-card',
@@ -136,18 +138,31 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
   private render(config: ChartConfiguration<any, any, any>): void {
     const canvas = this.canvasRef()?.nativeElement;
     if (!canvas) return;
+    const options = {
+      ...config.options,
+      responsive: true,
+      maintainAspectRatio: false,
+      onClick: (event: ChartEvent, elements: ActiveElement[], chart: Chart) => {
+        config.options?.onClick?.(event, elements, chart);
+        this.emitPointClick(event, chart);
+      },
+    };
+    const nextType = config.type;
+    const currentType = (this.chart?.config as ChartConfiguration | undefined)?.type;
+    const canReuse =
+      this.chart != null &&
+      currentType === nextType &&
+      !config.plugins?.length;
+    if (canReuse && this.chart) {
+      this.chart.data = config.data;
+      this.chart.options = options;
+      this.chart.update('none');
+      return;
+    }
     this.destroyChart();
     this.chart = new Chart(canvas, {
       ...config,
-      options: {
-        ...config.options,
-        responsive: true,
-        maintainAspectRatio: false,
-        onClick: (event: ChartEvent, elements: ActiveElement[], chart: Chart) => {
-          config.options?.onClick?.(event, elements, chart);
-          this.emitPointClick(event, chart);
-        },
-      },
+      options,
     });
   }
 

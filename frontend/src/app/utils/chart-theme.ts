@@ -421,15 +421,20 @@ export function stockCountBarChartOptions(): ChartOptions {
           },
         },
       },
-    },
+      stockCountBarLabels: { display: true },
+    } as ChartOptions['plugins'],
     scales: baseScales({ currency: false }),
   };
 }
 
-/** Draw the integer count above each bar. */
+/** Draw the integer count above each bar. Opt-in via plugins.stockCountBarLabels.display. */
 export const stockCountBarLabelPlugin: Plugin<'bar'> = {
   id: 'stockCountBarLabels',
   afterDatasetsDraw(chart) {
+    const enabled = (
+      chart.options.plugins as { stockCountBarLabels?: { display?: boolean } } | undefined
+    )?.stockCountBarLabels?.display;
+    if (!enabled) return;
     const { ctx } = chart;
     const mobile = isMobileChart();
     ctx.save();

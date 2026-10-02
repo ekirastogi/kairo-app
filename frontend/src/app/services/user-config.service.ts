@@ -5,6 +5,7 @@ import { decryptSecret, encryptSecret, EncryptedSecret } from '../utils/secret-c
 
 interface UserConfigDoc {
   contractNotePasswordEnc?: EncryptedSecret | null;
+  defaultCustomListId?: string | null;
   updatedAt?: number;
 }
 
@@ -92,5 +93,38 @@ export class UserConfigService {
     });
     this.cache = null;
     this.hasContractNotePassword.set(false);
+  }
+
+  async getDefaultCustomListId(): Promise<string | null> {
+    await this.auth.whenReady();
+    const uid = this.auth.uid;
+    if (!uid) return null;
+    const snap = await getDoc(doc(this.firestore, 'userConfig', uid));
+    const id = (snap.data() as UserConfigDoc | undefined)?.defaultCustomListId;
+    return id ? String(id) : null;
+  }
+
+  async setDefaultCustomListId(id: string | null): Promise<void> {
+    await this.auth.whenReady();
+    const uid = this.auth.uid;
+    if (!uid) return;
+    const ref = doc(this.firestore, 'userConfig', uid);
+    if (id) {
+      await setDoc(
+        ref,
+        {
+          defaultCustomListId: id,
+          updatedAt: Date.now(),
+        } satisfies Partial<UserConfigDoc>,
+        { merge: true }
+      );
+      return;
+    }
+    await updateDoc(ref, {
+      defaultCustomListId: deleteField(),
+      updatedAt: Date.now(),
+    }).catch(async () => {
+      await setDoc(ref, { updatedAt: Date.now() }, { merge: true });
+    });
   }
 }

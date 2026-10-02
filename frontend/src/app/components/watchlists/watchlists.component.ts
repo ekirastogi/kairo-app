@@ -2,7 +2,7 @@ import { Component, computed, inject, input, OnInit, OnDestroy, signal } from '@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
-import { ChartConfiguration, Plugin } from 'chart.js';
+import { ChartConfiguration } from 'chart.js';
 import { filter, Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { ReportStateService } from '../../services/report-state.service';
@@ -12,7 +12,7 @@ import { FilterUrlService } from '../../services/filter-url.service';
 import { Watchlist } from '../../models/watchlist.models';
 import { StockSummary } from '../../models/trade.models';
 import {
-  analysePnlStockBuckets,
+  analysePnlTierSplit,
   getPnlWatchlistTier,
   PNL_WATCHLIST_TIERS,
   PnlTierMode,
@@ -37,7 +37,6 @@ import {
   baseLegendPublic,
   isMobileChart,
   stockCountBarChartOptions,
-  stockCountBarLabelPlugin,
 } from '../../utils/chart-theme';
 
 const ALL_SUBTAB_ID = '__all__';
@@ -134,6 +133,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   bookStocks = computed((): StockSummary[] => this.filteredStocks.stocks());
 
   autoTierTabs = computed((): AutoTierTab[] => {
+    if (this.activeTab() === 'analyse') return [];
     const summaries = this.bookStocks();
     const mode = this.tierMode;
 
@@ -175,6 +175,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   );
 
   visibleAutoTierTabs = computed((): AutoTierTab[] => {
+    if (this.activeTab() === 'analyse') return [];
     const tiers =
       this.activeTab() === 'profitable' ? this.profitTierTabs() : this.lossTierTabs();
     const summaries = this.bookStocks();
@@ -208,6 +209,8 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     return tabs.find((tab) => tab.watchlist.id === selected)?.watchlist ?? tabs[0]?.watchlist ?? null;
   });
 
+  readonly activeAutoWatchlistId = computed(() => this.activeAutoWatchlist()?.id ?? '');
+
   activeAutoTierMeta = computed(() => {
     const watchlist = this.activeAutoWatchlist();
     if (!watchlist) return null;
@@ -217,6 +220,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   activeViewLabel = computed(() => this.activeAutoTierMeta()?.fullLabel ?? '');
 
   tierStocksBase = computed(() => {
+    if (this.activeTab() === 'analyse') return [] as StockSummary[];
     const stockSummaries = this.bookStocks();
     const watchlist = this.activeAutoWatchlist();
     if (!watchlist) return [] as StockSummary[];
@@ -291,10 +295,16 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     return 'No stocks in this tier yet.';
   });
 
-  analyseProfitBuckets = computed(() => analysePnlStockBuckets(this.bookStocks(), 'profit'));
-  analyseLossBuckets = computed(() => analysePnlStockBuckets(this.bookStocks(), 'loss'));
+  analyseTierSplit = computed(() =>
+    this.activeTab() === 'analyse'
+      ? analysePnlTierSplit(this.bookStocks())
+      : { profit: [], loss: [], flat: 0 }
+  );
+  analyseProfitBuckets = computed(() => this.analyseTierSplit().profit);
+  analyseLossBuckets = computed(() => this.analyseTierSplit().loss);
 
   analyseTierChartConfig = computed((): ChartConfiguration | null => {
+    if (this.activeTab() !== 'analyse') return null;
     const profit = this.analyseProfitBuckets();
     const loss = this.analyseLossBuckets();
     if (!profit.some((bucket) => bucket.count > 0) && !loss.some((bucket) => bucket.count > 0)) {
@@ -342,7 +352,6 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
           ...baseLegendPublic(true),
         },
       },
-      plugins: [stockCountBarLabelPlugin as Plugin],
     };
   });
 
@@ -367,6 +376,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   });
 
   analyseSplitChartConfig = computed((): ChartConfiguration | null => {
+    if (this.activeTab() !== 'analyse') return null;
     const level = this.analysePieLevel();
     if (level === 'profit' || level === 'loss') {
       const buckets = (level === 'profit' ? this.analyseProfitBuckets() : this.analyseLossBuckets())
@@ -379,10 +389,10 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
       );
     }
 
-    const stocks = this.bookStocks();
-    const profitable = stocks.filter((stock) => stock.netPnL > 0).length;
-    const losing = stocks.filter((stock) => stock.netPnL < 0).length;
-    const flat = stocks.filter((stock) => stock.netPnL === 0).length;
+    const split = this.analyseTierSplit();
+    const profitable = split.profit.reduce((sum, bucket) => sum + bucket.count, 0);
+    const losing = split.loss.reduce((sum, bucket) => sum + bucket.count, 0);
+    const flat = split.flat;
     if (!profitable && !losing && !flat) return null;
 
     const labels = [`Profitable · ${profitable}`, `Losing · ${losing}`];
