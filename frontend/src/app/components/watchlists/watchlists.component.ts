@@ -128,6 +128,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   stockSearchQuery = signal('');
   stockFilterRules = signal<StockFilterRule[]>([]);
   scenarioPanelOpen = signal(false);
+  analysePieLevel = signal<'all' | 'profit' | 'loss'>('all');
 
   bookStocks = computed((): StockSummary[] => this.filteredStocks.stocks());
 
@@ -309,16 +310,22 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
             data: profit.map((bucket) => bucket.count),
             backgroundColor: CHART_COLORS.success,
             hoverBackgroundColor: '#059669',
-            borderRadius: 6,
-            maxBarThickness: 36,
+            borderWidth: 0,
+            borderRadius: { topLeft: 6, topRight: 0, bottomLeft: 0, bottomRight: 0 },
+            borderSkipped: false,
+            barPercentage: 1,
+            categoryPercentage: 0.72,
           },
           {
             label: 'Losing',
             data: loss.map((bucket) => bucket.count),
             backgroundColor: CHART_COLORS.danger,
             hoverBackgroundColor: '#dc2626',
-            borderRadius: 6,
-            maxBarThickness: 36,
+            borderWidth: 0,
+            borderRadius: { topLeft: 0, topRight: 6, bottomLeft: 0, bottomRight: 0 },
+            borderSkipped: false,
+            barPercentage: 1,
+            categoryPercentage: 0.72,
           },
         ],
       },
@@ -334,67 +341,60 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     };
   });
 
+  analyseSplitTitle = computed(() => {
+    const level = this.analysePieLevel();
+    if (level === 'profit') return 'Profitable stocks';
+    if (level === 'loss') return 'Losing stocks';
+    return 'Profitable vs losing';
+  });
+
+  analyseSplitSubtitle = computed(() => {
+    const level = this.analysePieLevel();
+    if (level === 'profit') {
+      const count = this.analyseProfitBuckets().reduce((sum, bucket) => sum + bucket.count, 0);
+      return `${count} stocks by P&L band · click a slice for share`;
+    }
+    if (level === 'loss') {
+      const count = this.analyseLossBuckets().reduce((sum, bucket) => sum + bucket.count, 0);
+      return `${count} stocks by P&L band · click a slice for share`;
+    }
+    return 'Click a slice to see how those stocks split by tier';
+  });
+
   analyseSplitChartConfig = computed((): ChartConfiguration | null => {
+    const level = this.analysePieLevel();
+    if (level === 'profit' || level === 'loss') {
+      const buckets = (level === 'profit' ? this.analyseProfitBuckets() : this.analyseLossBuckets())
+        .filter((bucket) => bucket.count > 0);
+      if (!buckets.length) return null;
+      return this.buildAnalysePie(
+        buckets.map((bucket) => `${bucket.label} (${bucket.count})`),
+        buckets.map((bucket) => bucket.count),
+        buckets.map((bucket) => bucket.color)
+      );
+    }
+
     const stocks = this.bookStocks();
     const profitable = stocks.filter((stock) => stock.netPnL > 0).length;
     const losing = stocks.filter((stock) => stock.netPnL < 0).length;
     const flat = stocks.filter((stock) => stock.netPnL === 0).length;
     if (!profitable && !losing && !flat) return null;
 
-    const labels = ['Profitable', 'Losing'];
+    const labels = [`Profitable · ${profitable}`, `Losing · ${losing}`];
     const data = [profitable, losing];
     const colors = [CHART_COLORS.success, CHART_COLORS.danger];
     if (flat) {
-      labels.push('Flat');
+      labels.push(`Flat · ${flat}`);
       data.push(flat);
       colors.push(CHART_COLORS.neutral);
     }
-
-    return {
-      type: 'pie',
-      data: {
-        labels,
-        datasets: [{
-          data,
-          backgroundColor: colors,
-          borderColor: '#fff',
-          borderWidth: 2,
-        }],
-      },
-      options: {
-        ...pieChartOptions(''),
-        layout: { padding: { top: 4, right: 4, bottom: 4, left: 4 } },
-        plugins: {
-          ...pieChartOptions('').plugins,
-          legend: {
-            display: true,
-            position: 'bottom',
-            labels: {
-              boxWidth: 8,
-              boxHeight: 8,
-              padding: 10,
-              usePointStyle: true,
-            },
-          },
-          tooltip: {
-            ...pieChartOptions('').plugins?.tooltip,
-            callbacks: {
-              label: (ctx) => {
-                const total = (ctx.dataset.data as number[]).reduce((sum, value) => sum + Number(value), 0);
-                const count = Number(ctx.parsed) || 0;
-                const pct = total ? ((count / total) * 100).toFixed(1) : '0';
-                return `${ctx.label}: ${count} stock${count === 1 ? '' : 's'} (${pct}%)`;
-              },
-            },
-          },
-        },
-      },
-    };
+    return this.buildAnalysePie(labels, data, colors);
   });
 
   setTab(tab: WatchlistTab): void {
     this.activeTab.set(tab);
     this.selectedAutoTierId.set(null);
+    this.analysePieLevel.set('all');
     this.lazyTrades.clear();
     this.filterUrl.patchWatchlistQuery({
       [FILTER_QUERY_KEYS.side]: tab,
@@ -428,5 +428,67 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   stockSymbol(stock: StockSummary): string {
     return stock.symbol || normalizeSymbol(stock.stockName);
+  }
+
+  onAnalysePieClick(index: number): void {
+    if (this.analysePieLevel() !== 'all') return;
+    if (index === 0) this.analysePieLevel.set('profit');
+    else if (index === 1) this.analysePieLevel.set('loss');
+  }
+
+  resetAnalysePie(): void {
+    this.analysePieLevel.set('all');
+  }
+
+  private buildAnalysePie(
+    labels: string[],
+    data: number[],
+    colors: string[]
+  ): ChartConfiguration {
+    const pieOptions = pieChartOptions('');
+    return {
+      type: 'pie',
+      data: {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: colors,
+          borderColor: '#fff',
+          borderWidth: 2,
+        }],
+      },
+      options: {
+        ...pieOptions,
+        layout: { padding: { top: 4, right: 4, bottom: 4, left: 4 } },
+        plugins: {
+          ...pieOptions.plugins,
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: {
+              boxWidth: 8,
+              boxHeight: 8,
+              padding: 8,
+              usePointStyle: true,
+            },
+            onClick: (_event, item) => {
+              if (item.index == null) return;
+              this.onAnalysePieClick(item.index);
+            },
+          },
+          tooltip: {
+            ...pieOptions.plugins?.tooltip,
+            callbacks: {
+              label: (ctx) => {
+                const total = (ctx.dataset.data as number[]).reduce((sum, value) => sum + Number(value), 0);
+                const count = Number(ctx.parsed) || 0;
+                const pct = total ? ((count / total) * 100).toFixed(1) : '0';
+                return `${count} stock${count === 1 ? '' : 's'} · ${pct}% of this view`;
+              },
+            },
+          },
+        },
+      },
+    };
   }
 }

@@ -84,11 +84,24 @@
           <div class="w-full max-w-[260px]">
             <app-chart-card
               [config]="analyseSplitChartConfig()"
-              title="Profitable vs losing"
-              subtitle="Share of stocks that made vs lost money"
+              [title]="analyseSplitTitle()"
+              [subtitle]="analyseSplitSubtitle()"
               [heightPx]="240"
+              [interactive]="true"
               emptyMessage="No stocks in this view"
-            />
+              (pointClick)="onAnalysePieClick($event)"
+            >
+              @if (analysePieLevel() !== 'all') {
+                <button
+                  chartHeader
+                  type="button"
+                  class="text-[11px] font-medium text-indigo-600 hover:underline"
+                  (click)="resetAnalysePie()"
+                >
+                  Reset
+                </button>
+              }
+            </app-chart-card>
           </div>
         </div>
       </div>
