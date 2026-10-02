@@ -21,8 +21,8 @@ export class AiChatPanelComponent implements OnInit {
   draft = signal('');
   contextOpen = signal(false);
   contextDraft = signal('');
+  notesDraft = signal('');
   contextError = signal<string | null>(null);
-  contextSaved = signal(false);
 
   readonly providers: { id: AiProviderId; label: string }[] = [
     { id: 'gemini', label: 'Gemini' },
@@ -41,43 +41,50 @@ export class AiChatPanelComponent implements OnInit {
     }
   }
 
-  hasKey(provider: AiProviderId): boolean {
-    return this.keys.hasAiKey(provider);
+  onProviderChange(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value as AiProviderId;
+    if (value === 'gemini' || value === 'claude' || value === 'cursor') {
+      this.chat.setProvider(value);
+    }
   }
 
-  openContext(): void {
+  toggleContext(): void {
+    if (this.contextOpen()) {
+      this.applyContext();
+      if (this.contextError()) return;
+      this.contextOpen.set(false);
+      return;
+    }
+    this.notesDraft.set(this.viewContext.extraNotes());
     this.contextDraft.set(this.viewContext.displayJson());
     this.contextError.set(null);
-    this.contextSaved.set(false);
     this.contextOpen.set(true);
   }
 
-  closeContext(): void {
-    this.contextOpen.set(false);
-    this.contextError.set(null);
-    this.contextSaved.set(false);
-  }
-
   applyContext(): void {
+    this.viewContext.extraNotes.set(this.notesDraft());
     try {
       this.viewContext.applyEditedJson(this.contextDraft());
       this.contextError.set(null);
-      this.contextSaved.set(true);
     } catch {
-      this.contextError.set('Context must be valid JSON.');
-      this.contextSaved.set(false);
+      this.contextError.set('Page context must be valid JSON.');
     }
+  }
+
+  onNotesChange(value: string): void {
+    this.notesDraft.set(value);
+    this.viewContext.extraNotes.set(value);
   }
 
   resetContext(): void {
     this.viewContext.resetEdited();
-    this.viewContext.captureRoute();
+    this.notesDraft.set('');
     this.contextDraft.set(this.viewContext.displayJson());
     this.contextError.set(null);
-    this.contextSaved.set(true);
   }
 
   async send(): Promise<void> {
+    if (this.contextOpen()) this.applyContext();
     const text = this.draft().trim();
     if (!text) return;
     this.draft.set('');

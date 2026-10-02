@@ -7,7 +7,7 @@
             stroke-linecap="round"
             stroke-linejoin="round"
             stroke-width="1.8"
-            d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-4 4v-4z"
+            d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"
           />
         </svg>
       </span>
@@ -16,13 +16,26 @@
         <p class="truncate text-[11px] text-slate-400">{{ viewContext.live().title }}</p>
       </div>
     </div>
-    <button
-      type="button"
-      class="rounded-lg px-2 py-1 text-xs font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
-      (click)="openContext()"
+    <select
+      class="max-w-[8.5rem] rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs font-medium text-slate-100 focus:border-kairo-400 focus:outline-none"
+      name="provider"
+      [ngModel]="chat.provider()"
+      [ngModelOptions]="{ standalone: true }"
+      (change)="onProviderChange($event)"
+      aria-label="Model"
     >
-      Context
-    </button>
+      @for (provider of providers; track provider.id) {
+        <option [value]="provider.id">{{ provider.label }}</option>
+      }
+    </select>
+    @if (chat.messages().length) {
+      <button type="button" class="text-[11px] font-medium text-slate-400 hover:text-white" (click)="chat.clearThread()">
+        Clear
+      </button>
+    }
+    <a routerLink="/settings" class="text-[11px] font-medium text-kairo-300 hover:text-kairo-200" (click)="chat.close()">
+      Keys
+    </a>
     <button
       type="button"
       class="rounded-lg p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white"
@@ -35,42 +48,12 @@
     </button>
   </header>
 
-  <div class="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-white/10 px-3 py-2 sm:px-4">
-    @for (provider of providers; track provider.id) {
-      <button
-        type="button"
-        class="rounded-full px-2.5 py-1 text-[11px] font-medium transition"
-        [ngClass]="chat.provider() === provider.id
-          ? 'bg-kairo-500 text-white'
-          : 'bg-white/5 text-slate-300'"
-        (click)="chat.setProvider(provider.id)"
-      >
-        {{ provider.label }}
-      </button>
-    }
-    <span class="ml-auto flex shrink-0 items-center gap-2">
-      @if (chat.messages().length) {
-        <button
-          type="button"
-          class="text-[11px] font-medium text-slate-400 hover:text-white"
-          (click)="chat.clearThread()"
-        >
-          Clear
-        </button>
-      }
-      <a routerLink="/settings" class="text-[11px] font-medium text-kairo-300 hover:text-kairo-200" (click)="chat.close()">
-        Keys
-      </a>
-    </span>
-  </div>
-
   <div class="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4">
     @if (!chat.messages().length) {
       <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
         <p class="font-medium text-white">Ask about this view</p>
         <p class="mt-1 text-xs leading-relaxed text-slate-400">
-          The current page snapshot is sent with each question. Open Context to inspect or edit it.
-          Add Gemini, Claude, or Cursor keys in Settings.
+          Use the button left of Ask to view or add context. Add API keys in Settings.
         </p>
       </div>
     }
@@ -103,72 +86,81 @@
   </div>
 
   <form class="shrink-0 border-t border-white/10 p-3 sm:p-4" (submit)="$event.preventDefault(); send()">
-    <div class="flex items-end gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-      <textarea
-        rows="2"
-        class="max-h-32 min-h-[2.5rem] flex-1 resize-none bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
-        placeholder="Ask about this page…"
-        name="askDraft"
-        [ngModel]="draft()"
-        (ngModelChange)="draft.set($event)"
-        (keydown)="onComposerKeydown($event)"
-        [disabled]="chat.sending()"
-      ></textarea>
-      <button
-        type="submit"
-        class="mb-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-kairo-500 text-white transition hover:bg-kairo-400 disabled:opacity-40"
-        [disabled]="chat.sending() || !draft().trim()"
-        aria-label="Send"
-      >
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7" />
-        </svg>
-      </button>
-    </div>
-  </form>
-
-@if (contextOpen()) {
-  <div class="absolute inset-0 z-10 flex flex-col bg-slate-950">
-    <header class="flex shrink-0 items-center gap-2 border-b border-white/10 px-3 py-2.5 sm:px-4">
-      <div class="min-w-0 flex-1">
-        <p class="text-sm font-semibold text-white">View context</p>
-        <p class="text-[11px] text-slate-400">
-          @if (viewContext.usingEdited()) {
-            Using your edited snapshot
-          } @else {
-            Live snapshot from this page
-          }
-        </p>
+    @if (contextOpen()) {
+      <div class="mb-2 space-y-2 rounded-2xl border border-white/10 bg-white/5 p-3">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs font-semibold text-slate-200">Context</p>
+          <button type="button" class="text-[11px] font-medium text-slate-400 hover:text-white" (click)="resetContext()">
+            Reset
+          </button>
+        </div>
+        <textarea
+          rows="3"
+          name="notesDraft"
+          class="w-full resize-y rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-kairo-400 focus:outline-none"
+          placeholder="Add extra context for this question…"
+          [ngModel]="notesDraft()"
+          (ngModelChange)="onNotesChange($event)"
+        ></textarea>
+        <textarea
+          rows="6"
+          name="contextDraft"
+          class="max-h-48 w-full resize-y rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-300 focus:border-kairo-400 focus:outline-none"
+          [ngModel]="contextDraft()"
+          (ngModelChange)="contextDraft.set($event)"
+          spellcheck="false"
+        ></textarea>
+        @if (contextError()) {
+          <p class="text-xs text-red-300">{{ contextError() }}</p>
+        } @else if (viewContext.usingEdited() || viewContext.extraNotes().trim()) {
+          <p class="text-[11px] text-slate-500">Using your edited snapshot for the next question.</p>
+        } @else {
+          <p class="text-[11px] text-slate-500">Live snapshot from this page. Edit or add notes above.</p>
+        }
       </div>
-      <button type="button" class="text-xs font-medium text-slate-300 hover:text-white" (click)="resetContext()">
-        Reset
-      </button>
+    }
+    <div class="flex items-end gap-2">
       <button
         type="button"
-        class="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
-        (click)="closeContext()"
-        aria-label="Close context"
+        class="mb-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 text-slate-300 transition hover:bg-white/10 hover:text-white"
+        [class.bg-kairo-500]="contextOpen()"
+        [class.border-kairo-400]="contextOpen()"
+        [class.text-white]="contextOpen()"
+        (click)="toggleContext()"
+        aria-label="View or add context"
+        [attr.aria-expanded]="contextOpen()"
       >
-        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.8"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          />
         </svg>
       </button>
-    </header>
-    <textarea
-      class="min-h-0 flex-1 resize-none bg-slate-950 px-3 py-3 font-mono text-[11px] leading-relaxed text-slate-200 focus:outline-none sm:px-4"
-      name="contextDraft"
-      [ngModel]="contextDraft()"
-      (ngModelChange)="contextDraft.set($event)"
-      spellcheck="false"
-    ></textarea>
-    <div class="shrink-0 space-y-2 border-t border-white/10 px-3 py-3 sm:px-4">
-      @if (contextError()) {
-        <p class="text-xs text-red-300">{{ contextError() }}</p>
-      } @else if (contextSaved()) {
-        <p class="text-xs text-emerald-300">Context updated for the next question.</p>
-      }
-      <button type="button" class="btn-primary w-full" (click)="applyContext()">Use this context</button>
+      <div class="flex min-w-0 flex-1 items-end gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+        <textarea
+          rows="2"
+          class="max-h-32 min-h-[2.5rem] flex-1 resize-none bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
+          placeholder="Ask about this page…"
+          name="askDraft"
+          [ngModel]="draft()"
+          (ngModelChange)="draft.set($event)"
+          (keydown)="onComposerKeydown($event)"
+          [disabled]="chat.sending()"
+        ></textarea>
+        <button
+          type="submit"
+          class="mb-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-kairo-500 text-white transition hover:bg-kairo-400 disabled:opacity-40"
+          [disabled]="chat.sending() || !draft().trim()"
+          aria-label="Send"
+        >
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
     </div>
-  </div>
-}
+  </form>
 </div>

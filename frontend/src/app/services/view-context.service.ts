@@ -33,6 +33,8 @@ export class ViewContextService {
   });
 
   readonly usingEdited = computed(() => this.editedJson() != null);
+  /** Free-text notes the user adds on top of the page snapshot. */
+  readonly extraNotes = signal('');
 
   publish(partial: Partial<ViewContext> & { data: Record<string, unknown> }): void {
     this.published.set({
@@ -50,6 +52,7 @@ export class ViewContextService {
     if (path === this.lastPath && this.published()) return;
     this.lastPath = path;
     this.editedJson.set(null);
+    this.extraNotes.set('');
     const analysis = this.state.analysis();
     const report = this.state.report();
     this.publish({
@@ -92,11 +95,15 @@ export class ViewContextService {
 
   resetEdited(): void {
     this.editedJson.set(null);
+    this.extraNotes.set('');
   }
 
   /** Payload the model actually sees. */
   forModel(): string {
-    return this.displayJson();
+    const json = this.displayJson();
+    const notes = this.extraNotes().trim();
+    if (!notes) return json;
+    return `USER NOTES:\n${notes}\n\nVIEW CONTEXT JSON:\n${json}`;
   }
 
   private fallbackContext(): ViewContext {

@@ -1,4 +1,4 @@
-import { Component, inject, signal, HostListener, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, computed, HostListener, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet, NavigationEnd, ActivatedRoute } from '@angular/router';
 import { filter, Subscription } from 'rxjs';
@@ -60,6 +60,12 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
 
   sidebarOpen = signal(true);
   isMobile = signal(typeof window !== 'undefined' && window.innerWidth < 1024);
+  draggingPane = signal(false);
+
+  readonly aiContentOffset = computed(() => {
+    if (this.isMobile() || !this.aiChat.open()) return '0px';
+    return `${this.aiChat.paneWidthPct()}vw`;
+  });
 
   readonly navSections: NavSection[] = [
     {
@@ -187,6 +193,7 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.navSub?.unsubscribe();
+    this.onPaneDragEnd();
     if (typeof window !== 'undefined') {
       window.removeEventListener('orientationchange', this.onSafeAreaChange);
       window.visualViewport?.removeEventListener('resize', this.onSafeAreaChange);
@@ -258,6 +265,25 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
 
   closeSidebar(): void {
     this.sidebarOpen.set(false);
+  }
+
+  onPaneDragStart(event: PointerEvent): void {
+    event.preventDefault();
+    this.draggingPane.set(true);
+    (event.target as HTMLElement).setPointerCapture(event.pointerId);
+    document.body.classList.add('select-none', 'cursor-col-resize');
+  }
+
+  onPaneDrag(event: PointerEvent): void {
+    if (!this.draggingPane()) return;
+    const pct = ((window.innerWidth - event.clientX) / window.innerWidth) * 100;
+    this.aiChat.setPaneWidthPct(pct);
+  }
+
+  onPaneDragEnd(): void {
+    if (!this.draggingPane()) return;
+    this.draggingPane.set(false);
+    document.body.classList.remove('select-none', 'cursor-col-resize');
   }
 
   onNavigate(): void {

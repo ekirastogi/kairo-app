@@ -23,6 +23,7 @@ export class AiChatService {
 
   readonly open = signal(false);
   readonly provider = signal<AiProviderId>(readLastProvider());
+  readonly paneWidthPct = signal(readPaneWidth());
   readonly messages = signal<AiChatMessage[]>([]);
   readonly sending = signal(false);
   readonly error = signal<string | null>(null);
@@ -44,6 +45,16 @@ export class AiChatService {
       /* ignore */
     }
     this.error.set(null);
+  }
+
+  setPaneWidthPct(pct: number): void {
+    const next = Math.min(78, Math.max(28, pct));
+    this.paneWidthPct.set(next);
+    try {
+      localStorage.setItem('kairo.aiPaneWidthPct', String(Math.round(next)));
+    } catch {
+      /* ignore */
+    }
   }
 
   clearThread(): void {
@@ -236,6 +247,16 @@ function readLastProvider(): AiProviderId {
     /* ignore */
   }
   return 'gemini';
+}
+
+function readPaneWidth(): number {
+  try {
+    const raw = Number(localStorage.getItem('kairo.aiPaneWidthPct'));
+    if (Number.isFinite(raw) && raw >= 28 && raw <= 78) return raw;
+  } catch {
+    /* ignore */
+  }
+  return 50;
 }
 
 function extractGeminiText(body: unknown): string {
