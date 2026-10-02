@@ -34,7 +34,7 @@ import {
 import {
   CHART_COLORS,
   baseLegendPublic,
-  pieChartOptions,
+  isMobileChart,
   stockCountBarChartOptions,
   stockCountBarLabelPlugin,
 } from '../../utils/chart-theme';
@@ -300,6 +300,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
       return null;
     }
     const countOptions = stockCountBarChartOptions();
+    const mobile = isMobileChart();
     return {
       type: 'bar',
       data: {
@@ -331,10 +332,23 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
       },
       options: {
         ...countOptions,
-        layout: { padding: { top: 18, right: 8, bottom: 0, left: 4 } },
+        layout: { padding: { top: 18, right: mobile ? 6 : 8, bottom: 2, left: 2 } },
         plugins: {
           ...countOptions.plugins,
           ...baseLegendPublic(true),
+        },
+        scales: {
+          ...countOptions.scales,
+          x: {
+            ...countOptions.scales?.['x'],
+            ticks: {
+              ...countOptions.scales?.['x']?.ticks,
+              maxRotation: mobile ? 40 : 0,
+              minRotation: mobile ? 40 : 0,
+              autoSkip: false,
+              font: { size: mobile ? 8 : 11 },
+            },
+          },
         },
       },
       plugins: [stockCountBarLabelPlugin],
@@ -445,7 +459,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     data: number[],
     colors: string[]
   ): ChartConfiguration {
-    const pieOptions = pieChartOptions('');
+    const mobile = isMobileChart();
     return {
       type: 'pie',
       data: {
@@ -458,18 +472,20 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
         }],
       },
       options: {
-        ...pieOptions,
-        layout: { padding: { top: 4, right: 4, bottom: 4, left: 4 } },
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 2, right: 2, bottom: 2, left: 2 } },
         plugins: {
-          ...pieOptions.plugins,
           legend: {
             display: true,
             position: 'bottom',
+            maxHeight: 72,
             labels: {
               boxWidth: 8,
               boxHeight: 8,
-              padding: 8,
+              padding: mobile ? 6 : 8,
               usePointStyle: true,
+              font: { size: mobile ? 9 : 10 },
             },
             onClick: (_event, item) => {
               if (item.index == null) return;
@@ -477,7 +493,6 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
             },
           },
           tooltip: {
-            ...pieOptions.plugins?.tooltip,
             callbacks: {
               label: (ctx) => {
                 const total = (ctx.dataset.data as number[]).reduce((sum, value) => sum + Number(value), 0);

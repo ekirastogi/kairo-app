@@ -17,9 +17,10 @@ Chart.register(...registerables);
 @Component({
   selector: 'app-chart-card',
   standalone: true,
+  host: { class: 'block min-w-0 max-w-full' },
   template: `
     <div
-      class="flex w-full flex-col overflow-hidden"
+      class="flex w-full min-w-0 max-w-full flex-col overflow-hidden"
       [class.rounded-xl]="!compact()"
       [class.border]="!compact()"
       [class.border-slate-200]="!compact()"
@@ -29,11 +30,11 @@ Chart.register(...registerables);
       [style.height.px]="compact() ? null : heightPx()"
     >
       @if (title()) {
-        <div class="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5 sm:py-3.5">
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5 sm:py-3.5">
           <div class="min-w-0">
-            <h3 class="text-sm font-semibold tracking-tight text-slate-900">{{ title() }}</h3>
+            <h3 class="truncate text-sm font-semibold tracking-tight text-slate-900">{{ title() }}</h3>
             @if (subtitle()) {
-              <p class="mt-0.5 text-xs leading-relaxed text-slate-500">{{ subtitle() }}</p>
+              <p class="mt-0.5 line-clamp-2 text-xs leading-relaxed text-slate-500">{{ subtitle() }}</p>
             }
           </div>
           <ng-content select="[chartHeader]" />
@@ -41,7 +42,7 @@ Chart.register(...registerables);
       }
 
       <div
-        class="relative flex-1 overflow-hidden"
+        class="relative min-h-0 min-w-0 flex-1 overflow-hidden"
         [class.px-1]="compact()"
         [class.px-3]="!compact()"
         [class.py-3]="!compact()"

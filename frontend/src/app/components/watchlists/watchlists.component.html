@@ -72,7 +72,7 @@
     </div>
 
     @if (activeTab() === 'analyse') {
-      <div class="space-y-3">
+      <div class="min-w-0 max-w-full space-y-3 overflow-x-clip">
         <app-chart-card
           [config]="analyseTierChartConfig()"
           title="Stocks by P&amp;L tier"
@@ -80,8 +80,8 @@
           size="lg"
           emptyMessage="No stocks in this view"
         />
-        <div class="flex justify-center">
-          <div class="w-full max-w-[260px]">
+        <div class="flex w-full min-w-0 justify-center overflow-x-clip px-1">
+          <div class="w-full min-w-0 max-w-[260px] overflow-hidden">
             <app-chart-card
               [config]="analyseSplitChartConfig()"
               [title]="analyseSplitTitle()"
@@ -95,7 +95,7 @@
                 <button
                   chartHeader
                   type="button"
-                  class="text-[11px] font-medium text-indigo-600 hover:underline"
+                  class="shrink-0 text-[11px] font-medium text-indigo-600 hover:underline"
                   (click)="resetAnalysePie()"
                 >
                   Reset
