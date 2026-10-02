@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -12,11 +12,56 @@ import { ViewContextService } from '../../../services/view-context.service';
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './ai-chat-panel.component.html',
   host: { class: 'block h-full min-h-0' },
+  styles: [
+    `
+      :host {
+        display: block;
+        height: 100%;
+        min-height: 0;
+      }
+      .ai-chat {
+        display: flex;
+        min-height: 0;
+        height: 100%;
+        flex-direction: column;
+        background: var(--c-bg);
+        color: var(--c-text);
+      }
+      .ai-chat.is-dark {
+        --c-bg: #0b141a;
+        --c-header: #202c33;
+        --c-muted: #8696a0;
+        --c-border: rgba(255, 255, 255, 0.08);
+        --c-user: #005c4b;
+        --c-user-text: #e9edef;
+        --c-bot: #202c33;
+        --c-bot-text: #e9edef;
+        --c-input: #2a3942;
+        --c-composer: #202c33;
+        --c-hover: rgba(255, 255, 255, 0.08);
+      }
+      .ai-chat.is-light {
+        --c-bg: #efeae2;
+        --c-header: #f0f2f5;
+        --c-muted: #667781;
+        --c-border: rgba(17, 27, 33, 0.1);
+        --c-user: #d9fdd3;
+        --c-user-text: #111b21;
+        --c-bot: #ffffff;
+        --c-bot-text: #111b21;
+        --c-input: #ffffff;
+        --c-composer: #f0f2f5;
+        --c-hover: rgba(17, 27, 33, 0.06);
+      }
+    `,
+  ],
 })
 export class AiChatPanelComponent implements OnInit {
   readonly chat = inject(AiChatService);
   readonly viewContext = inject(ViewContextService);
   private keys = inject(UserConfigService);
+
+  @ViewChild('thread') thread?: ElementRef<HTMLDivElement>;
 
   draft = signal('');
   contextOpen = signal(false);
@@ -29,6 +74,14 @@ export class AiChatPanelComponent implements OnInit {
     { id: 'claude', label: 'Claude' },
     { id: 'cursor', label: 'Cursor' },
   ];
+
+  constructor() {
+    effect(() => {
+      this.chat.messages();
+      this.chat.sending();
+      queueMicrotask(() => this.scrollThread());
+    });
+  }
 
   async ngOnInit(): Promise<void> {
     try {
@@ -96,5 +149,14 @@ export class AiChatPanelComponent implements OnInit {
       event.preventDefault();
       void this.send();
     }
+  }
+
+  formatTime(at: number): string {
+    return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  private scrollThread(): void {
+    const el = this.thread?.nativeElement;
+    if (el) el.scrollTop = el.scrollHeight;
   }
 }

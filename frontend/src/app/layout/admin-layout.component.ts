@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, HostListener, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, HostListener, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet, NavigationEnd, ActivatedRoute } from '@angular/router';
 import { filter, Subscription } from 'rxjs';
@@ -61,11 +61,6 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
   sidebarOpen = signal(true);
   isMobile = signal(typeof window !== 'undefined' && window.innerWidth < 1024);
   draggingPane = signal(false);
-
-  readonly aiContentOffset = computed(() => {
-    if (this.isMobile() || !this.aiChat.open()) return '0px';
-    return `${this.aiChat.paneWidthPct()}vw`;
-  });
 
   readonly navSections: NavSection[] = [
     {

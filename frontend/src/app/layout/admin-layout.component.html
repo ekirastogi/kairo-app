@@ -75,10 +75,7 @@
   </aside>
 
   <div
-    class="app-content-column flex min-h-screen min-h-dvh min-w-0 flex-1 flex-col transition-[margin] ease-in-out lg:ml-0"
-    [class.duration-300]="!draggingPane()"
-    [class.duration-0]="draggingPane()"
-    [style.marginRight]="aiContentOffset()"
+    class="app-content-column flex min-h-screen min-h-dvh min-w-0 flex-1 flex-col transition-[margin-left] duration-300 ease-in-out lg:ml-0"
     [ngClass]="{
       'lg:ml-72': sidebarOpen(),
       'app-content-column-menu-open': isMobile() && sidebarOpen()
