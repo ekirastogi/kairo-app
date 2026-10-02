@@ -146,3 +146,48 @@ export function stockSummariesForPnlTier(
     .filter((summary) => netPnLMatchesPnlTier(summary.netPnL, tier, mode))
     .sort((a, b) => b.netPnL - a.netPnL);
 }
+
+/** Histogram ceilings for the Analyse tab: 0–1k, 1–5k, 5–10k, … 200k+. */
+const ANALYSE_PNL_CEILINGS = [1_000, 5_000, 10_000, 25_000, 50_000, 100_000, 200_000];
+
+const ANALYSE_PROFIT_COLORS = [
+  '#bbf7d0', '#86efac', '#4ade80', '#22c55e', '#16a34a', '#15803d', '#166534', '#14532d',
+];
+const ANALYSE_LOSS_COLORS = [
+  '#fecaca', '#fca5a5', '#f87171', '#ef4444', '#dc2626', '#b91c1c', '#991b1b', '#7f1d1d',
+];
+
+export interface PnlAnalyseBucket {
+  label: string;
+  count: number;
+  color: string;
+}
+
+export function analysePnlStockBuckets(
+  summaries: StockSummary[],
+  side: 'profit' | 'loss'
+): PnlAnalyseBucket[] {
+  const magnitudes = summaries
+    .map((stock) => stock.netPnL)
+    .filter((value) => (side === 'profit' ? value > 0 : value < 0))
+    .map((value) => Math.abs(value));
+  const colors = side === 'profit' ? ANALYSE_PROFIT_COLORS : ANALYSE_LOSS_COLORS;
+
+  const buckets: PnlAnalyseBucket[] = [];
+  let floor = 0;
+  for (let i = 0; i < ANALYSE_PNL_CEILINGS.length; i++) {
+    const ceiling = ANALYSE_PNL_CEILINGS[i];
+    buckets.push({
+      label: `${formatTierAmountShort(floor)}–${formatTierAmountShort(ceiling)}`,
+      count: magnitudes.filter((value) => value > floor && value <= ceiling).length,
+      color: colors[i],
+    });
+    floor = ceiling;
+  }
+  buckets.push({
+    label: `${formatTierAmountShort(floor)}+`,
+    count: magnitudes.filter((value) => value > floor).length,
+    color: colors[ANALYSE_PNL_CEILINGS.length],
+  });
+  return buckets;
+}

@@ -407,6 +407,52 @@ export function countBarChartOptions(title: string): ChartOptions {
   };
 }
 
+export function stockCountBarChartOptions(): ChartOptions {
+  return {
+    ...barChartOptions(''),
+    plugins: {
+      ...barChartOptions('').plugins,
+      tooltip: {
+        ...baseTooltip(),
+        callbacks: {
+          label: (ctx) => {
+            const count = parsedAxisValue(ctx, 'y') || 0;
+            return `${count} stock${count === 1 ? '' : 's'}`;
+          },
+        },
+      },
+    },
+    scales: baseScales({ currency: false }),
+  };
+}
+
+/** Draw the integer count above each bar. */
+export const stockCountBarLabelPlugin: Plugin<'bar'> = {
+  id: 'stockCountBarLabels',
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    const mobile = isMobileChart();
+    ctx.save();
+    ctx.font = `700 ${mobile ? 10 : 12}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = CHART_COLORS.ink;
+
+    chart.data.datasets.forEach((dataset, datasetIndex) => {
+      if (dataset.type && dataset.type !== 'bar') return;
+      const meta = chart.getDatasetMeta(datasetIndex);
+      if (meta.hidden) return;
+      meta.data.forEach((element, i) => {
+        const raw = Number(Array.isArray(dataset.data) ? dataset.data[i] : NaN);
+        if (!Number.isFinite(raw) || raw <= 0) return;
+        const bar = element as unknown as { x: number; y: number };
+        ctx.fillText(String(raw), bar.x, bar.y - 4);
+      });
+    });
+    ctx.restore();
+  },
+};
+
 export function doughnutChartOptions(title: string): ChartOptions<'doughnut'> {
   const mobile = isMobileChart();
   return {

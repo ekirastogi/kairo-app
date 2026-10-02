@@ -2,6 +2,7 @@ import { Component, computed, inject, input, OnInit, OnDestroy, signal } from '@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
+import { ChartConfiguration } from 'chart.js';
 import { filter, Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { ReportStateService } from '../../services/report-state.service';
@@ -11,6 +12,7 @@ import { FilterUrlService } from '../../services/filter-url.service';
 import { Watchlist } from '../../models/watchlist.models';
 import { StockSummary } from '../../models/trade.models';
 import {
+  analysePnlStockBuckets,
   getPnlWatchlistTier,
   PNL_WATCHLIST_TIERS,
   PnlTierMode,
@@ -24,14 +26,21 @@ import { ErrorBannerComponent } from '../shared/error-banner/error-banner.compon
 import { ExpandableStocksTableComponent } from '../shared/expandable-stocks-table/expandable-stocks-table.component';
 import { StockScenarioPanelComponent } from '../shared/stock-scenario-panel/stock-scenario-panel.component';
 import { TierSummaryBarComponent } from '../shared/tier-summary-bar/tier-summary-bar.component';
+import { ChartCardComponent } from '../shared/chart-card/chart-card.component';
 import {
   StockFilterRule,
   filterStocksByRules,
 } from '../../utils/stock-scenario.utils';
+import {
+  CHART_COLORS,
+  pieChartOptions,
+  stockCountBarChartOptions,
+  stockCountBarLabelPlugin,
+} from '../../utils/chart-theme';
 
 const ALL_SUBTAB_ID = '__all__';
 
-type WatchlistTab = 'losing' | 'profitable';
+type WatchlistTab = 'losing' | 'profitable' | 'analyse';
 
 interface TierSummary {
   stockCount: number;
@@ -64,6 +73,7 @@ interface AutoTierTab {
     ExpandableStocksTableComponent,
     StockScenarioPanelComponent,
     TierSummaryBarComponent,
+    ChartCardComponent,
   ],
   templateUrl: './watchlists.component.html',
 })
@@ -105,6 +115,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   readonly mainTabs: { id: WatchlistTab; label: string }[] = [
     { id: 'losing', label: 'Losses' },
     { id: 'profitable', label: 'Profits' },
+    { id: 'analyse', label: 'Analyse' },
   ];
 
   readonly allSubtabId = ALL_SUBTAB_ID;
@@ -146,6 +157,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   });
 
   filterSummary = computed(() => {
+    if (this.activeTab() === 'analyse') return 'Analyse';
     const side = this.activeTab() === 'profitable' ? 'Profits' : 'Losses';
     const tier = this.activeAutoTierMeta();
     return tier ? `${side} · ${this.tierTabLabel(tier)}` : side;
@@ -276,6 +288,48 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     return 'No stocks in this tier yet.';
   });
 
+  analyseProfitBuckets = computed(() => analysePnlStockBuckets(this.bookStocks(), 'profit'));
+  analyseLossBuckets = computed(() => analysePnlStockBuckets(this.bookStocks(), 'loss'));
+
+  analyseProfitChartConfig = computed((): ChartConfiguration<'bar'> | null =>
+    this.buildAnalyseBarChart(this.analyseProfitBuckets(), 'Profitable stocks')
+  );
+
+  analyseLossChartConfig = computed((): ChartConfiguration<'bar'> | null =>
+    this.buildAnalyseBarChart(this.analyseLossBuckets(), 'Losing stocks')
+  );
+
+  analyseSplitChartConfig = computed((): ChartConfiguration<'pie'> | null => {
+    const stocks = this.bookStocks();
+    const profitable = stocks.filter((stock) => stock.netPnL > 0).length;
+    const losing = stocks.filter((stock) => stock.netPnL < 0).length;
+    const flat = stocks.filter((stock) => stock.netPnL === 0).length;
+    if (!profitable && !losing && !flat) return null;
+
+    const labels = ['Profitable', 'Losing'];
+    const data = [profitable, losing];
+    const colors = [CHART_COLORS.success, CHART_COLORS.danger];
+    if (flat) {
+      labels.push('Flat');
+      data.push(flat);
+      colors.push(CHART_COLORS.neutral);
+    }
+
+    return {
+      type: 'pie',
+      data: {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: colors,
+          borderColor: '#fff',
+          borderWidth: 2,
+        }],
+      },
+      options: pieChartOptions(''),
+    };
+  });
+
   setTab(tab: WatchlistTab): void {
     this.activeTab.set(tab);
     this.selectedAutoTierId.set(null);
@@ -312,5 +366,32 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   stockSymbol(stock: StockSummary): string {
     return stock.symbol || normalizeSymbol(stock.stockName);
+  }
+
+  private buildAnalyseBarChart(
+    buckets: ReturnType<typeof analysePnlStockBuckets>,
+    label: string
+  ): ChartConfiguration<'bar'> | null {
+    if (!buckets.some((bucket) => bucket.count > 0)) return null;
+    const options = stockCountBarChartOptions();
+    return {
+      type: 'bar',
+      data: {
+        labels: buckets.map((bucket) => bucket.label),
+        datasets: [{
+          label,
+          data: buckets.map((bucket) => bucket.count),
+          backgroundColor: buckets.map((bucket) => bucket.color),
+          hoverBackgroundColor: buckets.map((bucket) => bucket.color),
+          borderRadius: 6,
+          maxBarThickness: 48,
+        }],
+      },
+      options: {
+        ...options,
+        layout: { padding: { top: 18, right: 8, bottom: 0, left: 4 } },
+      },
+      plugins: [stockCountBarLabelPlugin],
+    };
   }
 }
