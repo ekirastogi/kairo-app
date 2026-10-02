@@ -33,6 +33,11 @@ export function formatCompactCurrency(value: number): string {
   return String(Math.round(abs));
 }
 
+export function formatSignedCompactCurrency(value: number): string {
+  if (!Number.isFinite(value) || value === 0) return '0';
+  return `${value > 0 ? '+' : '−'}${formatCompactCurrency(value)}`;
+}
+
 export function formatPct(value: number): string {
   return (value * 100).toFixed(2) + '%';
 }

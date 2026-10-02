@@ -21,6 +21,7 @@ import {
   tierShortLabel,
 } from '../../utils/pnl-watchlist.utils';
 import { normalizeSymbol } from '../../utils/upload-merge.utils';
+import { formatSignedCompactCurrency } from '../../utils/format.utils';
 import { FILTER_QUERY_KEYS, readWatchlistFilters } from '../../utils/filter-url.utils';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
 import { ExpandableStocksTableComponent } from '../shared/expandable-stocks-table/expandable-stocks-table.component';
@@ -304,7 +305,10 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     return {
       type: 'bar',
       data: {
-        labels: profit.map((bucket) => bucket.label),
+        labels: profit.map((bucket, index) => {
+          const net = bucket.netPnL + (loss[index]?.netPnL ?? 0);
+          return `${bucket.label}\n${formatSignedCompactCurrency(net)}`;
+        }),
         datasets: [
           {
             label: 'Profitable',
@@ -332,7 +336,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
       },
       options: {
         ...countOptions,
-        layout: { padding: { top: 18, right: mobile ? 6 : 8, bottom: 2, left: 2 } },
+        layout: { padding: { top: 18, right: mobile ? 6 : 8, bottom: 10, left: 2 } },
         plugins: {
           ...countOptions.plugins,
           ...baseLegendPublic(true),

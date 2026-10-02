@@ -161,33 +161,40 @@ export interface PnlAnalyseBucket {
   label: string;
   count: number;
   color: string;
+  netPnL: number;
 }
 
 export function analysePnlStockBuckets(
   summaries: StockSummary[],
   side: 'profit' | 'loss'
 ): PnlAnalyseBucket[] {
-  const magnitudes = summaries
-    .map((stock) => stock.netPnL)
-    .filter((value) => (side === 'profit' ? value > 0 : value < 0))
-    .map((value) => Math.abs(value));
+  const rows = summaries.filter((stock) => (side === 'profit' ? stock.netPnL > 0 : stock.netPnL < 0));
   const colors = side === 'profit' ? ANALYSE_PROFIT_COLORS : ANALYSE_LOSS_COLORS;
 
   const buckets: PnlAnalyseBucket[] = [];
   let floor = 0;
+  const addBucket = (label: string, color: string, ceiling: number | null) => {
+    const inBucket = rows.filter((stock) => {
+      const magnitude = Math.abs(stock.netPnL);
+      return ceiling == null ? magnitude > floor : magnitude > floor && magnitude <= ceiling;
+    });
+    buckets.push({
+      label,
+      count: inBucket.length,
+      color,
+      netPnL: inBucket.reduce((sum, stock) => sum + stock.netPnL, 0),
+    });
+  };
+
   for (let i = 0; i < ANALYSE_PNL_CEILINGS.length; i++) {
     const ceiling = ANALYSE_PNL_CEILINGS[i];
-    buckets.push({
-      label: `${formatTierAmountShort(floor)}–${formatTierAmountShort(ceiling)}`,
-      count: magnitudes.filter((value) => value > floor && value <= ceiling).length,
-      color: colors[i],
-    });
+    addBucket(
+      `${formatTierAmountShort(floor)}–${formatTierAmountShort(ceiling)}`,
+      colors[i],
+      ceiling
+    );
     floor = ceiling;
   }
-  buckets.push({
-    label: `${formatTierAmountShort(floor)}+`,
-    count: magnitudes.filter((value) => value > floor).length,
-    color: colors[ANALYSE_PNL_CEILINGS.length],
-  });
+  addBucket(`${formatTierAmountShort(floor)}+`, colors[ANALYSE_PNL_CEILINGS.length], null);
   return buckets;
 }
