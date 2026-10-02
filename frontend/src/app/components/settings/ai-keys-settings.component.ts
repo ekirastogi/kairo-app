@@ -21,7 +21,7 @@ export class AiKeysSettingsComponent implements OnInit {
     {
       id: 'cursor',
       label: 'Cursor API key',
-      hint: 'Stored encrypted. Cursor’s SDK is a coding-agent runtime, so in-app chat prefers Gemini or Claude.',
+      hint: 'Optional. Not used for Ask AI — Cursor’s SDK is a coding-agent runtime, not an in-app chat model.',
       hasKey: () => this.userConfig.hasCursorApiKey(),
     },
     {

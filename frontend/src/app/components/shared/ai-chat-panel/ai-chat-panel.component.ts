@@ -72,7 +72,6 @@ export class AiChatPanelComponent implements OnInit {
   readonly providers: { id: AiProviderId; label: string }[] = [
     { id: 'gemini', label: 'Gemini' },
     { id: 'claude', label: 'Claude' },
-    { id: 'cursor', label: 'Cursor' },
   ];
 
   constructor() {
@@ -96,7 +95,7 @@ export class AiChatPanelComponent implements OnInit {
 
   onProviderChange(event: Event): void {
     const value = (event.target as HTMLSelectElement).value as AiProviderId;
-    if (value === 'gemini' || value === 'claude' || value === 'cursor') {
+    if (value === 'gemini' || value === 'claude') {
       this.chat.setProvider(value);
     }
   }

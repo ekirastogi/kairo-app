@@ -1,5 +1,4 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { supabaseConfig } from '../../environments/supabase.config';
 import { AiProviderId, UserConfigService } from './user-config.service';
 import { ViewContextService } from './view-context.service';
 
@@ -31,7 +30,6 @@ export class AiChatService {
   readonly messages = signal<AiChatMessage[]>([]);
   readonly sending = signal(false);
   readonly error = signal<string | null>(null);
-  private cursorAgentId: string | null = null;
 
   toggle(): void {
     this.open.update((open) => !open);
@@ -75,7 +73,6 @@ export class AiChatService {
   clearThread(): void {
     this.messages.set([]);
     this.error.set(null);
-    this.cursorAgentId = null;
   }
 
   async send(userText: string): Promise<void> {
@@ -87,7 +84,11 @@ export class AiChatService {
     this.messages.update((rows) => [...rows, { role: 'user', content: text, at: Date.now() }]);
 
     try {
-      const provider = this.provider();
+      let provider = this.provider();
+      if (provider !== 'gemini' && provider !== 'claude') {
+        provider = 'gemini';
+        this.setProvider('gemini');
+      }
       const apiKey = await this.keys.getAiApiKey(provider);
       if (!apiKey) {
         throw new Error(
@@ -117,8 +118,7 @@ export class AiChatService {
     const context = this.viewContext.forModel();
     const system = `${SYSTEM_PROMPT}\n\nVIEW CONTEXT JSON:\n${context}`;
     if (provider === 'gemini') return this.completeGemini(apiKey, system, history);
-    if (provider === 'claude') return this.completeClaude(apiKey, system, history);
-    return this.completeCursor(apiKey, system, history);
+    return this.completeClaude(apiKey, system, history);
   }
 
   private async completeGemini(
@@ -200,101 +200,17 @@ export class AiChatService {
     }
     throw new Error(lastError);
   }
-
-  /**
-   * Cursor has no browser chat-completions API. We proxy the Cloud Agents
-   * no-repo endpoint through a Supabase function to avoid CORS.
-   */
-  private async completeCursor(
-    apiKey: string,
-    system: string,
-    history: AiChatMessage[]
-  ): Promise<string> {
-    const prompt = [
-      system,
-      'Reply in plain text only. Do not create or edit files.',
-      '',
-      ...history.map((msg) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`),
-    ].join('\n');
-
-    let agentId = this.cursorAgentId;
-    let result = await this.cursorProxy({
-      action: 'start',
-      apiKey,
-      prompt,
-      agentId: agentId ?? undefined,
-    });
-
-    for (let i = 0; i < 40 && result.status === 'RUNNING'; i++) {
-      await sleep(2000);
-      result = await this.cursorProxy({
-        action: 'poll',
-        apiKey,
-        agentId: result.agentId,
-        runId: result.runId,
-      });
-    }
-
-    if (result.agentId) this.cursorAgentId = result.agentId;
-    if (result.error) throw new Error(result.error);
-    if (result.status === 'RUNNING') {
-      throw new Error('Cursor is still working. Ask again in a moment — the same thread will continue.');
-    }
-    const text = (result.text ?? '').trim();
-    if (!text) throw new Error('Cursor returned an empty reply.');
-    return text;
-  }
-
-  private async cursorProxy(payload: {
-    action: 'start' | 'poll';
-    apiKey: string;
-    prompt?: string;
-    agentId?: string;
-    runId?: string;
-  }): Promise<{ status: string; agentId?: string; runId?: string; text?: string; error?: string }> {
-    const res = await fetch(`${supabaseConfig.url}/functions/v1/cursor-chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: supabaseConfig.anonKey,
-        Authorization: `Bearer ${supabaseConfig.anonKey}`,
-      },
-      body: JSON.stringify(payload),
-    }).catch(() => null);
-    if (!res) {
-      throw new Error('Could not reach the Cursor proxy. Try again, or use Gemini.');
-    }
-    const body = (await res.json().catch(() => ({}))) as {
-      status?: string;
-      agentId?: string;
-      runId?: string;
-      text?: string;
-      error?: string;
-      message?: string;
-    };
-    if (!res.ok) {
-      throw new Error(body.error ?? body.message ?? `Cursor proxy failed (${res.status})`);
-    }
-    return {
-      status: body.status ?? 'ERROR',
-      agentId: body.agentId,
-      runId: body.runId,
-      text: body.text,
-      error: body.error,
-    };
-  }
 }
 
 function providerLabel(provider: AiProviderId): string {
-  if (provider === 'gemini') return 'Gemini';
   if (provider === 'claude') return 'Claude';
-  return 'Cursor';
+  return 'Gemini';
 }
 
 function readLastProvider(): AiProviderId {
   try {
     const value = localStorage.getItem('kairo.aiProvider');
-    if (value === 'gemini' || value === 'claude' || value === 'cursor') return value;
+    if (value === 'claude') return 'claude';
   } catch {
     /* ignore */
   }
@@ -319,10 +235,6 @@ function readTheme(): AiChatTheme {
     /* ignore */
   }
   return 'dark';
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function extractGeminiText(body: unknown): string {
