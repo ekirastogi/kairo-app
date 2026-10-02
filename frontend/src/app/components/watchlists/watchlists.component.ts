@@ -12,6 +12,7 @@ import { FilterUrlService } from '../../services/filter-url.service';
 import { Watchlist } from '../../models/watchlist.models';
 import { StockSummary } from '../../models/trade.models';
 import {
+  analysePieSlices,
   analysePnlTierSplit,
   getPnlWatchlistTier,
   PNL_WATCHLIST_TIERS,
@@ -355,53 +356,31 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   analyseSplitTitle = computed(() => {
     const level = this.analysePieLevel();
-    if (level === 'profit') return 'Profitable stocks';
-    if (level === 'loss') return 'Losing stocks';
+    if (level === 'profit') return 'Profitable stocks vs losing';
+    if (level === 'loss') return 'Losing stocks vs profitable';
     return 'Profitable vs losing';
   });
 
   analyseSplitSubtitle = computed(() => {
     const level = this.analysePieLevel();
-    if (level === 'profit') {
-      const count = this.analyseProfitBuckets().reduce((sum, bucket) => sum + bucket.count, 0);
-      return `${count} stocks by P&L band · click a slice for share`;
-    }
-    if (level === 'loss') {
-      const count = this.analyseLossBuckets().reduce((sum, bucket) => sum + bucket.count, 0);
-      return `${count} stocks by P&L band · click a slice for share`;
-    }
-    return 'Click a slice to see how those stocks split by tier';
+    if (level === 'profit') return 'Profitable names in this pie · losing stays one slice · Reset to group both';
+    if (level === 'loss') return 'Losing names in this pie · profitable stays one slice · Reset to group both';
+    return 'Click profitable or losing to split that slice into stocks';
   });
+
+  analysePieSlices = computed(() =>
+    this.activeTab() === 'analyse' ? analysePieSlices(this.bookStocks(), this.analysePieLevel()) : []
+  );
 
   analyseSplitChartConfig = computed((): ChartConfiguration | null => {
     if (this.activeTab() !== 'analyse') return null;
-    const level = this.analysePieLevel();
-    if (level === 'profit' || level === 'loss') {
-      const buckets = (level === 'profit' ? this.analyseProfitBuckets() : this.analyseLossBuckets())
-        .filter((bucket) => bucket.count > 0);
-      if (!buckets.length) return null;
-      return this.buildAnalysePie(
-        buckets.map((bucket) => `${bucket.label} (${bucket.count})`),
-        buckets.map((bucket) => bucket.count),
-        buckets.map((bucket) => bucket.color)
-      );
-    }
-
-    const split = this.analyseTierSplit();
-    const profitable = split.profit.reduce((sum, bucket) => sum + bucket.count, 0);
-    const losing = split.loss.reduce((sum, bucket) => sum + bucket.count, 0);
-    const flat = split.flat;
-    if (!profitable && !losing && !flat) return null;
-
-    const labels = [`Profitable · ${profitable}`, `Losing · ${losing}`];
-    const data = [profitable, losing];
-    const colors = [CHART_COLORS.success, CHART_COLORS.danger];
-    if (flat) {
-      labels.push(`Flat · ${flat}`);
-      data.push(flat);
-      colors.push(CHART_COLORS.neutral);
-    }
-    return this.buildAnalysePie(labels, data, colors);
+    const slices = this.analysePieSlices().filter((slice) => slice.value > 0);
+    if (!slices.length) return null;
+    return this.buildAnalysePie(
+      slices.map((slice) => slice.label),
+      slices.map((slice) => slice.value),
+      slices.map((slice) => slice.color)
+    );
   });
 
   setTab(tab: WatchlistTab): void {
@@ -444,9 +423,10 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   }
 
   onAnalysePieClick(index: number): void {
-    if (this.analysePieLevel() !== 'all') return;
-    if (index === 0) this.analysePieLevel.set('profit');
-    else if (index === 1) this.analysePieLevel.set('loss');
+    const slice = this.analysePieSlices()[index];
+    if (!slice) return;
+    if (slice.kind === 'profit') this.analysePieLevel.set('profit');
+    else if (slice.kind === 'loss') this.analysePieLevel.set('loss');
   }
 
   resetAnalysePie(): void {
@@ -478,7 +458,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
           legend: {
             display: true,
             position: mobile ? 'bottom' : 'right',
-            maxHeight: mobile ? 72 : undefined,
+            maxHeight: mobile ? 88 : undefined,
             labels: {
               boxWidth: 8,
               boxHeight: 8,
@@ -495,9 +475,9 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
             callbacks: {
               label: (ctx) => {
                 const total = (ctx.dataset.data as number[]).reduce((sum, value) => sum + Number(value), 0);
-                const count = Number(ctx.parsed) || 0;
-                const pct = total ? ((count / total) * 100).toFixed(1) : '0';
-                return `${count} stock${count === 1 ? '' : 's'} · ${pct}% of this view`;
+                const value = Number(ctx.parsed) || 0;
+                const pct = total ? ((value / total) * 100).toFixed(1) : '0';
+                return `${ctx.label}: ${pct}% of this pie`;
               },
             },
           },

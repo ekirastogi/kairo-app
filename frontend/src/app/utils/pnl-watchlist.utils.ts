@@ -1,4 +1,5 @@
 import { StockProfile, StockSummary } from '../models/trade.models';
+import { formatSignedCompactCurrency } from './format.utils';
 
 export type PnlTierMode = 'cumulative' | 'band';
 
@@ -228,4 +229,94 @@ export function analysePnlStockBuckets(
   return side === 'profit'
     ? analysePnlTierSplit(summaries).profit
     : analysePnlTierSplit(summaries).loss;
+}
+
+export type AnalysePieExpand = 'all' | 'profit' | 'loss';
+export type AnalysePieKind = 'profit' | 'loss' | 'flat' | 'stock';
+
+export interface AnalysePieSlice {
+  kind: AnalysePieKind;
+  label: string;
+  value: number;
+  color: string;
+}
+
+const PIE_NAMED_STOCKS = 12;
+const PIE_PROFIT_COLOR = '#10b981';
+const PIE_LOSS_COLOR = '#ef4444';
+const PIE_FLAT_COLOR = '#94a3b8';
+
+function stockPieLabel(stock: StockSummary): string {
+  const name = (stock.symbol || stock.stockName || 'Stock').trim();
+  return `${name} · ${formatSignedCompactCurrency(stock.netPnL)}`;
+}
+
+function expandSideSlices(stocks: StockSummary[], side: 'profit' | 'loss'): AnalysePieSlice[] {
+  if (!stocks.length) return [];
+  const colors = side === 'profit' ? ANALYSE_PROFIT_COLORS : ANALYSE_LOSS_COLORS;
+  const ranked = [...stocks].sort((a, b) => Math.abs(b.netPnL) - Math.abs(a.netPnL));
+  const weightOf = (stock: StockSummary) => Math.abs(stock.netPnL) || 1;
+  const totalWeight = ranked.reduce((sum, stock) => sum + weightOf(stock), 0) || ranked.length;
+  const sectionCount = ranked.length;
+  const named = ranked.slice(0, PIE_NAMED_STOCKS);
+  const rest = ranked.slice(PIE_NAMED_STOCKS);
+  const slices: AnalysePieSlice[] = named.map((stock, index) => ({
+    kind: 'stock',
+    label: stockPieLabel(stock),
+    value: (weightOf(stock) / totalWeight) * sectionCount,
+    color: colors[Math.min(index, colors.length - 1)],
+  }));
+  if (rest.length) {
+    const restWeight = rest.reduce((sum, stock) => sum + weightOf(stock), 0);
+    slices.push({
+      kind: 'stock',
+      label: `Other ${side === 'profit' ? 'profitable' : 'losing'} · ${rest.length}`,
+      value: (restWeight / totalWeight) * sectionCount,
+      color: colors[0],
+    });
+  }
+  return slices;
+}
+
+/** Same pie: grouped profitable/losing, or expand one side into named stocks. */
+export function analysePieSlices(
+  summaries: StockSummary[],
+  expand: AnalysePieExpand
+): AnalysePieSlice[] {
+  const profit = summaries.filter((stock) => stock.netPnL > 0);
+  const loss = summaries.filter((stock) => stock.netPnL < 0);
+  const flatCount = summaries.reduce((count, stock) => count + (stock.netPnL === 0 ? 1 : 0), 0);
+  const slices: AnalysePieSlice[] = [];
+
+  if (expand === 'profit' && profit.length) {
+    slices.push(...expandSideSlices(profit, 'profit'));
+  } else if (profit.length) {
+    slices.push({
+      kind: 'profit',
+      label: `Profitable · ${profit.length}`,
+      value: profit.length,
+      color: PIE_PROFIT_COLOR,
+    });
+  }
+
+  if (expand === 'loss' && loss.length) {
+    slices.push(...expandSideSlices(loss, 'loss'));
+  } else if (loss.length) {
+    slices.push({
+      kind: 'loss',
+      label: `Losing · ${loss.length}`,
+      value: loss.length,
+      color: PIE_LOSS_COLOR,
+    });
+  }
+
+  if (flatCount) {
+    slices.push({
+      kind: 'flat',
+      label: `Flat · ${flatCount}`,
+      value: flatCount,
+      color: PIE_FLAT_COLOR,
+    });
+  }
+  return slices;
 }
