@@ -2,15 +2,15 @@ import {
   Component,
   ElementRef,
   input,
+  output,
   viewChild,
   AfterViewInit,
   OnDestroy,
   effect,
-  signal,
   HostListener,
   computed,
 } from '@angular/core';
-import { Chart, ChartConfiguration, registerables } from 'chart.js';
+import { Chart, ChartConfiguration, ChartEvent, registerables } from 'chart.js';
 
 Chart.register(...registerables);
 
@@ -29,11 +29,14 @@ Chart.register(...registerables);
       [style.height.px]="compact() ? null : heightPx()"
     >
       @if (title()) {
-        <div class="border-b border-slate-100 px-4 py-3 sm:px-5 sm:py-3.5">
-          <h3 class="text-sm font-semibold tracking-tight text-slate-900">{{ title() }}</h3>
-          @if (subtitle()) {
-            <p class="mt-0.5 text-xs leading-relaxed text-slate-500">{{ subtitle() }}</p>
-          }
+        <div class="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5 sm:py-3.5">
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold tracking-tight text-slate-900">{{ title() }}</h3>
+            @if (subtitle()) {
+              <p class="mt-0.5 text-xs leading-relaxed text-slate-500">{{ subtitle() }}</p>
+            }
+          </div>
+          <ng-content select="[chartHeader]" />
         </div>
       }
 
@@ -48,7 +51,7 @@ Chart.register(...registerables);
         [style.max-height.px]="compact() ? compactHeight() : null"
       >
         @if (config()) {
-          <canvas #canvas class="block h-full w-full"></canvas>
+          <canvas #canvas class="block h-full w-full" [class.cursor-crosshair]="interactive()"></canvas>
         } @else {
           <div class="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/60 px-4 text-center">
             <svg class="mb-2 h-8 w-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -69,6 +72,8 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
   size = input<'xs' | 'sm' | 'md' | 'lg'>('md');
   compact = input(false);
   heightPx = input<number | null>(null);
+  interactive = input(false);
+  pointClick = output<number>();
 
   compactHeight = computed(() => {
     const mobile = typeof window !== 'undefined' && window.innerWidth < 640;
@@ -137,7 +142,19 @@ export class ChartCardComponent implements AfterViewInit, OnDestroy {
         ...config.options,
         responsive: true,
         maintainAspectRatio: false,
+        onClick: (event, elements, chart) => {
+          config.options?.onClick?.(event, elements, chart);
+          this.emitPointClick(event, chart);
+        },
       },
     });
+  }
+
+  private emitPointClick(event: ChartEvent, chart: Chart): void {
+    if (!this.interactive()) return;
+    const points = chart.getElementsAtEventForMode(event, 'index', { intersect: false }, true);
+    const index = points[0]?.index;
+    if (index == null) return;
+    this.pointClick.emit(index);
   }
 }

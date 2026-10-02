@@ -3,6 +3,7 @@ import {
   inject,
   computed,
   signal,
+  WritableSignal,
   HostListener,
   OnInit,
   OnDestroy,
@@ -20,7 +21,7 @@ import { LazyTradeLoaderService } from '../../services/lazy-trade-loader.service
 import { CustomStockListService } from '../../services/custom-stock-list.service';
 import { AnalysisService } from '../../services/analysis.service';
 import { PeriodBucket, StockSummary, TRADE_TYPE_LABELS, Trade, TradeType } from '../../models/trade.models';
-import { formatCompactCurrency, formatCurrency, formatDate, pnlClass } from '../../utils/format.utils';
+import { formatCompactCurrency, formatCurrency, formatDate, formatPctSigned, pnlClass } from '../../utils/format.utils';
 import { holdingsTotals } from '../../utils/holdings.utils';
 import { stockIdentityKey } from '../../utils/stock-identity.utils';
 import { effectiveAnalysisDateRange, isFullReportDateRange } from '../../utils/filter-stock-profiles.utils';
@@ -41,6 +42,14 @@ import {
   buildLineDataset,
   buildZeroSplitLineDataset,
 } from '../../utils/chart-theme';
+import {
+  ChartDateRange,
+  chartRangeStats,
+  cumulativePeriodValues,
+  orderedChartRange,
+  rangeAnchorPlugin,
+  slicePeriodRange,
+} from '../../utils/chart-range.utils';
 import { TradeTypeFilterComponent } from '../shared/trade-type-filter/trade-type-filter.component';
 import { DateRangeFilterComponent } from '../shared/date-range-filter/date-range-filter.component';
 import { ChartCardComponent } from '../shared/chart-card/chart-card.component';
@@ -215,6 +224,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   readonly formatCurrency = formatCurrency;
   readonly formatCompactCurrency = formatCompactCurrency;
   readonly formatDate = formatDate;
+  readonly formatPctSigned = formatPctSigned;
   readonly pnlClass = pnlClass;
   readonly tradeTypeLabels = TRADE_TYPE_LABELS;
   readonly tabs: { id: AnalyticsTab; label: string }[] = [
@@ -239,6 +249,19 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   private chartVersion = signal(0);
   winRateShowDots = signal(false);
   activeTab = signal<AnalyticsTab>('stocks');
+  readonly equityAnchor = signal<string | null>(null);
+  readonly equityRange = signal<ChartDateRange | null>(null);
+  readonly dailyAnchor = signal<string | null>(null);
+  readonly dailyRange = signal<ChartDateRange | null>(null);
+
+  private readonly _clipChartRanges = effect(() => {
+    const equityPeriods = new Set(this.state.chartPeriodData().map((row) => row.period));
+    const dailyPeriods = new Set((this.analysis()?.daily ?? []).map((row) => row.period));
+    untracked(() => {
+      this.clipChartRange(this.equityRange, this.equityAnchor, equityPeriods);
+      this.clipChartRange(this.dailyRange, this.dailyAnchor, dailyPeriods);
+    });
+  }, { allowSignalWrites: true });
 
   analysis = computed(() => this.state.analysis());
   chargeRatio = computed(() => this.analysis()?.summary.chargeRatio ?? 0);
@@ -1582,20 +1605,113 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     return this.buildPeriodChart();
   });
 
+  private overviewPeriodBuckets = computed(() =>
+    [...this.state.chartPeriodData()].sort((a, b) => a.period.localeCompare(b.period))
+  );
+
+  private overviewDailyBuckets = computed(() =>
+    [...(this.analysis()?.daily ?? [])].sort((a, b) => a.period.localeCompare(b.period))
+  );
+
+  readonly displayedEquityBuckets = computed(() =>
+    slicePeriodRange(this.overviewPeriodBuckets(), this.equityRange())
+  );
+
+  readonly displayedDailyBuckets = computed(() =>
+    slicePeriodRange(this.overviewDailyBuckets(), this.dailyRange())
+  );
+
+  readonly equityRangeStats = computed(() => {
+    const range = this.equityRange();
+    if (!range) return null;
+    return chartRangeStats(cumulativePeriodValues(this.overviewPeriodBuckets()), range);
+  });
+
+  readonly dailyRangeStats = computed(() => {
+    const range = this.dailyRange();
+    if (!range) return null;
+    return chartRangeStats(cumulativePeriodValues(this.overviewDailyBuckets()), range);
+  });
+
+  readonly equityCurveSubtitle = computed(() => {
+    const stats = this.equityRangeStats();
+    if (stats) return `${stats.startLabel} → ${stats.endLabel}`;
+    if (this.equityAnchor()) return 'Start set — click an end point to compare';
+    return 'Click a start point, then an end point to compare P&L and %';
+  });
+
+  readonly dailyNetPnLSubtitle = computed(() => {
+    const stats = this.dailyRangeStats();
+    if (stats) return `${stats.startLabel} → ${stats.endLabel}`;
+    if (this.dailyAnchor()) return 'Start set — click an end point to compare';
+    return 'Click a start point, then an end point to compare P&L and %';
+  });
+
+  onEquityPointClick(index: number): void {
+    this.applyRangePick(this.equityAnchor, this.equityRange, this.displayedEquityBuckets()[index]?.period);
+  }
+
+  onDailyPointClick(index: number): void {
+    this.applyRangePick(this.dailyAnchor, this.dailyRange, this.displayedDailyBuckets()[index]?.period);
+  }
+
+  resetEquityRange(): void {
+    this.equityAnchor.set(null);
+    this.equityRange.set(null);
+  }
+
+  resetDailyRange(): void {
+    this.dailyAnchor.set(null);
+    this.dailyRange.set(null);
+  }
+
+  private applyRangePick(
+    anchor: WritableSignal<string | null>,
+    range: WritableSignal<ChartDateRange | null>,
+    period: string | undefined
+  ): void {
+    if (!period) return;
+    const current = anchor();
+    if (!current) {
+      anchor.set(period);
+      return;
+    }
+    if (current === period) return;
+    range.set(orderedChartRange(current, period));
+    anchor.set(null);
+  }
+
+  private clipChartRange(
+    range: WritableSignal<ChartDateRange | null>,
+    anchor: WritableSignal<string | null>,
+    periods: Set<string>
+  ): void {
+    const selected = range();
+    if (selected && (!periods.has(selected.startPeriod) || !periods.has(selected.endPeriod))) {
+      range.set(null);
+    }
+    const currentAnchor = anchor();
+    if (currentAnchor && !periods.has(currentAnchor)) anchor.set(null);
+  }
+
   dailyNetPnLChartConfig = computed(() => {
     this.chartVersion();
-    const daily = [...(this.analysis()?.daily ?? [])].sort((a, b) => a.period.localeCompare(b.period));
+    const allDaily = this.overviewDailyBuckets();
+    const daily = this.displayedDailyBuckets();
     if (!daily.length) return null;
     const mobile = isMobileChart();
-
-    let cumulative = 0;
-    const cumData = daily.map((d) => { cumulative += d.netPnL; return cumulative; });
-    const overallPositive = cumulative >= 0;
+    const series = cumulativePeriodValues(allDaily);
+    const displayedSeries = slicePeriodRange(series, this.dailyRange());
+    const cumData = displayedSeries.map((row) => row.value);
+    const lastCum = cumData[cumData.length - 1] ?? 0;
+    const overallPositive = lastCum >= 0;
     const cumColor = overallPositive ? CHART_COLORS.success : CHART_COLORS.danger;
     const cumFill = overallPositive ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)';
+    const anchor = this.dailyAnchor();
+    const anchorIndex = anchor ? daily.findIndex((row) => row.period === anchor) : -1;
 
-    return withDecimation({
-      type: 'line',
+    return {
+      type: 'line' as const,
       data: {
         labels: daily.map((d) => abbreviateLabel(d.label, mobile ? 6 : 10)),
         datasets: [
@@ -1608,7 +1724,8 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
             tension: 0.3,
             borderWidth: 1.5,
             pointRadius: 0,
-            pointHoverRadius: 4,
+            pointHoverRadius: 5,
+            pointHitRadius: 18,
             order: 1,
           },
           {
@@ -1620,7 +1737,8 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
             tension: 0.4,
             borderWidth: 2.5,
             pointRadius: 0,
-            pointHoverRadius: 4,
+            pointHoverRadius: 5,
+            pointHitRadius: 18,
             order: 2,
           },
         ],
@@ -1632,7 +1750,8 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
           ...baseLegendPublic(true),
         },
       },
-    });
+      plugins: [rangeAnchorPlugin(anchorIndex >= 0 ? anchorIndex : null)],
+    };
   });
 
   monthlyChartConfig = computed(() => {
@@ -1705,22 +1824,27 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
 
   cumulativeChartConfig = computed(() => {
     this.chartVersion();
-    const periodData = this.state.chartPeriodData();
+    const periodData = this.displayedEquityBuckets();
     if (!periodData.length) return null;
-    let cumulative = 0;
-    const cumData = periodData.map((d) => {
-      cumulative += d.netPnL;
-      return cumulative;
-    });
+    const series = cumulativePeriodValues(this.overviewPeriodBuckets());
+    const cumData = slicePeriodRange(series, this.equityRange()).map((row) => row.value);
     const mobile = isMobileChart();
-    return withDecimation({
-      type: 'line',
+    const anchor = this.equityAnchor();
+    const anchorIndex = anchor ? periodData.findIndex((row) => row.period === anchor) : -1;
+    const dataset = {
+      ...buildZeroSplitLineDataset('Cumulative Net P&L', cumData),
+      pointHitRadius: 18,
+      pointHoverRadius: 6,
+    };
+    return {
+      type: 'line' as const,
       data: {
         labels: periodData.map((d) => abbreviateLabel(d.label, mobile ? 8 : 14)),
-        datasets: [buildZeroSplitLineDataset('Cumulative Net P&L', cumData)],
+        datasets: [dataset],
       },
       options: lineChartOptions(''),
-    });
+      plugins: [rangeAnchorPlugin(anchorIndex >= 0 ? anchorIndex : null)],
+    };
   });
 
   /**

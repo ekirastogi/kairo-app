@@ -160,16 +160,50 @@
           <app-chart-card
             [config]="cumulativeChartConfig()"
             title="Equity curve"
-            subtitle="Cumulative net P&amp;L over your trading history"
+            [subtitle]="equityCurveSubtitle()"
             size="lg"
-          />
+            [interactive]="true"
+            (pointClick)="onEquityPointClick($event)"
+          >
+            @if (equityRangeStats(); as stats) {
+              <div chartHeader class="max-w-[58%] shrink-0 text-right">
+                <p class="text-lg font-bold tabular-nums sm:text-xl" [class]="pnlClass(stats.delta)">
+                  {{ stats.pct == null ? formatCurrency(stats.delta) : formatPctSigned(stats.pct) }}
+                </p>
+                <p class="text-[11px] font-semibold tabular-nums text-slate-500 sm:text-xs">
+                  <span [class]="pnlClass(stats.delta)">{{ formatCurrency(stats.delta) }}</span>
+                  <span class="text-slate-400"> · {{ formatCurrency(stats.startValue) }} → {{ formatCurrency(stats.endValue) }}</span>
+                </p>
+                <button type="button" class="mt-1 text-[11px] font-medium text-indigo-600 hover:underline" (click)="resetEquityRange()">
+                  Show full curve
+                </button>
+              </div>
+            }
+          </app-chart-card>
 
           <app-chart-card
             [config]="dailyNetPnLChartConfig()"
             title="Daily net P&amp;L"
-            subtitle="Day-by-day profit and loss with cumulative curve"
+            [subtitle]="dailyNetPnLSubtitle()"
             size="lg"
-          />
+            [interactive]="true"
+            (pointClick)="onDailyPointClick($event)"
+          >
+            @if (dailyRangeStats(); as stats) {
+              <div chartHeader class="max-w-[58%] shrink-0 text-right">
+                <p class="text-lg font-bold tabular-nums sm:text-xl" [class]="pnlClass(stats.delta)">
+                  {{ stats.pct == null ? formatCurrency(stats.delta) : formatPctSigned(stats.pct) }}
+                </p>
+                <p class="text-[11px] font-semibold tabular-nums text-slate-500 sm:text-xs">
+                  <span [class]="pnlClass(stats.delta)">{{ formatCurrency(stats.delta) }}</span>
+                  <span class="text-slate-400"> · {{ formatCurrency(stats.startValue) }} → {{ formatCurrency(stats.endValue) }}</span>
+                </p>
+                <button type="button" class="mt-1 text-[11px] font-medium text-indigo-600 hover:underline" (click)="resetDailyRange()">
+                  Show full curve
+                </button>
+              </div>
+            }
+          </app-chart-card>
         </div>
       }
 
