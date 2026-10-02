@@ -1,5 +1,5 @@
 import { ChartConfiguration, ChartOptions, Plugin } from 'chart.js';
-import { formatCompactCurrency, formatCurrency } from './format.utils';
+import { formatCompactCurrency, formatCurrency, formatSignedCompactCurrency } from './format.utils';
 
 export const CHART_COLORS = {
   primary: '#00d09c',
@@ -408,6 +408,7 @@ export function countBarChartOptions(title: string): ChartOptions {
 }
 
 export function stockCountBarChartOptions(): ChartOptions {
+  const scales = baseScales({ currency: false });
   return {
     ...barChartOptions(''),
     plugins: {
@@ -423,18 +424,38 @@ export function stockCountBarChartOptions(): ChartOptions {
       },
       stockCountBarLabels: { display: true },
     } as ChartOptions['plugins'],
-    scales: baseScales({ currency: false }),
+    scales: {
+      ...scales,
+      x: {
+        ...scales?.['x'],
+        ticks: {
+          ...scales?.['x']?.ticks,
+          autoSkip: false,
+          maxRotation: 0,
+          minRotation: 0,
+          padding: 4,
+        },
+      },
+    } as ChartOptions['scales'],
   };
 }
 
-/** Draw the integer count above each bar. Opt-in via plugins.stockCountBarLabels.display. */
+type StockCountBarLabelOptions = {
+  display?: boolean;
+  netPnL?: number[];
+};
+
+function stockCountBarLabelOptions(chart: { options: { plugins?: unknown } }): StockCountBarLabelOptions | undefined {
+  return (chart.options.plugins as { stockCountBarLabels?: StockCountBarLabelOptions } | undefined)
+    ?.stockCountBarLabels;
+}
+
+/** Draw counts above bars and optional signed net P&L under each tier label. */
 export const stockCountBarLabelPlugin: Plugin<'bar'> = {
   id: 'stockCountBarLabels',
   afterDatasetsDraw(chart) {
-    const enabled = (
-      chart.options.plugins as { stockCountBarLabels?: { display?: boolean } } | undefined
-    )?.stockCountBarLabels?.display;
-    if (!enabled) return;
+    const opts = stockCountBarLabelOptions(chart);
+    if (!opts?.display) return;
     const { ctx } = chart;
     const mobile = isMobileChart();
     ctx.save();
@@ -453,6 +474,25 @@ export const stockCountBarLabelPlugin: Plugin<'bar'> = {
         const bar = element as unknown as { x: number; y: number };
         ctx.fillText(String(raw), bar.x, bar.y - 4);
       });
+    });
+    ctx.restore();
+  },
+  afterDraw(chart) {
+    const nets = stockCountBarLabelOptions(chart)?.netPnL;
+    if (!nets?.length) return;
+    const xScale = chart.scales['x'];
+    if (!xScale) return;
+    const mobile = isMobileChart();
+    const { ctx } = chart;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.font = `600 ${mobile ? 9 : 11}px Inter, system-ui, sans-serif`;
+    const y = chart.chartArea.bottom + (mobile ? 20 : 22);
+    nets.forEach((net, index) => {
+      ctx.fillStyle =
+        net > 0 ? CHART_COLORS.success : net < 0 ? CHART_COLORS.danger : CHART_COLORS.muted;
+      ctx.fillText(formatSignedCompactCurrency(net), xScale.getPixelForTick(index), y);
     });
     ctx.restore();
   },

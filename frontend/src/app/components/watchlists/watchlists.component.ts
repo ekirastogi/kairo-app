@@ -2,7 +2,7 @@ import { Component, computed, inject, input, OnInit, OnDestroy, signal } from '@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
-import { ChartConfiguration } from 'chart.js';
+import { ChartConfiguration, ChartOptions } from 'chart.js';
 import { filter, Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { ReportStateService } from '../../services/report-state.service';
@@ -21,7 +21,6 @@ import {
   tierShortLabel,
 } from '../../utils/pnl-watchlist.utils';
 import { normalizeSymbol } from '../../utils/upload-merge.utils';
-import { formatSignedCompactCurrency } from '../../utils/format.utils';
 import { FILTER_QUERY_KEYS, readWatchlistFilters } from '../../utils/filter-url.utils';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
 import { ExpandableStocksTableComponent } from '../shared/expandable-stocks-table/expandable-stocks-table.component';
@@ -312,13 +311,11 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     }
     const countOptions = stockCountBarChartOptions();
     const mobile = isMobileChart();
+    const netByTier = profit.map((bucket, index) => bucket.netPnL + (loss[index]?.netPnL ?? 0));
     return {
       type: 'bar',
       data: {
-        labels: profit.map((bucket, index) => {
-          const net = bucket.netPnL + (loss[index]?.netPnL ?? 0);
-          return `${bucket.label}\n${formatSignedCompactCurrency(net)}`;
-        }),
+        labels: profit.map((bucket) => bucket.label),
         datasets: [
           {
             label: 'Profitable',
@@ -346,11 +343,12 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
       },
       options: {
         ...countOptions,
-        layout: { padding: { top: 18, right: mobile ? 6 : 8, bottom: 10, left: 2 } },
+        layout: { padding: { top: 18, right: mobile ? 6 : 8, bottom: 32, left: 2 } },
         plugins: {
           ...countOptions.plugins,
           ...baseLegendPublic(true),
-        },
+          stockCountBarLabels: { display: true, netPnL: netByTier },
+        } as ChartOptions['plugins'],
       },
     };
   });
@@ -479,14 +477,14 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
         plugins: {
           legend: {
             display: true,
-            position: 'bottom',
-            maxHeight: 72,
+            position: mobile ? 'bottom' : 'right',
+            maxHeight: mobile ? 72 : undefined,
             labels: {
               boxWidth: 8,
               boxHeight: 8,
-              padding: mobile ? 6 : 8,
+              padding: mobile ? 6 : 10,
               usePointStyle: true,
-              font: { size: mobile ? 9 : 10 },
+              font: { size: mobile ? 9 : 11 },
             },
             onClick: (_event, item) => {
               if (item.index == null) return;
