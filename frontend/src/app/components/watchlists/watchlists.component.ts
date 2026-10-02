@@ -2,7 +2,7 @@ import { Component, computed, inject, input, OnInit, OnDestroy, signal } from '@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
-import { ChartConfiguration, ChartOptions } from 'chart.js';
+import { ChartConfiguration } from 'chart.js';
 import { filter, Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { ReportStateService } from '../../services/report-state.service';
@@ -33,10 +33,8 @@ import {
   filterStocksByRules,
 } from '../../utils/stock-scenario.utils';
 import {
-  CHART_COLORS,
-  baseLegendPublic,
+  buildAnalyseTierChartConfig,
   isMobileChart,
-  stockCountBarChartOptions,
 } from '../../utils/chart-theme';
 
 const ALL_SUBTAB_ID = '__all__';
@@ -305,53 +303,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   analyseTierChartConfig = computed((): ChartConfiguration | null => {
     if (this.activeTab() !== 'analyse') return null;
-    const profit = this.analyseProfitBuckets();
-    const loss = this.analyseLossBuckets();
-    if (!profit.some((bucket) => bucket.count > 0) && !loss.some((bucket) => bucket.count > 0)) {
-      return null;
-    }
-    const countOptions = stockCountBarChartOptions();
-    const mobile = isMobileChart();
-    const netByTier = profit.map((bucket, index) => bucket.netPnL + (loss[index]?.netPnL ?? 0));
-    return {
-      type: 'bar',
-      data: {
-        labels: profit.map((bucket) => bucket.label),
-        datasets: [
-          {
-            label: 'Profitable',
-            data: profit.map((bucket) => bucket.count),
-            backgroundColor: CHART_COLORS.success,
-            hoverBackgroundColor: '#059669',
-            borderWidth: 0,
-            borderRadius: { topLeft: 6, topRight: 0, bottomLeft: 0, bottomRight: 0 },
-            borderSkipped: false,
-            barPercentage: 1,
-            categoryPercentage: 0.72,
-          },
-          {
-            label: 'Losing',
-            data: loss.map((bucket) => bucket.count),
-            backgroundColor: CHART_COLORS.danger,
-            hoverBackgroundColor: '#dc2626',
-            borderWidth: 0,
-            borderRadius: { topLeft: 0, topRight: 6, bottomLeft: 0, bottomRight: 0 },
-            borderSkipped: false,
-            barPercentage: 1,
-            categoryPercentage: 0.72,
-          },
-        ],
-      },
-      options: {
-        ...countOptions,
-        layout: { padding: { top: 8, right: mobile ? 8 : 12, bottom: 40, left: 4 } },
-        plugins: {
-          ...countOptions.plugins,
-          ...baseLegendPublic(false),
-          stockCountBarLabels: { display: true, netPnL: netByTier },
-        } as ChartOptions['plugins'],
-      },
-    };
+    return buildAnalyseTierChartConfig(this.analyseProfitBuckets(), this.analyseLossBuckets());
   });
 
   analyseSplitTitle = computed(() => {

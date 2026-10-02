@@ -41,11 +41,13 @@ import {
   buildPnLBarDataset,
   buildLineDataset,
   buildZeroSplitLineDataset,
+  buildAnalyseTierChartConfig,
 } from '../../utils/chart-theme';
 import {
   ChartDateRange,
   chartRangeStats,
   cumulativePeriodValues,
+  formatRangeWithDays,
   orderedChartRange,
   slicePeriodRange,
   withRangeAnchor,
@@ -87,6 +89,7 @@ import {
 } from '../../utils/analytics-aggregation.utils';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
 import { WatchlistsComponent } from '../watchlists/watchlists.component';
+import { analysePnlTierSplit } from '../../utils/pnl-watchlist.utils';
 
 /** Calendar heatmap scope: every date, or only the days the market actually traded. */
 type CalendarSessionFilter = 'all' | 'open';
@@ -1105,6 +1108,12 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     return this.analysis()?.stocks ?? [];
   });
 
+  overviewTierChartConfig = computed(() => {
+    if (this.activeTab() !== 'overview') return null;
+    const split = analysePnlTierSplit(this.visibleStocks());
+    return buildAnalyseTierChartConfig(split.profit, split.loss);
+  });
+
   stockPnLFilter = signal<StockPnLFilter>('all');
   readonly stockPnLFilters = computed(() => {
     const filters: { id: StockPnLFilter; label: string }[] = [
@@ -1635,14 +1644,20 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
 
   readonly equityCurveSubtitle = computed(() => {
     const stats = this.equityRangeStats();
-    if (stats) return `${stats.startLabel} → ${stats.endLabel}`;
+    const range = this.equityRange();
+    if (stats && range) {
+      return formatRangeWithDays(stats.startLabel, stats.endLabel, range.startPeriod, range.endPeriod);
+    }
     if (this.equityAnchor()) return 'Start set — click an end point to compare';
     return 'Click a start point, then an end point to compare P&L and %';
   });
 
   readonly dailyNetPnLSubtitle = computed(() => {
     const stats = this.dailyRangeStats();
-    if (stats) return `${stats.startLabel} → ${stats.endLabel}`;
+    const range = this.dailyRange();
+    if (stats && range) {
+      return formatRangeWithDays(stats.startLabel, stats.endLabel, range.startPeriod, range.endPeriod);
+    }
     if (this.dailyAnchor()) return 'Start set — click an end point to compare';
     return 'Click a start point, then an end point to compare P&L and %';
   });

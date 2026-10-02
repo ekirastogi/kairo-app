@@ -66,6 +66,48 @@ export function chartRangeStats(
   };
 }
 
+const MS_PER_DAY = 86_400_000;
+
+/** Inclusive calendar days covered by two chart period keys, or null if they are not dates. */
+export function inclusivePeriodDays(startPeriod: string, endPeriod: string): number | null {
+  const start = periodToUtcMs(startPeriod, 'start');
+  const end = periodToUtcMs(endPeriod, 'end');
+  if (start == null || end == null || end < start) return null;
+  return Math.round((end - start) / MS_PER_DAY) + 1;
+}
+
+export function formatRangeWithDays(
+  startLabel: string,
+  endLabel: string,
+  startPeriod: string,
+  endPeriod: string
+): string {
+  const days = inclusivePeriodDays(startPeriod, endPeriod);
+  const span = days == null ? '' : ` (${days} day${days === 1 ? '' : 's'})`;
+  return `${startLabel} → ${endLabel}${span}`;
+}
+
+function periodToUtcMs(period: string, edge: 'start' | 'end'): number | null {
+  const day = period.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (day) return Date.UTC(Number(day[1]), Number(day[2]) - 1, Number(day[3]));
+  const month = period.match(/^(\d{4})-(\d{2})$/);
+  if (month) {
+    const year = Number(month[1]);
+    const monthIndex = Number(month[2]) - 1;
+    return edge === 'start' ? Date.UTC(year, monthIndex, 1) : Date.UTC(year, monthIndex + 1, 0);
+  }
+  const week = period.match(/^(\d{4})-W(\d{2})$/i);
+  if (!week) return null;
+  const monday = isoWeekUtcMonday(Number(week[1]), Number(week[2]));
+  return edge === 'start' ? monday : monday + 6 * MS_PER_DAY;
+}
+
+function isoWeekUtcMonday(year: number, week: number): number {
+  const jan4 = Date.UTC(year, 0, 4);
+  const jan4Dow = new Date(jan4).getUTCDay() || 7;
+  return jan4 - (jan4Dow - 1) * MS_PER_DAY + (week - 1) * 7 * MS_PER_DAY;
+}
+
 export function withRangeAnchor(options: ChartOptions, index: number | null): ChartOptions {
   return {
     ...options,

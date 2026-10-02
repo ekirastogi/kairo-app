@@ -1,5 +1,6 @@
 import { ChartConfiguration, ChartOptions, Plugin } from 'chart.js';
 import { formatCompactCurrency, formatCurrency, formatSignedCompactCurrency } from './format.utils';
+import { PnlAnalyseBucket } from './pnl-watchlist.utils';
 
 export const CHART_COLORS = {
   primary: '#00d09c',
@@ -447,6 +448,57 @@ export function stockCountBarChartOptions(): ChartOptions {
         },
       },
     } as ChartOptions['scales'],
+  };
+}
+
+export function buildAnalyseTierChartConfig(
+  profit: PnlAnalyseBucket[],
+  loss: PnlAnalyseBucket[]
+): ChartConfiguration | null {
+  if (!profit.some((bucket) => bucket.count > 0) && !loss.some((bucket) => bucket.count > 0)) {
+    return null;
+  }
+  const countOptions = stockCountBarChartOptions();
+  const mobile = isMobileChart();
+  const netByTier = profit.map((bucket, index) => bucket.netPnL + (loss[index]?.netPnL ?? 0));
+  return {
+    type: 'bar',
+    data: {
+      labels: profit.map((bucket) => bucket.label),
+      datasets: [
+        {
+          label: 'Profitable',
+          data: profit.map((bucket) => bucket.count),
+          backgroundColor: CHART_COLORS.success,
+          hoverBackgroundColor: '#059669',
+          borderWidth: 0,
+          borderRadius: { topLeft: 6, topRight: 0, bottomLeft: 0, bottomRight: 0 },
+          borderSkipped: false,
+          barPercentage: 1,
+          categoryPercentage: 0.72,
+        },
+        {
+          label: 'Losing',
+          data: loss.map((bucket) => bucket.count),
+          backgroundColor: CHART_COLORS.danger,
+          hoverBackgroundColor: '#dc2626',
+          borderWidth: 0,
+          borderRadius: { topLeft: 0, topRight: 6, bottomLeft: 0, bottomRight: 0 },
+          borderSkipped: false,
+          barPercentage: 1,
+          categoryPercentage: 0.72,
+        },
+      ],
+    },
+    options: {
+      ...countOptions,
+      layout: { padding: { top: 8, right: mobile ? 8 : 12, bottom: 40, left: 4 } },
+      plugins: {
+        ...countOptions.plugins,
+        ...baseLegend(false),
+        stockCountBarLabels: { display: true, netPnL: netByTier },
+      } as ChartOptions['plugins'],
+    },
   };
 }
 
