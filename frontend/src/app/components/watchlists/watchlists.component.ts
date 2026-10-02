@@ -2,7 +2,7 @@ import { Component, computed, inject, input, OnInit, OnDestroy, signal } from '@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
-import { ChartConfiguration } from 'chart.js';
+import { ChartConfiguration, Plugin } from 'chart.js';
 import { filter, Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { ReportStateService } from '../../services/report-state.service';
@@ -342,7 +342,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
           ...baseLegendPublic(true),
         },
       },
-      plugins: [stockCountBarLabelPlugin],
+      plugins: [stockCountBarLabelPlugin as Plugin],
     };
   });
 
