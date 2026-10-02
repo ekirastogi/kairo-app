@@ -343,7 +343,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
       },
       options: {
         ...countOptions,
-        layout: { padding: { top: 18, right: mobile ? 6 : 8, bottom: 32, left: 2 } },
+        layout: { padding: { top: 22, right: mobile ? 8 : 12, bottom: 40, left: 4 } },
         plugins: {
           ...countOptions.plugins,
           ...baseLegendPublic(true),

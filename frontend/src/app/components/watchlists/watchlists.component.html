@@ -72,10 +72,8 @@
     </div>
 
     @if (activeTab() === 'analyse') {
-      <div
-        class="grid min-w-0 max-w-full grid-cols-1 gap-3 overflow-x-clip md:grid-cols-[minmax(0,1fr)_minmax(300px,38%)] md:items-start"
-      >
-        <div class="h-[200px] min-h-0 min-w-0">
+      <div class="flex min-w-0 max-w-full flex-col gap-3 overflow-x-clip">
+        <div class="h-[280px] min-h-0 min-w-0 sm:h-[320px]">
           <app-chart-card
             class="h-full"
             [config]="analyseTierChartConfig()"
@@ -84,7 +82,7 @@
             emptyMessage="No stocks in this view"
           />
         </div>
-        <div class="h-[320px] min-h-0 min-w-0 md:h-[min(360px,calc(100dvh-15.5rem))]">
+        <div class="h-[260px] min-h-0 min-w-0 sm:h-[300px]">
           <app-chart-card
             class="h-full"
             [config]="analyseSplitChartConfig()"

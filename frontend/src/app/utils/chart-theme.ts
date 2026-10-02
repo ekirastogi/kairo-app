@@ -430,10 +430,20 @@ export function stockCountBarChartOptions(): ChartOptions {
         ...scales?.['x'],
         ticks: {
           ...scales?.['x']?.ticks,
+          display: false,
           autoSkip: false,
           maxRotation: 0,
           minRotation: 0,
-          padding: 4,
+          padding: 0,
+        },
+      },
+      y: {
+        ...scales?.['y'],
+        beginAtZero: true,
+        grace: '12%',
+        ticks: {
+          ...scales?.['y']?.ticks,
+          precision: 0,
         },
       },
     } as ChartOptions['scales'],
@@ -478,21 +488,31 @@ export const stockCountBarLabelPlugin: Plugin<'bar'> = {
     ctx.restore();
   },
   afterDraw(chart) {
-    const nets = stockCountBarLabelOptions(chart)?.netPnL;
-    if (!nets?.length) return;
+    const opts = stockCountBarLabelOptions(chart);
+    const nets = opts?.netPnL;
+    if (!opts?.display || !nets?.length) return;
     const xScale = chart.scales['x'];
     if (!xScale) return;
     const mobile = isMobileChart();
     const { ctx } = chart;
+    const labels = (chart.data.labels ?? []).map((label) => String(label ?? ''));
+    const tierSize = mobile ? 9 : 11;
+    const netSize = mobile ? 10 : 12;
+    const tierY = chart.chartArea.bottom + 8;
+    const netY = tierY + tierSize + 4;
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.font = `600 ${mobile ? 9 : 11}px Inter, system-ui, sans-serif`;
-    const y = chart.chartArea.bottom + (mobile ? 20 : 22);
-    nets.forEach((net, index) => {
+    labels.forEach((label, index) => {
+      const x = xScale.getPixelForTick(index);
+      const net = nets[index] ?? 0;
+      ctx.font = `500 ${tierSize}px Inter, system-ui, sans-serif`;
+      ctx.fillStyle = CHART_COLORS.muted;
+      ctx.fillText(label, x, tierY);
+      ctx.font = `700 ${netSize}px Inter, system-ui, sans-serif`;
       ctx.fillStyle =
         net > 0 ? CHART_COLORS.success : net < 0 ? CHART_COLORS.danger : CHART_COLORS.muted;
-      ctx.fillText(formatSignedCompactCurrency(net), xScale.getPixelForTick(index), y);
+      ctx.fillText(formatSignedCompactCurrency(net), x, netY);
     });
     ctx.restore();
   },
