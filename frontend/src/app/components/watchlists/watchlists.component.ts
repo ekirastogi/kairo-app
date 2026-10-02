@@ -291,15 +291,15 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   analyseProfitBuckets = computed(() => analysePnlStockBuckets(this.bookStocks(), 'profit'));
   analyseLossBuckets = computed(() => analysePnlStockBuckets(this.bookStocks(), 'loss'));
 
-  analyseProfitChartConfig = computed((): ChartConfiguration<'bar'> | null =>
+  analyseProfitChartConfig = computed((): ChartConfiguration | null =>
     this.buildAnalyseBarChart(this.analyseProfitBuckets(), 'Profitable stocks')
   );
 
-  analyseLossChartConfig = computed((): ChartConfiguration<'bar'> | null =>
+  analyseLossChartConfig = computed((): ChartConfiguration | null =>
     this.buildAnalyseBarChart(this.analyseLossBuckets(), 'Losing stocks')
   );
 
-  analyseSplitChartConfig = computed((): ChartConfiguration<'pie'> | null => {
+  analyseSplitChartConfig = computed((): ChartConfiguration | null => {
     const stocks = this.bookStocks();
     const profitable = stocks.filter((stock) => stock.netPnL > 0).length;
     const losing = stocks.filter((stock) => stock.netPnL < 0).length;
@@ -371,9 +371,8 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   private buildAnalyseBarChart(
     buckets: ReturnType<typeof analysePnlStockBuckets>,
     label: string
-  ): ChartConfiguration<'bar'> | null {
+  ): ChartConfiguration | null {
     if (!buckets.some((bucket) => bucket.count > 0)) return null;
-    const options = stockCountBarChartOptions();
     return {
       type: 'bar',
       data: {
@@ -388,7 +387,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
         }],
       },
       options: {
-        ...options,
+        ...stockCountBarChartOptions(),
         layout: { padding: { top: 18, right: 8, bottom: 0, left: 4 } },
       },
       plugins: [stockCountBarLabelPlugin],
