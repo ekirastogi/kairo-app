@@ -73,29 +73,24 @@
 
     @if (activeTab() === 'analyse') {
       <div class="space-y-3">
-        <div class="grid gap-3 lg:grid-cols-2">
-          <app-chart-card
-            [config]="analyseProfitChartConfig()"
-            title="Profit tiers"
-            subtitle="How many stocks sit in each profit band"
-            size="lg"
-            emptyMessage="No profitable stocks in this view"
-          />
-          <app-chart-card
-            [config]="analyseLossChartConfig()"
-            title="Loss tiers"
-            subtitle="How many stocks sit in each loss band"
-            size="lg"
-            emptyMessage="No losing stocks in this view"
-          />
-        </div>
         <app-chart-card
-          [config]="analyseSplitChartConfig()"
-          title="Profitable vs losing"
-          subtitle="Share of stocks that made money vs lost money"
-          size="md"
+          [config]="analyseTierChartConfig()"
+          title="Stocks by P&amp;L tier"
+          subtitle="How many profitable vs losing stocks sit in each band"
+          size="lg"
           emptyMessage="No stocks in this view"
         />
+        <div class="flex justify-center">
+          <div class="w-full max-w-[260px]">
+            <app-chart-card
+              [config]="analyseSplitChartConfig()"
+              title="Profitable vs losing"
+              subtitle="Share of stocks that made vs lost money"
+              [heightPx]="240"
+              emptyMessage="No stocks in this view"
+            />
+          </div>
+        </div>
       </div>
     } @else {
     <div class="card overflow-hidden">

@@ -33,6 +33,7 @@ import {
 } from '../../utils/stock-scenario.utils';
 import {
   CHART_COLORS,
+  baseLegendPublic,
   pieChartOptions,
   stockCountBarChartOptions,
   stockCountBarLabelPlugin,
@@ -291,13 +292,47 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   analyseProfitBuckets = computed(() => analysePnlStockBuckets(this.bookStocks(), 'profit'));
   analyseLossBuckets = computed(() => analysePnlStockBuckets(this.bookStocks(), 'loss'));
 
-  analyseProfitChartConfig = computed((): ChartConfiguration | null =>
-    this.buildAnalyseBarChart(this.analyseProfitBuckets(), 'Profitable stocks')
-  );
-
-  analyseLossChartConfig = computed((): ChartConfiguration | null =>
-    this.buildAnalyseBarChart(this.analyseLossBuckets(), 'Losing stocks')
-  );
+  analyseTierChartConfig = computed((): ChartConfiguration | null => {
+    const profit = this.analyseProfitBuckets();
+    const loss = this.analyseLossBuckets();
+    if (!profit.some((bucket) => bucket.count > 0) && !loss.some((bucket) => bucket.count > 0)) {
+      return null;
+    }
+    const countOptions = stockCountBarChartOptions();
+    return {
+      type: 'bar',
+      data: {
+        labels: profit.map((bucket) => bucket.label),
+        datasets: [
+          {
+            label: 'Profitable',
+            data: profit.map((bucket) => bucket.count),
+            backgroundColor: CHART_COLORS.success,
+            hoverBackgroundColor: '#059669',
+            borderRadius: 6,
+            maxBarThickness: 36,
+          },
+          {
+            label: 'Losing',
+            data: loss.map((bucket) => bucket.count),
+            backgroundColor: CHART_COLORS.danger,
+            hoverBackgroundColor: '#dc2626',
+            borderRadius: 6,
+            maxBarThickness: 36,
+          },
+        ],
+      },
+      options: {
+        ...countOptions,
+        layout: { padding: { top: 18, right: 8, bottom: 0, left: 4 } },
+        plugins: {
+          ...countOptions.plugins,
+          ...baseLegendPublic(true),
+        },
+      },
+      plugins: [stockCountBarLabelPlugin],
+    };
+  });
 
   analyseSplitChartConfig = computed((): ChartConfiguration | null => {
     const stocks = this.bookStocks();
@@ -326,7 +361,34 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
           borderWidth: 2,
         }],
       },
-      options: pieChartOptions(''),
+      options: {
+        ...pieChartOptions(''),
+        layout: { padding: { top: 4, right: 4, bottom: 4, left: 4 } },
+        plugins: {
+          ...pieChartOptions('').plugins,
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: {
+              boxWidth: 8,
+              boxHeight: 8,
+              padding: 10,
+              usePointStyle: true,
+            },
+          },
+          tooltip: {
+            ...pieChartOptions('').plugins?.tooltip,
+            callbacks: {
+              label: (ctx) => {
+                const total = (ctx.dataset.data as number[]).reduce((sum, value) => sum + Number(value), 0);
+                const count = Number(ctx.parsed) || 0;
+                const pct = total ? ((count / total) * 100).toFixed(1) : '0';
+                return `${ctx.label}: ${count} stock${count === 1 ? '' : 's'} (${pct}%)`;
+              },
+            },
+          },
+        },
+      },
     };
   });
 
@@ -366,31 +428,5 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   stockSymbol(stock: StockSummary): string {
     return stock.symbol || normalizeSymbol(stock.stockName);
-  }
-
-  private buildAnalyseBarChart(
-    buckets: ReturnType<typeof analysePnlStockBuckets>,
-    label: string
-  ): ChartConfiguration | null {
-    if (!buckets.some((bucket) => bucket.count > 0)) return null;
-    return {
-      type: 'bar',
-      data: {
-        labels: buckets.map((bucket) => bucket.label),
-        datasets: [{
-          label,
-          data: buckets.map((bucket) => bucket.count),
-          backgroundColor: buckets.map((bucket) => bucket.color),
-          hoverBackgroundColor: buckets.map((bucket) => bucket.color),
-          borderRadius: 6,
-          maxBarThickness: 48,
-        }],
-      },
-      options: {
-        ...stockCountBarChartOptions(),
-        layout: { padding: { top: 18, right: 8, bottom: 0, left: 4 } },
-      },
-      plugins: [stockCountBarLabelPlugin],
-    };
   }
 }
