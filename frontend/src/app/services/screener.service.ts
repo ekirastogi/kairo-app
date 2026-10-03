@@ -10,6 +10,7 @@ export interface ScreenerSnapshot {
   symbol: string;
   name: string;
   url: string;
+  isin?: string;
   currentPrice?: number;
   marketCap?: number;
   pe?: number;
@@ -49,6 +50,8 @@ export interface ScreenerFetchOpts {
   isin?: string;
   /** Company name. Used when the stored symbol is not the exchange ticker. */
   name?: string;
+  /** Exact Screener.in company page. Skips search when the ticker maps to the wrong stock. */
+  pageUrl?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -58,7 +61,10 @@ export class ScreenerService {
   private stocks = inject(StockFirestoreService);
 
   async fetchStock(symbol: string, opts?: ScreenerFetchOpts): Promise<ScreenerSnapshot> {
-    const resolved = await this.resolveLookup(symbol, opts?.isin);
+    const pageUrl = opts?.pageUrl?.trim();
+    const resolved = pageUrl
+      ? { symbol: symbol.trim().toUpperCase(), isin: opts?.isin?.trim() ?? '' }
+      : await this.resolveLookup(symbol, opts?.isin);
     // Use fetch directly — supabase.functions.invoke always attaches the Firebase JWT
     // from accessToken, which the Edge gateway rejects even when JWT verify is off.
     const res = await fetch(`${supabaseConfig.url}/functions/v1/screener-fetch`, {
@@ -72,6 +78,7 @@ export class ScreenerService {
         symbol: resolved.symbol,
         isin: resolved.isin || undefined,
         name: opts?.name?.trim() || undefined,
+        pageUrl: pageUrl || undefined,
       }),
     });
 

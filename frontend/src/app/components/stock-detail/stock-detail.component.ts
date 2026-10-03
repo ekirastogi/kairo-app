@@ -64,6 +64,8 @@ export class StockDetailComponent implements OnInit {
   screenerBusy = signal(false);
   screenerError = signal<string | null>(null);
   screenerSuccess = signal<string | null>(null);
+  /** Pasted Screener.in company page. Used instead of ticker search when set. */
+  screenerPageUrl = '';
   registryStock = signal<RegistryStock | null>(null);
   isinMarketStock = signal<StockSnapshot | null>(null);
   showLabelPanel = signal(false);
@@ -198,6 +200,7 @@ export class StockDetailComponent implements OnInit {
     this.activeTab.set('fundamentals');
     this.screenerError.set(null);
     this.screenerSuccess.set(null);
+    this.screenerPageUrl = '';
     this.expandedDayKey.set(null);
   }, { allowSignalWrites: true });
 
@@ -214,6 +217,9 @@ export class StockDetailComponent implements OnInit {
     void this.registrySvc.getBySymbol(sym).then(async (row) => {
       if (gen !== this.registryLoadGen) return;
       this.registryStock.set(row);
+      if (row?.screenerUrl && !this.screenerPageUrl.trim()) {
+        this.screenerPageUrl = row.screenerUrl;
+      }
       const isin = normalizeIsin(row?.isin);
       if (!isin) {
         this.isinMarketStock.set(null);
@@ -342,13 +348,24 @@ export class StockDetailComponent implements OnInit {
     this.location.back();
   }
 
+  fetchScreenerFromUrl(): void {
+    void this.fetchScreener({ requirePageUrl: true });
+  }
+
   ngOnInit(): void {
     void this.reportState.ensureLoadedFromFirebase();
   }
 
-  async fetchScreener(): Promise<void> {
+  async fetchScreener(opts?: { requirePageUrl?: boolean }): Promise<void> {
     const sym = this.symbol();
     if (!sym || this.screenerBusy()) return;
+
+    const pageUrl = this.screenerPageUrl.trim();
+    if (opts?.requirePageUrl && !pageUrl) {
+      this.screenerError.set('Paste a Screener.in company page URL first.');
+      this.screenerSuccess.set(null);
+      return;
+    }
 
     this.screenerBusy.set(true);
     this.screenerError.set(null);
@@ -358,6 +375,7 @@ export class StockDetailComponent implements OnInit {
       const data = await this.screenerSvc.fetchStock(sym, {
         isin: this.displayIsin(),
         name: this.displayName(),
+        pageUrl: pageUrl || undefined,
       });
       const existing = this.registryStock() ?? {
         symbol: sym,
@@ -367,9 +385,10 @@ export class StockDetailComponent implements OnInit {
         resistances: [],
         updatedAt: Date.now(),
       };
+      const nextIsin = normalizeIsin(data.isin) || normalizeIsin(existing.isin);
       const updated: RegistryStock = {
         ...existing,
-        isin: existing.isin,
+        isin: nextIsin || existing.isin,
         name: data.name || existing.name,
         currentPrice: data.currentPrice ?? existing.currentPrice,
         marketCap: data.marketCap ?? existing.marketCap,
@@ -411,7 +430,16 @@ export class StockDetailComponent implements OnInit {
       this.registryStock.set({ ...updated });
       const fresh = await this.registrySvc.getBySymbol(sym);
       if (fresh) this.registryStock.set({ ...fresh });
-      this.screenerSuccess.set(`Fetched Screener data for ${sym}.`);
+      if (data.url) this.screenerPageUrl = data.url;
+      const savedIsin = normalizeIsin(fresh?.isin ?? updated.isin);
+      if (savedIsin) {
+        const market = await this.stockSvc.fetchStockByIsin(savedIsin);
+        this.isinMarketStock.set(market);
+      }
+      const tickerNote =
+        data.symbol && data.symbol !== sym ? ` from the ${data.symbol} page` : '';
+      const summary = `Fetched Screener data for ${sym}${tickerNote}`;
+      this.screenerSuccess.set(savedIsin ? `${summary}. ISIN ${savedIsin}.` : `${summary}.`);
       this.activeTab.set('fundamentals');
     } catch (e) {
       this.screenerError.set(e instanceof Error ? e.message : 'Screener fetch failed');

@@ -50,6 +50,7 @@ export interface ScreenerSnapshot {
   balanceSheet: FinancialTable;
   cashFlow: FinancialTable;
   shareholding: FinancialTable;
+  isin?: string;
   fetchedAt: number;
 }
 
@@ -96,6 +97,52 @@ async function fetchText(url: string): Promise<string> {
 
 function isIsin(value: string): boolean {
   return /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(value);
+}
+
+function tickerFromScreenerUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname;
+    const match = path.match(/\/company\/([^/]+)/i);
+    if (!match) return '';
+    return decodeURIComponent(match[1]).toUpperCase().replace(/\.(NS|BO|BSE)$/i, '');
+  } catch {
+    return '';
+  }
+}
+
+function normalizeScreenerUrl(raw: string): string {
+  let value = raw.trim();
+  if (!value) throw new Error('Screener page URL is required');
+  if (value.startsWith('/')) value = `https://www.screener.in${value}`;
+  if (!/^https?:\/\//i.test(value)) value = `https://${value}`;
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error('Enter a valid Screener.in company URL');
+  }
+  const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+  if (host !== 'screener.in') {
+    throw new Error('Use a www.screener.in company page URL');
+  }
+  if (!/\/company\//i.test(parsed.pathname)) {
+    throw new Error('That is not a Screener company page. Open the stock on Screener and paste that URL.');
+  }
+  parsed.hash = '';
+  return parsed.toString();
+}
+
+function parseIsin($: cheerio.CheerioAPI, html: string): string | undefined {
+  let found: string | undefined;
+  $('#top-ratios li, #company-info li, li').each((_, li) => {
+    if (found) return;
+    const label = $(li).find('.name').first().text().replace(/\s+/g, ' ').trim().toUpperCase();
+    const value = $(li).find('.value, .nowrap').first().text().replace(/\s+/g, ' ').trim().toUpperCase();
+    if (label === 'ISIN' && isIsin(value)) found = value;
+  });
+  if (found) return found;
+  const match = html.toUpperCase().match(/\b(INE[A-Z0-9]{9}[0-9])\b/);
+  return match?.[1];
 }
 
 function companyUrl(hit: SearchHit): { url: string; name?: string } | null {
@@ -276,11 +323,13 @@ function parseScreenerHtml(html: string, url: string, symbol: string, fallbackNa
   const shp = shareholding.rows.length ? shareholding : parseSectionTable($, 'shareholding');
 
   const h1 = $('h1').first().text().replace(/\s+/g, ' ').trim();
+  const ticker = tickerFromScreenerUrl(url) || symbol;
 
   return {
-    symbol,
-    name: h1 || fallbackName || symbol,
+    symbol: ticker,
+    name: h1 || fallbackName || ticker || symbol,
     url,
+    isin: parseIsin($, html),
     currentPrice: parseNumber(ratios['Current Price']),
     marketCap: parseNumber(ratios['Market Cap']),
     pe: parseNumber(ratios['Stock P/E']),
@@ -320,12 +369,22 @@ function parseScreenerHtml(html: string, url: string, symbol: string, fallbackNa
 async function fetchScreenerSnapshot(
   rawSymbol: string,
   rawIsin?: string,
-  rawName?: string
+  rawName?: string,
+  rawPageUrl?: string
 ): Promise<ScreenerSnapshot> {
   const symbol = rawSymbol.trim().toUpperCase().replace(/\.(NS|BO|BSE)$/i, '');
   const isin = rawIsin?.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') ?? '';
   const name = rawName?.trim() ?? '';
-  if (!symbol && !isin) throw new Error('Symbol or ISIN is required');
+  const pageUrl = rawPageUrl?.trim() ?? '';
+  if (pageUrl) {
+    const url = normalizeScreenerUrl(pageUrl);
+    const html = await fetchText(url);
+    if (/page not found/i.test(html) || html.length < 2000) {
+      throw new Error('That Screener URL did not return a company page');
+    }
+    return parseScreenerHtml(html, url, tickerFromScreenerUrl(url) || symbol, name || undefined);
+  }
+  if (!symbol && !isin) throw new Error('Symbol, ISIN, or Screener page URL is required');
   const ticker = symbol && !isIsin(symbol) ? symbol : '';
   const resolved = await resolveCompanyUrl(ticker, isin && isIsin(isin) ? isin : undefined, name || undefined);
   const html = await fetchText(resolved.url);
@@ -345,14 +404,15 @@ serve(async (req) => {
     const symbol = String(body?.symbol ?? '').trim();
     const isin = String(body?.isin ?? '').trim();
     const name = String(body?.name ?? '').trim();
-    if (!symbol && !isin) {
-      return new Response(JSON.stringify({ error: 'Symbol or ISIN is required' }), {
+    const pageUrl = String(body?.pageUrl ?? body?.url ?? '').trim();
+    if (!symbol && !isin && !pageUrl) {
+      return new Response(JSON.stringify({ error: 'Symbol, ISIN, or Screener page URL is required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const snapshot = await fetchScreenerSnapshot(symbol, isin || undefined, name || undefined);
+    const snapshot = await fetchScreenerSnapshot(symbol, isin || undefined, name || undefined, pageUrl || undefined);
     return new Response(JSON.stringify(snapshot), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

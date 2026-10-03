@@ -104,6 +104,36 @@
     </div>
   </header>
 
+  <div class="stock-detail-url-card">
+    <label class="stock-detail-url-label" for="screener-page-url">Screener page URL</label>
+    <div class="stock-detail-url-row">
+      <input
+        id="screener-page-url"
+        type="url"
+        class="stock-detail-url-input"
+        placeholder="https://www.screener.in/company/SYMBOL/consolidated/"
+        [(ngModel)]="screenerPageUrl"
+        [disabled]="screenerBusy() || !auth.hasAccess"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button
+        type="button"
+        class="btn-secondary stock-detail-url-fetch"
+        [disabled]="screenerBusy() || !auth.hasAccess"
+        (click)="fetchScreenerFromUrl()"
+      >
+        Fetch from URL
+      </button>
+    </div>
+    <p class="stock-detail-url-hint">
+      If Refresh picked the wrong company, open the stock on Screener.in, paste that page URL, and fetch from it to save the right ISIN and fundamentals.
+      @if (screenerPageUrl.trim()) {
+        <a [href]="screenerPageUrl.trim()" target="_blank" rel="noopener noreferrer">Open page</a>
+      }
+    </p>
+  </div>
+
   @if (showLabelPanel()) {
     <div class="stock-detail-panel">
       <app-stock-labels-manager
@@ -194,7 +224,7 @@
         <div class="stock-detail-empty-icon" aria-hidden="true"></div>
         <h2 class="stock-detail-empty-title">No fundamentals yet</h2>
         <p class="stock-detail-empty-text">
-          Pull ratios, financials, and shareholding for {{ symbol() }} directly from Screener.in.
+          Pull ratios, financials, and shareholding for {{ symbol() }} from Screener.in. If search maps the wrong company, paste the correct company page URL above first.
         </p>
         <button
           type="button"
