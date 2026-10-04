@@ -80,7 +80,7 @@ function parseSectionTable(doc: Document, sectionId: string): RegistryFinancialT
   });
   const rows: RegistryFinancialTable['rows'] = [];
   table.querySelectorAll('tbody tr').forEach((tr) => {
-    const cells = [...tr.children].filter((el) => el.tagName === 'TD');
+    const cells = Array.from(tr.children).filter((el) => el.tagName === 'TD');
     const first = cells[0];
     if (!first) return;
     const label = cellText(first).replace(/\+$/, '').trim();
