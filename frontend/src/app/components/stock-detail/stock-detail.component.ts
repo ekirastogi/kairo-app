@@ -28,6 +28,7 @@ import {
   tradeNetPnL as netPnLForTrade,
 } from '../../utils/trade-charges.utils';
 import { normalizeIsin, stocksMatch } from '../../utils/stock-identity.utils';
+import { tickerFromScreenerUrl } from '../../utils/screener-page.utils';
 import { normalizeSymbol } from '../../utils/upload-merge.utils';
 
 @Component({
@@ -68,6 +69,8 @@ export class StockDetailComponent implements OnInit {
   screenerPageUrl = '';
   registryStock = signal<RegistryStock | null>(null);
   isinMarketStock = signal<StockSnapshot | null>(null);
+  /** Quote for the Screener page ticker when it differs from the route symbol. */
+  screenerQuoteStock = signal<StockSnapshot | null>(null);
   showLabelPanel = signal(false);
 
   /** Labels currently tagged to this stock, for the read-only chips in the hero. */
@@ -132,15 +135,29 @@ export class StockDetailComponent implements OnInit {
   fmtPrice = formatPrice;
   fmtPct = formatPct;
 
-  hasMarketData = computed(() => !!(this.stock() || this.isinMarketStock()));
+  hasMarketData = computed(() => !!(this.resolvedMarket()));
 
-  private resolvedMarket = computed(() => this.stock() ?? this.isinMarketStock() ?? undefined);
+  private pinnedScreenerTicker = computed(() => {
+    const fromUrl = tickerFromScreenerUrl(this.registryStock()?.screenerUrl);
+    const route = this.symbol();
+    return fromUrl && fromUrl !== route ? fromUrl : '';
+  });
+
+  private resolvedMarket = computed(() => {
+    const quote = this.screenerQuoteStock() ?? this.isinMarketStock() ?? undefined;
+    const route = this.stock();
+    if (this.pinnedScreenerTicker()) return quote;
+    return route ?? quote;
+  });
 
   displayName = computed(() => {
     const s = this.resolvedMarket();
     const reg = this.registryStock();
+    if (this.pinnedScreenerTicker()) return s?.name || reg?.name || this.pinnedScreenerTicker();
     return s?.name || reg?.name || this.symbol();
   });
+
+  displaySymbol = computed(() => this.pinnedScreenerTicker() || this.symbol());
 
   displayExchange = computed(() => this.resolvedMarket()?.exchange || this.registryStock()?.exchange || 'NSE');
 
@@ -201,6 +218,7 @@ export class StockDetailComponent implements OnInit {
     this.screenerError.set(null);
     this.screenerSuccess.set(null);
     this.screenerPageUrl = '';
+    this.screenerQuoteStock.set(null);
     this.expandedDayKey.set(null);
   }, { allowSignalWrites: true });
 
@@ -212,6 +230,7 @@ export class StockDetailComponent implements OnInit {
     if (!sym) {
       this.registryStock.set(null);
       this.isinMarketStock.set(null);
+      this.screenerQuoteStock.set(null);
       return;
     }
     void this.registrySvc.getBySymbol(sym).then(async (row) => {
@@ -219,6 +238,14 @@ export class StockDetailComponent implements OnInit {
       this.registryStock.set(row);
       if (row?.screenerUrl && !this.screenerPageUrl.trim()) {
         this.screenerPageUrl = row.screenerUrl;
+      }
+      const pageTicker = tickerFromScreenerUrl(row?.screenerUrl);
+      if (pageTicker && pageTicker !== sym) {
+        const quote = await this.stockSvc.fetchStockBySymbol(pageTicker);
+        if (gen !== this.registryLoadGen) return;
+        this.screenerQuoteStock.set(quote);
+      } else {
+        this.screenerQuoteStock.set(null);
       }
       const isin = normalizeIsin(row?.isin);
       if (!isin) {
@@ -385,10 +412,12 @@ export class StockDetailComponent implements OnInit {
         resistances: [],
         updatedAt: Date.now(),
       };
-      const nextIsin = normalizeIsin(data.isin) || normalizeIsin(existing.isin);
+      const pageTicker = (data.symbol || tickerFromScreenerUrl(data.url) || '').toUpperCase();
+      const pageDiffers = !!pageTicker && pageTicker !== sym;
+      const nextIsin = normalizeIsin(data.isin) || (pageDiffers ? '' : normalizeIsin(existing.isin));
       const updated: RegistryStock = {
         ...existing,
-        isin: nextIsin || existing.isin,
+        isin: nextIsin || undefined,
         name: data.name || existing.name,
         currentPrice: data.currentPrice ?? existing.currentPrice,
         marketCap: data.marketCap ?? existing.marketCap,
@@ -432,9 +461,18 @@ export class StockDetailComponent implements OnInit {
       if (fresh) this.registryStock.set({ ...fresh });
       if (data.url) this.screenerPageUrl = data.url;
       const savedIsin = normalizeIsin(fresh?.isin ?? updated.isin);
+      const quoteTicker = (data.symbol || tickerFromScreenerUrl(data.url) || '').toUpperCase();
+      if (quoteTicker && quoteTicker !== sym) {
+        const quote = await this.stockSvc.fetchStockBySymbol(quoteTicker);
+        this.screenerQuoteStock.set(quote);
+      } else {
+        this.screenerQuoteStock.set(null);
+      }
       if (savedIsin) {
         const market = await this.stockSvc.fetchStockByIsin(savedIsin);
         this.isinMarketStock.set(market);
+      } else {
+        this.isinMarketStock.set(null);
       }
       const tickerNote =
         data.symbol && data.symbol !== sym ? ` from the ${data.symbol} page` : '';

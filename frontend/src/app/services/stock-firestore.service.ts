@@ -92,6 +92,10 @@ export class StockFirestoreService {
       .pipe(map((stock) => stock ?? undefined));
   }
 
+  async fetchStockBySymbol(symbol: string): Promise<StockSnapshot | null> {
+    return this.fetchStock(symbol.trim().toUpperCase());
+  }
+
   private async fetchStock(symbol: string): Promise<StockSnapshot | null> {
     const { data, error } = await this.supabase.client
       .from('stocks')
