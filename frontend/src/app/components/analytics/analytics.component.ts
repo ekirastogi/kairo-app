@@ -1101,12 +1101,12 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     });
   });
 
-  /** Stock summaries for charts — filtered query with fallback to analysis stocks. */
-  visibleStocks = computed(() => {
-    const filtered = this.filteredStocks.stocks();
-    if (filtered.length) return filtered;
-    return this.analysis()?.stocks ?? [];
-  });
+  /**
+   * Stock summaries for this date/type filter.
+   * Do not fall back to analysis.stocks — those are all-time when trades are not
+   * in memory, so an empty MTD range would still list historical stocks.
+   */
+  visibleStocks = computed(() => this.filteredStocks.stocks());
 
   overviewTierChartConfig = computed(() => {
     if (this.activeTab() !== 'overview') return null;
@@ -1214,7 +1214,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     if (this.hasStockSearch()) {
       return `No stocks match "${this.stockSearchQuery()}"`;
     }
-    return 'No stock data';
+    return 'No stocks in this date range';
   });
 
   stocksTabSummary = computed(() => {

@@ -91,6 +91,8 @@ export class FilteredStockService {
         // Skip identical reloads triggered by silent report object replacement.
         if (queryKey === this.lastQueryKey) return;
         this.lastQueryKey = queryKey;
+        this.dateFiltered.set([]);
+        this.error.set(null);
 
         void this.reloadFromTrades(report.summary.clientCode, report.dateRange, opts);
       });
@@ -115,17 +117,11 @@ export class FilteredStockService {
         this.error.set(null);
       }
     } catch (e) {
-      // Keep the last good list (and aggregate P&L). Only surface the error when
-      // there is nothing left to show for this filter.
+      // Never keep a previous (wider) date range — that looks like MTD still has trades.
       if (seq === this.loadSeq) {
         console.warn('Filtered stock reload failed', e);
-        const hasFallback =
-          this.dateFiltered().length > 0 ||
-          (this.state.analysis()?.stocks.length ?? 0) > 0 ||
-          (this.state.report()?.stockSummary.length ?? 0) > 0;
-        if (!hasFallback) {
-          this.error.set(e instanceof Error ? e.message : 'Could not load trades for this filter');
-        }
+        this.dateFiltered.set([]);
+        this.error.set(e instanceof Error ? e.message : 'Could not load trades for this filter');
       }
     } finally {
       if (seq === this.loadSeq) {
