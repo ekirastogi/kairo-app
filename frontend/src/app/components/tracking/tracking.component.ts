@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, OnDestroy, OnInit, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -13,7 +13,7 @@ import { RegistryStockService } from '../../services/registry-stock.service';
 import { ToastService } from '../../services/toast.service';
 import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
 import { formatDataAge } from '../../utils/data-age.utils';
-import { formatCurrency, formatPrice, formatPctSigned, pnlClass } from '../../utils/format.utils';
+import { formatCompactCurrency, formatCurrency, formatPrice, formatPctSigned, pnlClass } from '../../utils/format.utils';
 import { normalizeIsin } from '../../utils/stock-identity.utils';
 import {
   TrackerPlanSnapshot,
@@ -89,6 +89,17 @@ interface HistoryRow extends PriceTracker {
   netPnL: number;
 }
 
+interface HistoryDaySummary {
+  date: string;
+  count: number;
+  wins: number;
+  winRate: number;
+  gross: number;
+  charges: number;
+  netPnL: number;
+  rows: HistoryRow[];
+}
+
 @Component({
   selector: 'app-tracking',
   standalone: true,
@@ -158,9 +169,14 @@ export class TrackingComponent implements OnInit, OnDestroy {
   readonly segmentPresets = SEGMENT_PRESETS;
   readonly formatPrice = formatPrice;
   readonly formatCurrency = formatCurrency;
+  readonly formatCompactCurrency = formatCompactCurrency;
   readonly formatPctSigned = formatPctSigned;
   readonly formatDataAge = formatDataAge;
   readonly pnlClass = pnlClass;
+  historyCalYear = signal(new Date().getFullYear());
+  historyCalMonth = signal(new Date().getMonth() + 1);
+  historySelectedDate = signal<string | null>(null);
+  private historyCalSeeded = false;
 
   private nextLevelKey = 1;
   form = {
@@ -282,6 +298,120 @@ export class TrackingComponent implements OnInit, OnDestroy {
       netPnL: rows.reduce((sum, row) => sum + row.netPnL, 0),
     };
   });
+
+  historyDays = computed(() => {
+    const map = new Map<string, HistoryDaySummary>();
+    for (const row of this.historyRows()) {
+      const date = this.historyDayKey(row);
+      if (!date) continue;
+      const current = map.get(date) ?? {
+        date,
+        count: 0,
+        wins: 0,
+        winRate: 0,
+        gross: 0,
+        charges: 0,
+        netPnL: 0,
+        rows: [] as HistoryRow[],
+      };
+      current.count += 1;
+      if (row.netPnL > 0) current.wins += 1;
+      current.gross += row.gross;
+      current.charges += row.charges;
+      current.netPnL += row.netPnL;
+      current.rows.push(row);
+      current.winRate = current.count ? (current.wins / current.count) * 100 : 0;
+      map.set(date, current);
+    }
+    for (const day of map.values()) {
+      day.rows.sort((a, b) => (b.executedAt ?? b.updatedAt) - (a.executedAt ?? a.updatedAt));
+    }
+    return map;
+  });
+
+  historyCalendarWeeks = computed(() => {
+    const year = this.historyCalYear();
+    const month = this.historyCalMonth();
+    const first = new Date(year, month - 1, 1);
+    const startPad = first.getDay();
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const cells: Array<{ date: string | null; day: number | null }> = [];
+    for (let i = 0; i < startPad; i++) cells.push({ date: null, day: null });
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      cells.push({ date, day: d });
+    }
+    while (cells.length % 7 !== 0) cells.push({ date: null, day: null });
+    const weeks: typeof cells[] = [];
+    for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+    return weeks;
+  });
+
+  historyMonthMaxAbs = computed(() => {
+    const prefix = this.historyMonthPrefix();
+    let max = 0;
+    for (const [date, day] of this.historyDays()) {
+      if (!date.startsWith(prefix)) continue;
+      max = Math.max(max, Math.abs(day.netPnL));
+    }
+    return max || 1;
+  });
+
+  historyMonthSummary = computed(() => {
+    const prefix = this.historyMonthPrefix();
+    let count = 0;
+    let green = 0;
+    let red = 0;
+    let netPnL = 0;
+    let charges = 0;
+    let trades = 0;
+    let wins = 0;
+    for (const [date, day] of this.historyDays()) {
+      if (!date.startsWith(prefix)) continue;
+      count += 1;
+      trades += day.count;
+      wins += day.wins;
+      netPnL += day.netPnL;
+      charges += day.charges;
+      if (day.netPnL > 0) green += 1;
+      else if (day.netPnL < 0) red += 1;
+    }
+    return {
+      dayCount: count,
+      green,
+      red,
+      trades,
+      wins,
+      winRate: trades ? (wins / trades) * 100 : 0,
+      netPnL,
+      charges,
+    };
+  });
+
+  selectedHistoryDay = computed(() => {
+    const date = this.historySelectedDate();
+    if (!date) return null;
+    return this.historyDays().get(date) ?? { date, count: 0, wins: 0, winRate: 0, gross: 0, charges: 0, netPnL: 0, rows: [] };
+  });
+
+  private readonly seedHistoryCalendar = effect(() => {
+    const rows = this.historyRows();
+    if (this.planView() !== 'history') return;
+    untracked(() => {
+      if (!rows.length) return;
+      if (this.historyCalSeeded && this.historySelectedDate()) return;
+      const latest = [...rows].sort(
+        (a, b) => (b.executedAt ?? b.updatedAt) - (a.executedAt ?? a.updatedAt)
+      )[0];
+      const key = this.historyDayKey(latest);
+      if (!key) return;
+      this.historyCalSeeded = true;
+      this.historySelectedDate.set(key);
+      const [year, month] = key.split('-').map(Number);
+      this.historyCalYear.set(year);
+      this.historyCalMonth.set(month);
+    });
+  }, { allowSignalWrites: true });
 
   refreshLabel = computed(() => {
     if (!this.refreshBusy()) return 'Refresh CMP';
@@ -426,6 +556,105 @@ export class TrackingComponent implements OnInit, OnDestroy {
       year: 'numeric',
       timeZone: 'Asia/Kolkata',
     });
+  }
+
+  historyDayKey(row: Pick<PriceTracker, 'executedAt' | 'updatedAt'>): string {
+    const ms = row.executedAt ?? row.updatedAt;
+    if (!ms) return '';
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date(ms));
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+    return year && month && day ? `${year}-${month}-${day}` : '';
+  }
+
+  historyMonthLabel(): string {
+    return new Date(this.historyCalYear(), this.historyCalMonth() - 1, 1).toLocaleDateString('en-IN', {
+      month: 'long',
+      year: 'numeric',
+    });
+  }
+
+  historySelectedLabel(): string {
+    const date = this.historySelectedDate();
+    if (!date) return '';
+    return new Date(`${date}T00:00:00+05:30`).toLocaleDateString('en-IN', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata',
+    });
+  }
+
+  isHistoryToday(date: string | null): boolean {
+    return !!date && date === this.istToday();
+  }
+
+  historyDayFor(date: string | null): HistoryDaySummary | undefined {
+    if (!date) return undefined;
+    return this.historyDays().get(date);
+  }
+
+  historyDayHeatClass(date: string | null): string {
+    const day = this.historyDayFor(date);
+    if (!day) return 'heat-neutral';
+    const ratio = Math.abs(day.netPnL) / this.historyMonthMaxAbs();
+    if (day.netPnL > 0) {
+      if (ratio >= 0.66) return 'heat-pos-strong';
+      if (ratio >= 0.33) return 'heat-pos-mid';
+      return 'heat-pos-soft';
+    }
+    if (day.netPnL < 0) {
+      if (ratio >= 0.66) return 'heat-neg-strong';
+      if (ratio >= 0.33) return 'heat-neg-mid';
+      return 'heat-neg-soft';
+    }
+    return 'heat-neutral';
+  }
+
+  selectHistoryDate(date: string | null): void {
+    if (date) this.historySelectedDate.set(date);
+  }
+
+  prevHistoryMonth(): void {
+    if (this.historyCalMonth() === 1) {
+      this.historyCalMonth.set(12);
+      this.historyCalYear.update((year) => year - 1);
+    } else {
+      this.historyCalMonth.update((month) => month - 1);
+    }
+  }
+
+  nextHistoryMonth(): void {
+    if (this.historyCalMonth() === 12) {
+      this.historyCalMonth.set(1);
+      this.historyCalYear.update((year) => year + 1);
+    } else {
+      this.historyCalMonth.update((month) => month + 1);
+    }
+  }
+
+  private historyMonthPrefix(): string {
+    return `${this.historyCalYear()}-${String(this.historyCalMonth()).padStart(2, '0')}`;
+  }
+
+  private istToday(): string {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+    return year && month && day ? `${year}-${month}-${day}` : '';
   }
 
   private normalizeAction(action: string): (typeof ACTION_PRESETS)[number] {

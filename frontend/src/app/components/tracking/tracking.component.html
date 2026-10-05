@@ -558,128 +558,157 @@
           <dd [class]="pnlClass(historySummary().netPnL)">{{ formatCurrency(historySummary().netPnL) }}</dd>
         </div>
       </dl>
-      <div class="plan-list">
-        <table class="plan-blotter">
-          <thead>
-            <tr>
-              <th class="col-stock">
-                <button type="button" class="sort-btn" [class.sort-btn-active]="historySort.isActive('symbol')" (click)="historySort.toggle('symbol', $event)">
-                  Stock <span>{{ historySort.indicator('symbol') }}</span>
-                </button>
-              </th>
-              <th class="num col-date">
-                <button type="button" class="sort-btn" [class.sort-btn-active]="historySort.isActive('executedAt')" (click)="historySort.toggle('executedAt', $event)">
-                  Date <span>{{ historySort.indicator('executedAt') }}</span>
-                </button>
-              </th>
-              <th class="num col-pair">
-                <span class="pair-head"><span>Entry</span><span class="pair-sub">Exit</span></span>
-              </th>
-              <th class="num col-diff">Win %</th>
-              <th class="desk num col-net">
-                <button type="button" class="sort-btn" [class.sort-btn-active]="historySort.isActive('netPnL')" (click)="historySort.toggle('netPnL', $event)">
-                  Net <span>{{ historySort.indicator('netPnL') }}</span>
-                </button>
-              </th>
-              <th class="col-chevron"></th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of historyRows(); track row.id) {
-              <tr class="plan-row" [class.plan-row-hot]="row.netPnL > 0" (click)="toggleExpanded(row)">
-                <td class="stock col-stock">
-                  <span class="stock-id">
-                    <a class="sym" [routerLink]="['/stock', row.symbol]" (click)="$event.stopPropagation()">{{ row.symbol }}</a>
-                    <span class="stock-tags">
-                      <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
-                    </span>
-                  </span>
-                  <span class="name">{{ row.stockName || row.symbol }}</span>
-                </td>
-                <td class="num col-date">
-                  <span class="tabular-nums text-slate-700">{{ tradeDate(row) }}</span>
-                </td>
-                <td class="num col-pair">
-                  <span class="pair">
-                    <span class="pair-main">{{ formatPrice(row.entry) }}</span>
-                    <span class="pair-sub">{{ formatPrice(row.exit) }}</span>
-                  </span>
-                </td>
-                <td class="num col-diff" [class]="proximityClass({ proximity: row.netPnL > 0 ? 'hot' : row.netPnL < 0 ? 'near' : null, diffPct: row.winPct })">
-                  {{ formatPctSigned(row.winPct) }}
-                </td>
-                <td class="desk num col-net">
-                  <span class="font-semibold" [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</span>
-                </td>
-                <td class="chevron col-chevron">
-                  <svg class="ml-auto h-3.5 w-3.5 transition" [class.rotate-180]="isExpanded(row)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </td>
-              </tr>
-              @if (isExpanded(row)) {
-                <tr class="plan-expand">
-                  <td colspan="6">
-                    <div class="ticket">
-                      <dl class="ticket-facts">
-                        <div>
-                          <dt>Date</dt>
-                          <dd>{{ tradeDate(row) }}</dd>
-                        </div>
-                        <div>
-                          <dt>Side</dt>
-                          <dd><span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span></dd>
-                        </div>
-                        <div>
-                          <dt>Quantity</dt>
-                          <dd>{{ row.closedQty | number }}</dd>
-                        </div>
-                        <div>
-                          <dt>Product</dt>
-                          <dd>{{ row.segment === 'delivery' ? 'Delivery' : row.segment === 'intraday' ? 'Intraday' : '—' }}</dd>
-                        </div>
-                        <div>
-                          <dt>Entry</dt>
-                          <dd>{{ formatPrice(row.entry) }}</dd>
-                        </div>
-                        <div>
-                          <dt>Exit</dt>
-                          <dd>{{ formatPrice(row.exit) }}</dd>
-                        </div>
-                        <div>
-                          <dt>Win</dt>
-                          <dd [class]="pnlClass(row.winPct)">{{ formatPctSigned(row.winPct) }}</dd>
-                        </div>
-                      </dl>
-                      <dl class="ticket-facts ticket-result">
-                        <div>
-                          <dt>Gross</dt>
-                          <dd [class]="pnlClass(row.gross)">{{ formatCurrency(row.gross) }}</dd>
-                        </div>
-                        <div>
-                          <dt>Charges</dt>
-                          <dd class="text-red-600">−{{ formatPrice(row.charges) }}</dd>
-                        </div>
-                        <div>
-                          <dt>Net</dt>
-                          <dd [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</dd>
-                        </div>
-                      </dl>
-                      <div class="ticket-actions">
-                        <button type="button" class="plan-link" (click)="reopen(row); $event.stopPropagation()">Reopen</button>
-                        <button type="button" class="plan-link text-red-600" (click)="remove(row); $event.stopPropagation()">Delete</button>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
+      <div class="history-board">
+        <section class="history-cal" aria-label="Trade history calendar">
+          <header class="history-cal-head">
+            <button type="button" class="btn-secondary px-2.5 py-1 text-xs" (click)="prevHistoryMonth()" aria-label="Previous month">←</button>
+            <h2>{{ historyMonthLabel() }}</h2>
+            <button type="button" class="btn-secondary px-2.5 py-1 text-xs" (click)="nextHistoryMonth()" aria-label="Next month">→</button>
+          </header>
+          <div class="history-cal-weekdays">
+            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+          </div>
+          @for (week of historyCalendarWeeks(); track $index) {
+            <div class="history-cal-week">
+              @for (cell of week; track $index) {
+                @if (cell.date; as date) {
+                  <button
+                    type="button"
+                    class="history-day"
+                    [ngClass]="historyDayHeatClass(date)"
+                    [class.history-day-active]="historySelectedDate() === date"
+                    [class.history-day-today]="isHistoryToday(date)"
+                    (click)="selectHistoryDate(date)"
+                  >
+                    <span class="history-day-num">{{ cell.day }}</span>
+                    @if (historyDayFor(date); as day) {
+                      <span class="history-day-pnl">{{ formatCompactCurrency(day.netPnL) }}</span>
+                      <span class="history-day-meta">{{ day.count }}t · {{ day.winRate | number:'1.0-0' }}%</span>
+                    }
+                  </button>
+                } @else {
+                  <div class="history-day history-day-empty"></div>
+                }
               }
-            } @empty {
-              <tr>
-                <td colspan="6" class="empty">{{ lockedSymbol() ? 'No closed plans for this stock.' : 'No closed trades yet. Close a plan from Open to see it here.' }}</td>
-              </tr>
+            </div>
+          }
+          <footer class="history-cal-foot">
+            <span class="font-semibold uppercase tracking-wide text-slate-500">{{ historyMonthLabel() }}</span>
+            <span class="text-slate-500">{{ historyMonthSummary().dayCount }}d · {{ historyMonthSummary().green }}g · {{ historyMonthSummary().red }}r</span>
+            <span [class]="pnlClass(historyMonthSummary().netPnL)">Net {{ formatCompactCurrency(historyMonthSummary().netPnL) }}</span>
+            <span class="text-red-600">Chg {{ formatCompactCurrency(historyMonthSummary().charges) }}</span>
+            <span class="text-slate-700">{{ historyMonthSummary().trades }}t · {{ historyMonthSummary().winRate | number:'1.0-0' }}%</span>
+          </footer>
+        </section>
+
+        <aside class="history-pane" aria-live="polite">
+          @if (selectedHistoryDay(); as day) {
+            <header class="history-pane-head">
+              <div>
+                <h3>{{ historySelectedLabel() }}</h3>
+                <p>
+                  {{ day.count }} trades
+                  @if (day.count) {
+                    · {{ day.winRate | number:'1.0-0' }}% win
+                    · <span [class]="pnlClass(day.netPnL)">{{ formatCurrency(day.netPnL) }}</span>
+                  }
+                </p>
+              </div>
+            </header>
+            @if (day.count) {
+              <dl class="history-pane-stats">
+                <div>
+                  <dt>Gross</dt>
+                  <dd [class]="pnlClass(day.gross)">{{ formatCurrency(day.gross) }}</dd>
+                </div>
+                <div>
+                  <dt>Charges</dt>
+                  <dd class="text-red-600">−{{ formatPrice(day.charges) }}</dd>
+                </div>
+                <div>
+                  <dt>Net</dt>
+                  <dd [class]="pnlClass(day.netPnL)">{{ formatCurrency(day.netPnL) }}</dd>
+                </div>
+              </dl>
+              <div class="history-pane-list">
+                @for (row of day.rows; track row.id) {
+                  <article class="history-trade" [class.history-trade-open]="isExpanded(row)">
+                    <button type="button" class="history-trade-row" (click)="toggleExpanded(row)">
+                      <span class="stock-id">
+                        <a class="sym" [routerLink]="['/stock', row.symbol]" (click)="$event.stopPropagation()">{{ row.symbol }}</a>
+                        <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
+                      </span>
+                      <span class="name">{{ row.stockName || row.symbol }}</span>
+                      <span class="pair">
+                        <span>{{ formatPrice(row.entry) }}</span>
+                        <span class="pair-sub">{{ formatPrice(row.exit) }}</span>
+                      </span>
+                      <span class="net font-semibold" [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</span>
+                    </button>
+                    @if (isExpanded(row)) {
+                      <div class="ticket">
+                        <dl class="ticket-facts">
+                          <div>
+                            <dt>Date</dt>
+                            <dd>{{ tradeDate(row) }}</dd>
+                          </div>
+                          <div>
+                            <dt>Side</dt>
+                            <dd><span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span></dd>
+                          </div>
+                          <div>
+                            <dt>Quantity</dt>
+                            <dd>{{ row.closedQty | number }}</dd>
+                          </div>
+                          <div>
+                            <dt>Product</dt>
+                            <dd>{{ row.segment === 'delivery' ? 'Delivery' : row.segment === 'intraday' ? 'Intraday' : '—' }}</dd>
+                          </div>
+                          <div>
+                            <dt>Entry</dt>
+                            <dd>{{ formatPrice(row.entry) }}</dd>
+                          </div>
+                          <div>
+                            <dt>Exit</dt>
+                            <dd>{{ formatPrice(row.exit) }}</dd>
+                          </div>
+                          <div>
+                            <dt>Win</dt>
+                            <dd [class]="pnlClass(row.winPct)">{{ formatPctSigned(row.winPct) }}</dd>
+                          </div>
+                        </dl>
+                        <dl class="ticket-facts ticket-result">
+                          <div>
+                            <dt>Gross</dt>
+                            <dd [class]="pnlClass(row.gross)">{{ formatCurrency(row.gross) }}</dd>
+                          </div>
+                          <div>
+                            <dt>Charges</dt>
+                            <dd class="text-red-600">−{{ formatPrice(row.charges) }}</dd>
+                          </div>
+                          <div>
+                            <dt>Net</dt>
+                            <dd [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</dd>
+                          </div>
+                        </dl>
+                        <div class="ticket-actions">
+                          <button type="button" class="plan-link" (click)="reopen(row); $event.stopPropagation()">Reopen</button>
+                          <button type="button" class="plan-link text-red-600" (click)="remove(row); $event.stopPropagation()">Delete</button>
+                        </div>
+                      </div>
+                    }
+                  </article>
+                }
+              </div>
+            } @else {
+              <p class="history-pane-empty">No closed trades on this day.</p>
             }
-          </tbody>
-        </table>
+          } @else if (!historySummary().count) {
+            <p class="history-pane-empty">{{ lockedSymbol() ? 'No closed plans for this stock.' : 'No closed trades yet. Close a plan from Open to see it here.' }}</p>
+          } @else {
+            <p class="history-pane-empty">Select a day to see trades.</p>
+          }
+        </aside>
       </div>
     }
   }

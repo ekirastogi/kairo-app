@@ -1049,6 +1049,143 @@
     @apply text-base font-semibold tabular-nums text-slate-900;
   }
 
+  .history-board {
+    @apply grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(19rem,0.9fr)] lg:items-start;
+  }
+
+  .history-cal {
+    @apply overflow-hidden rounded-xl border border-slate-200 bg-white;
+  }
+
+  .history-cal-head {
+    @apply flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2.5;
+  }
+
+  .history-cal-head h2 {
+    @apply min-w-[9rem] text-center text-sm font-semibold text-slate-900;
+  }
+
+  .history-cal-weekdays {
+    @apply grid grid-cols-7 border-b border-slate-100 bg-slate-50 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs;
+  }
+
+  .history-cal-weekdays > div {
+    @apply py-2;
+  }
+
+  .history-cal-week {
+    @apply grid grid-cols-7;
+  }
+
+  .history-day {
+    @apply flex min-h-[4.25rem] flex-col items-stretch gap-0.5 border-r border-b border-slate-100 p-1.5 text-left transition last:border-r-0 sm:min-h-[5.25rem] sm:p-2;
+  }
+
+  .history-day-empty {
+    @apply bg-slate-50/60;
+  }
+
+  .history-day-active {
+    @apply ring-2 ring-inset ring-kairo-500;
+  }
+
+  .history-day-today {
+    outline: 2px solid #0f172a;
+    outline-offset: -2px;
+  }
+
+  .history-day-num {
+    @apply text-xs font-semibold sm:text-sm;
+  }
+
+  .history-day-pnl {
+    @apply text-[10px] font-bold tabular-nums leading-tight sm:text-[11px];
+  }
+
+  .history-day-meta {
+    @apply text-[9px] leading-tight opacity-70 sm:text-[10px];
+  }
+
+  .history-cal-foot {
+    @apply flex flex-wrap items-center gap-x-3 gap-y-0.5 border-t border-slate-200 bg-slate-50/90 px-3 py-1.5 text-[11px] tabular-nums;
+  }
+
+  .history-pane {
+    @apply overflow-hidden rounded-xl border border-slate-200 bg-white;
+  }
+
+  .history-pane-head {
+    @apply border-b-2 border-kairo-500 px-4 py-3;
+  }
+
+  .history-pane-head h3 {
+    @apply text-sm font-semibold text-slate-900;
+  }
+
+  .history-pane-head p {
+    @apply mt-0.5 text-xs text-slate-500;
+  }
+
+  .history-pane-stats {
+    @apply grid grid-cols-3 gap-2 border-b border-slate-100 px-4 py-3 text-sm;
+  }
+
+  .history-pane-stats dt {
+    @apply text-[10px] font-semibold uppercase tracking-wide text-slate-400;
+  }
+
+  .history-pane-stats dd {
+    @apply mt-0.5 font-semibold tabular-nums text-slate-900;
+  }
+
+  .history-pane-list {
+    @apply divide-y divide-slate-100;
+  }
+
+  .history-pane-empty {
+    @apply px-4 py-10 text-center text-sm text-slate-400;
+  }
+
+  .history-trade-row {
+    @apply grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 px-4 py-3 text-left hover:bg-slate-50/80;
+  }
+
+  .history-trade-row .stock-id {
+    @apply flex min-w-0 items-center gap-1.5;
+  }
+
+  .history-trade-row .sym {
+    @apply font-semibold tracking-wide text-slate-900;
+  }
+
+  .history-trade-row .name {
+    @apply col-span-2 min-w-0 truncate text-[11px] text-slate-500;
+  }
+
+  .history-trade-row .pair {
+    @apply col-start-1 text-[11px] tabular-nums text-slate-500;
+  }
+
+  .history-trade-row .pair-sub {
+    @apply ml-1.5 text-slate-400;
+  }
+
+  .history-trade-row .net {
+    @apply col-start-2 row-start-1 self-center text-sm tabular-nums;
+  }
+
+  .history-trade-open .history-trade-row {
+    @apply bg-kairo-50/40;
+  }
+
+  .heat-neutral { @apply bg-slate-50 text-slate-400; }
+  .heat-pos-soft { @apply bg-emerald-50 text-emerald-700; }
+  .heat-pos-mid { @apply bg-emerald-100 text-emerald-800; }
+  .heat-pos-strong { @apply bg-emerald-200 text-emerald-900; }
+  .heat-neg-soft { @apply bg-red-50 text-red-700; }
+  .heat-neg-mid { @apply bg-red-100 text-red-800; }
+  .heat-neg-strong { @apply bg-red-200 text-red-900; }
+
   @screen md {
     .plan-count {
       @apply block;
