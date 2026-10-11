@@ -387,7 +387,7 @@ export class StockDetailComponent implements OnInit {
     const sym = this.symbol();
     if (!sym || this.screenerBusy()) return;
 
-    const pageUrl = this.screenerPageUrl.trim();
+    const pageUrl = this.screenerPageUrl.trim() || this.registryStock()?.screenerUrl?.trim() || '';
     if (opts?.requirePageUrl && !pageUrl) {
       this.screenerError.set('Paste a Screener.in company page URL first.');
       this.screenerSuccess.set(null);

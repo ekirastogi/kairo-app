@@ -380,7 +380,11 @@ export class TradePlanFormComponent implements OnInit {
       const existing =
         this.registry().find((s) => s.symbol === sym) ??
         (await this.registrySvc.getBySymbol(sym));
-      const data = await this.screenerSvc.fetchStock(sym, { isin: existing?.isin, name: existing?.name || this.form.name });
+      const data = await this.screenerSvc.fetchStock(sym, {
+        isin: existing?.isin,
+        name: existing?.name || this.form.name,
+        pageUrl: existing?.screenerUrl,
+      });
       const updated = this.applyScreenerSnapshot(
         existing ?? {
           symbol: sym,

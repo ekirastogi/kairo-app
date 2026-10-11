@@ -402,6 +402,7 @@ export class AvgCalculatorComponent {
       const data = await this.screenerSvc.fetchStock(sym, {
         isin: existing.isin || this.stockIsin() || undefined,
         name: existing.name || this.stockName() || undefined,
+        pageUrl: existing.screenerUrl,
       });
       const updated = applyScreenerSnapshot(existing, data);
       await this.registrySvc.save(updated);

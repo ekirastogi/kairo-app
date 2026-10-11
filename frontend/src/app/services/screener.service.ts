@@ -66,16 +66,21 @@ export class ScreenerService {
   private stocks = inject(StockFirestoreService);
 
   async fetchStock(symbol: string, opts?: ScreenerFetchOpts): Promise<ScreenerSnapshot> {
-    const pageUrl = opts?.pageUrl?.trim();
+    const typed = symbol.trim().toUpperCase();
+    const stored = typed ? await this.registry.getBySymbol(typed) : null;
+    const pageUrl = opts?.pageUrl?.trim() || stored?.screenerUrl?.trim() || '';
+    const isin = opts?.isin?.trim() || stored?.isin || '';
+    const name = opts?.name?.trim() || stored?.name || '';
     const resolved = pageUrl
-      ? { symbol: symbol.trim().toUpperCase(), isin: opts?.isin?.trim() ?? '' }
-      : await this.resolveLookup(symbol, opts?.isin);
+      ? { symbol: typed, isin }
+      : await this.resolveLookup(typed, isin);
+
     let payload: ScreenerSnapshot | null = null;
     try {
       payload = await this.postScreenerFetch({
         symbol: resolved.symbol,
         isin: resolved.isin || undefined,
-        name: opts?.name?.trim() || undefined,
+        name: name || undefined,
         pageUrl: pageUrl || undefined,
       });
     } catch (error) {
@@ -85,7 +90,7 @@ export class ScreenerService {
     // Live edge function still ignores pageUrl and searches by ticker. If the
     // pasted company page is a different stock, scrape that page instead.
     if (pageUrl && !snapshotMatchesPage(payload, pageUrl)) {
-      payload = await this.fetchSnapshotFromPageUrl(pageUrl, opts?.name);
+      payload = await this.fetchSnapshotFromPageUrl(pageUrl, name || undefined);
     }
     if (!payload) throw new Error('Screener fetch failed');
 
@@ -93,7 +98,25 @@ export class ScreenerService {
       const market = await this.stocks.fetchStockBySymbol(payload.symbol);
       if (market?.isin) payload = { ...payload, isin: market.isin };
     }
+    await this.rememberScreenerUrl(typed, payload.url, stored);
     return payload;
+  }
+
+  /** Keep the Screener company page on the registry row so later refreshes reuse it. */
+  private async rememberScreenerUrl(
+    symbol: string,
+    url: string | undefined,
+    known: Awaited<ReturnType<RegistryStockService['getBySymbol']>>
+  ): Promise<void> {
+    const pageUrl = url?.trim();
+    if (!symbol || !pageUrl) return;
+    try {
+      const row = known ?? (await this.registry.getBySymbol(symbol));
+      if (!row || row.screenerUrl === pageUrl) return;
+      await this.registry.save({ ...row, screenerUrl: pageUrl });
+    } catch {
+      // Caller still persists the snapshot, including the URL.
+    }
   }
 
   private async postScreenerFetch(body: {
