@@ -291,7 +291,7 @@
           </div>
         }
 
-        <ng-container *ngTemplateOutlet="periodHeatmaps" />
+        <ng-container *ngTemplateOutlet="dailyHistoryBoard" />
 
         <div class="grid gap-4">
           <app-chart-card
@@ -884,6 +884,116 @@
   <ng-container *ngTemplateOutlet="tradingWeeksCard" />
   <ng-container *ngTemplateOutlet="weekdayHeatmapCard" />
   <ng-container *ngTemplateOutlet="tradingMonthsCard" />
+</ng-template>
+
+<ng-template #dailyHistoryBoard>
+  <div class="history-board">
+    <section class="history-cal" aria-label="Daily trading calendar">
+      <header class="history-cal-head">
+        <button
+          type="button"
+          class="btn-secondary px-2.5 py-1 text-xs disabled:opacity-40"
+          [disabled]="!canPrevDailyCalendarMonth()"
+          (click)="prevDailyCalendarMonth()"
+          aria-label="Previous month"
+        >
+          ←
+        </button>
+        <h2>{{ dailyCalendarMonthLabel() }}</h2>
+        <button
+          type="button"
+          class="btn-secondary px-2.5 py-1 text-xs disabled:opacity-40"
+          [disabled]="!canNextDailyCalendarMonth()"
+          (click)="nextDailyCalendarMonth()"
+          aria-label="Next month"
+        >
+          →
+        </button>
+      </header>
+      <div class="history-cal-weekdays">
+        <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+      </div>
+      @for (week of dailyCalendarWeeks(); track $index) {
+        <div class="history-cal-week">
+          @for (cell of week; track $index) {
+            @if (cell.date; as date) {
+              <button
+                type="button"
+                class="history-day"
+                [ngClass]="dailyCellHeatClass(date)"
+                [class.history-day-active]="selectedDate() === date"
+                [class.history-day-today]="isTodayDate(date)"
+                (click)="selectDailyDate(date)"
+              >
+                <span class="history-day-num">{{ cell.day }}</span>
+                @if (dailyBucketFor(date); as day) {
+                  <span class="history-day-pnl">{{ formatCompactCurrency(day.netPnL) }}</span>
+                  <span class="history-day-meta">{{ day.tradeCount }}t · {{ day.winRate | number:'1.0-0' }}%</span>
+                }
+              </button>
+            } @else {
+              <div class="history-day history-day-empty"></div>
+            }
+          }
+        </div>
+      }
+      @if (dailyCalendarMonthSummary(); as summary) {
+        <footer class="history-cal-foot">
+          <span class="font-semibold uppercase tracking-wide text-slate-500">{{ summary.label }}</span>
+          <span class="text-slate-500">{{ summary.dayCount }}d · {{ summary.greenDays }}g · {{ summary.redDays }}r</span>
+          <span [class]="pnlClass(summary.netPnL)">Net {{ formatCompactCurrency(summary.netPnL) }}</span>
+          <span class="text-red-600">Chg {{ formatCompactCurrency(summary.allocatedCharges) }}</span>
+          <span class="text-slate-700">{{ summary.tradeCount | number }}t · {{ summary.winRate | number:'1.0-0' }}%</span>
+        </footer>
+      }
+    </section>
+
+    <aside class="history-pane" aria-live="polite">
+      @if (selectedDay(); as day) {
+        <header class="history-pane-head">
+          <div>
+            <h3>{{ dailySelectedLabel() }}</h3>
+            <p>
+              {{ day.tradeCount }} trades
+              @if (day.tradeCount) {
+                · {{ day.winRate | number:'1.0-0' }}% win
+                · <span [class]="pnlClass(day.netPnL)">{{ formatCurrency(day.netPnL) }}</span>
+              }
+            </p>
+          </div>
+        </header>
+        <dl class="history-pane-stats">
+          <div>
+            <dt>Gross</dt>
+            <dd [class]="pnlClass(day.realisedPnL)">{{ formatCurrency(day.realisedPnL) }}</dd>
+          </div>
+          <div>
+            <dt>Charges</dt>
+            <dd class="text-red-600">−{{ formatCurrency(day.allocatedCharges) }}</dd>
+          </div>
+          <div>
+            <dt>Net</dt>
+            <dd [class]="pnlClass(day.netPnL)">{{ formatCurrency(day.netPnL) }}</dd>
+          </div>
+        </dl>
+        <app-expandable-stocks-table
+          [stocks]="selectedDateStocks()"
+          [columns]="dailyPaneStockColumns"
+          [showColumnPicker]="false"
+          [showFooter]="false"
+          periodTab="daily"
+          [periodKey]="selectedDate()"
+          [emptyMessage]="isSelectedDayLoading() ? 'Loading trades for this day…' : 'No stock detail for this day'"
+        />
+      } @else if (selectedDate()) {
+        <p class="history-pane-empty">No trades on this day.</p>
+      } @else if (!dailyCalendarHasData()) {
+        <p class="history-pane-empty">No daily data in this range.</p>
+      } @else {
+        <p class="history-pane-empty">Select a day to see trades.</p>
+      }
+    </aside>
+  </div>
 </ng-template>
 
 <ng-template #tradingWeeksCard>

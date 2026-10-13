@@ -57,7 +57,10 @@ import { DateRangeFilterComponent } from '../shared/date-range-filter/date-range
 import { ChartCardComponent } from '../shared/chart-card/chart-card.component';
 import { ReportHistoryComponent } from '../shared/report-history/report-history.component';
 import { HeatmapComponent } from '../heatmap/heatmap.component';
-import { ExpandableStocksTableComponent } from '../shared/expandable-stocks-table/expandable-stocks-table.component';
+import {
+  ExpandableStockColumn,
+  ExpandableStocksTableComponent,
+} from '../shared/expandable-stocks-table/expandable-stocks-table.component';
 import { StockScenarioPanelComponent } from '../shared/stock-scenario-panel/stock-scenario-panel.component';
 import { TierSummaryBarComponent } from '../shared/tier-summary-bar/tier-summary-bar.component';
 import { HoldingsTableComponent } from '../shared/holdings-table/holdings-table.component';
@@ -243,6 +246,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   ];
   readonly heatClass = heatClass;
   readonly avgNetPerTrade = avgNetPerTrade;
+  readonly dailyPaneStockColumns: ExpandableStockColumn[] = ['stockName', 'tradeCount', 'netPnL'];
   /** Closed days are shown as disabled cells rather than as their own filter. */
   readonly calendarSessionFilters: { id: CalendarSessionFilter; label: string }[] = [
     { id: 'all', label: 'All' },
@@ -277,7 +281,8 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     // Aggregate-first: profiles + daily analytics. Trades load on day/stock expand.
     await this.state.ensureLoadedFromFirebase();
     void this.customLists.ensureLoaded();
-    this.syncDailyCalendarToLatest();
+    if (this.activeTab() === 'daily') this.ensureDailyHistorySelection();
+    else this.syncDailyCalendarToLatest();
   }
 
   ngOnDestroy(): void {
@@ -341,6 +346,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
       if (tab === 'stocks' || tab === 'tiers') {
         void this.customLists.ensureLoaded();
       }
+      if (tab === 'daily') this.ensureDailyHistorySelection();
     }
   }
 
@@ -350,7 +356,9 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     if (tab === 'stocks' || tab === 'tiers') {
       void this.customLists.ensureLoaded();
     }
-    if (tab === 'daily' || tab === 'overview') {
+    if (tab === 'daily') {
+      this.ensureDailyHistorySelection();
+    } else if (tab === 'overview') {
       this.syncDailyCalendarToLatest();
     }
     void this.router.navigate([], {
@@ -462,6 +470,63 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
       this.focusDailyCalendarOn(next);
       void this.loadSelectedPeriodTrades('daily', next);
     }
+  }
+
+  /** History-style: always select the day (does not toggle closed). */
+  selectDailyDate(date: string | null): void {
+    if (!date) return;
+    this.selectedDate.set(date);
+    this.selectedDayOfMonth.set(null);
+    this.clearOtherPeriodSelections('date');
+    this.dailyCalendarMode.set('month');
+    this.focusDailyCalendarOn(date);
+    if (this.dailyBucketFor(date)) {
+      void this.loadSelectedPeriodTrades('daily', date);
+    }
+  }
+
+  dailySelectedLabel(): string {
+    const date = this.selectedDate();
+    if (!date) return '';
+    return new Date(`${date}T00:00:00+05:30`).toLocaleDateString('en-IN', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata',
+    });
+  }
+
+  private ensureDailyHistorySelection(): void {
+    this.dailyCalendarMode.set('month');
+    this.clampDailyCalendarToBounds();
+    const selected = this.selectedDate();
+    const prefix = `${this.dailyCalendarYear()}-${String(this.dailyCalendarMonth()).padStart(2, '0')}`;
+    if (selected?.startsWith(prefix) && this.dailyBucketFor(selected)) {
+      void this.loadSelectedPeriodTrades('daily', selected);
+      return;
+    }
+    this.selectLatestDayInDailyCalendar();
+    if (this.selectedDate()) return;
+    const latest = [...(this.analysis()?.daily ?? [])].sort((a, b) =>
+      b.period.localeCompare(a.period)
+    )[0];
+    if (latest) this.selectDailyDate(latest.period);
+  }
+
+  private selectLatestDayInDailyCalendar(): void {
+    const prefix = `${this.dailyCalendarYear()}-${String(this.dailyCalendarMonth()).padStart(2, '0')}`;
+    const pick = [...(this.analysis()?.daily ?? [])]
+      .filter((day) => day.period.startsWith(prefix) && this.dateInFilterRange(day.period))
+      .sort((a, b) => b.period.localeCompare(a.period))[0];
+    if (!pick) {
+      this.selectedDate.set(null);
+      return;
+    }
+    this.selectedDate.set(pick.period);
+    this.selectedDayOfMonth.set(null);
+    this.clearOtherPeriodSelections('date');
+    void this.loadSelectedPeriodTrades('daily', pick.period);
   }
 
   toggleDayOfMonth(dayKey: string): void {
@@ -779,6 +844,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
       this.dailyCalendarMonth.update((m) => m - 1);
     }
     this.clampDailyCalendarToBounds();
+    if (this.activeTab() === 'daily') this.selectLatestDayInDailyCalendar();
   }
 
   nextDailyCalendarMonth(): void {
@@ -796,6 +862,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
       this.dailyCalendarMonth.update((m) => m + 1);
     }
     this.clampDailyCalendarToBounds();
+    if (this.activeTab() === 'daily') this.selectLatestDayInDailyCalendar();
   }
 
   dailyBucketFor(date: string | null): PeriodBucket | undefined {
