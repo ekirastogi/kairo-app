@@ -22,7 +22,6 @@ import {
   tierDisplayName,
   tierShortLabel,
 } from '../../utils/pnl-watchlist.utils';
-import { formatCurrency, pnlClass } from '../../utils/format.utils';
 import { normalizeSymbol } from '../../utils/upload-merge.utils';
 import { FILTER_QUERY_KEYS, readWatchlistFilters } from '../../utils/filter-url.utils';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
@@ -130,8 +129,6 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   scenarioPanelOpen = signal(false);
   analysePieLevel = signal<'all' | 'profit' | 'loss'>('all');
   selectedAnalyseBand = signal<number | null>(null);
-  readonly formatCurrency = formatCurrency;
-  readonly pnlClass = pnlClass;
 
   bookStocks = computed((): StockSummary[] => this.filteredStocks.stocks());
 
