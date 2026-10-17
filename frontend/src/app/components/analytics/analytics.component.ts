@@ -238,6 +238,11 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   readonly formatPctSigned = formatPctSigned;
   readonly pnlClass = pnlClass;
   readonly indiaSlabPct = Math.round(INDIA_SLAB_RATE * 100);
+  readonly taxRateCopy = {
+    slab: `${Math.round(INDIA_SLAB_RATE * 100)}% slab + 4% cess`,
+    stcg: '20% STCG + 4% cess',
+    ltcg: '12.5% LTCG + 4% cess after ₹1.25L',
+  };
   readonly tradeTypeLabels = TRADE_TYPE_LABELS;
   readonly tabs: { id: AnalyticsTab; label: string }[] = [
     { id: 'stocks', label: 'Stocks' },
@@ -283,6 +288,11 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
    * Cache this tab the first time the user opens it for the current date/type window.
    * Revisiting the same tab skips a chart rebuild until dates, upload, or Refresh data.
    */
+  private readonly _loadOverviewTrades = effect(() => {
+    if (this.activeTab() !== 'overview') return;
+    untracked(() => void this.state.ensureTradesLoaded());
+  });
+
   private readonly _cacheActiveTab = effect(() => {
     const tab = this.activeTab();
     this.pageCache.revision();

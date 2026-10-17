@@ -61,3 +61,22 @@ export function currentMonthMarketDays(): MarketDayInfo[] {
   }
   return days;
 }
+
+export function addIsoDays(iso: string, days: number): string {
+  const date = new Date(`${iso}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/** Next cash-market session after `fromIso` (skips weekends and NSE holidays). */
+export function nextOpenMarketIso(fromIso: string): string {
+  let iso = addIsoDays(fromIso, 1);
+  for (let i = 0; i < 21; i++) {
+    if (marketSessionForIso(iso).session === 'open') return iso;
+    iso = addIsoDays(iso, 1);
+  }
+  return addIsoDays(fromIso, 1);
+}

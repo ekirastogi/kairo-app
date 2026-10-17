@@ -5,6 +5,7 @@ import {
   INDIA_STCG_RATE,
   applyIndiaTradingTax,
   buildPnLTaxBreakdown,
+  classifyIndiaTaxHead,
 } from './pnl-tax.utils';
 import { Trade } from '../models/trade.models';
 
@@ -29,11 +30,82 @@ function trade(partial: Partial<Trade>): Trade {
   };
 }
 
+describe('classifyIndiaTaxHead', () => {
+  it('treats same-day and labelled intraday as speculative', () => {
+    expect(
+      classifyIndiaTaxHead(
+        trade({
+          tradeType: 'intraday',
+          remark: 'intraday',
+          buyDate: '2026-01-05',
+          sellDate: '2026-01-05',
+          holdingDays: 0,
+        })
+      )
+    ).toBe('intraday');
+    expect(
+      classifyIndiaTaxHead(
+        trade({
+          tradeType: 'same_day',
+          buyDate: '2026-03-02',
+          sellDate: '2026-03-02',
+          holdingDays: 0,
+        })
+      )
+    ).toBe('intraday');
+  });
+
+  it('treats the next market session as BTST', () => {
+    expect(
+      classifyIndiaTaxHead(
+        trade({
+          tradeType: 'delivery',
+          buyDate: '2026-01-05',
+          sellDate: '2026-01-06',
+          holdingDays: 1,
+        })
+      )
+    ).toBe('btst');
+    expect(
+      classifyIndiaTaxHead(
+        trade({
+          tradeType: 'delivery',
+          buyDate: '2026-01-09',
+          sellDate: '2026-01-12',
+          holdingDays: 3,
+        })
+      )
+    ).toBe('btst');
+  });
+
+  it('splits remaining delivery into STCG vs LTCG at 12 months', () => {
+    expect(
+      classifyIndiaTaxHead(
+        trade({
+          tradeType: 'delivery',
+          buyDate: '2026-01-02',
+          sellDate: '2026-02-02',
+          holdingDays: 31,
+        })
+      )
+    ).toBe('stcg');
+    expect(
+      classifyIndiaTaxHead(
+        trade({
+          tradeType: 'delivery',
+          buyDate: '2025-01-01',
+          sellDate: '2026-01-02',
+          holdingDays: 366,
+        })
+      )
+    ).toBe('ltcg');
+  });
+});
+
 describe('applyIndiaTradingTax', () => {
   it('taxes only positive speculative net at 30% slab + cess', () => {
     const taxes = applyIndiaTradingTax({
       intradayNet: 1000,
-      deliveryStcgNet: 0,
       deliveryLtcgNet: 0,
     });
     expect(taxes.taxIntraday).toBeCloseTo(1000 * INDIA_INTRADAY_TAX_RATE);
@@ -41,24 +113,37 @@ describe('applyIndiaTradingTax', () => {
     expect(taxes.tax).toBeCloseTo(taxes.taxIntraday);
   });
 
-  it('does not create a tax credit from intraday losses', () => {
+  it('nets BTST with other STCG before 20% + cess', () => {
+    const taxes = applyIndiaTradingTax({
+      intradayNet: 0,
+      btstNet: 1000,
+      stcgNet: -200,
+      deliveryLtcgNet: 0,
+    });
+    expect(taxes.taxableStcg).toBe(800);
+    expect(taxes.taxStcg).toBeCloseTo(800 * INDIA_STCG_RATE);
+  });
+
+  it('does not let intraday losses offset STCG', () => {
     const taxes = applyIndiaTradingTax({
       intradayNet: -5000,
-      deliveryStcgNet: 1000,
+      btstNet: 0,
+      stcgNet: 1000,
       deliveryLtcgNet: 0,
     });
     expect(taxes.taxIntraday).toBe(0);
-    expect(taxes.taxDelivery).toBeCloseTo(1000 * INDIA_STCG_RATE);
+    expect(taxes.taxStcg).toBeCloseTo(1000 * INDIA_STCG_RATE);
   });
 
   it('applies the listed-equity LTCG exemption before 12.5% + cess', () => {
     const gain = INDIA_LTCG_EXEMPTION + 10_000;
     const taxes = applyIndiaTradingTax({
       intradayNet: 0,
-      deliveryStcgNet: 0,
       deliveryLtcgNet: gain,
     });
-    expect(taxes.taxDelivery).toBeCloseTo(10_000 * INDIA_LTCG_RATE);
+    expect(taxes.ltcgExemptionUsed).toBe(INDIA_LTCG_EXEMPTION);
+    expect(taxes.taxableLtcg).toBe(10_000);
+    expect(taxes.taxLtcg).toBeCloseTo(10_000 * INDIA_LTCG_RATE);
   });
 });
 
@@ -81,17 +166,52 @@ describe('buildPnLTaxBreakdown', () => {
         holdingDays: 0,
         netPnL: -50,
       }),
-      trade({ tradeType: 'delivery', netPnL: 400, holdingDays: 10 }),
-      trade({ tradeType: 'delivery', netPnL: -100, holdingDays: 20 }),
+      trade({
+        tradeType: 'delivery',
+        buyDate: '2026-01-02',
+        sellDate: '2026-01-20',
+        holdingDays: 18,
+        netPnL: 400,
+      }),
+      trade({
+        tradeType: 'delivery',
+        buyDate: '2026-01-02',
+        sellDate: '2026-01-20',
+        holdingDays: 18,
+        netPnL: -100,
+      }),
     ]);
 
     expect(result.hasOutcomeSplit).toBe(true);
     expect(result.intraday).toEqual({ profit: 200, loss: -50, net: 150 });
     expect(result.delivery).toEqual({ profit: 400, loss: -100, net: 300 });
+    expect(result.stcg.net).toBe(300);
     expect(result.netPnL).toBe(450);
     expect(result.taxIntraday).toBeCloseTo(150 * INDIA_INTRADAY_TAX_RATE);
-    expect(result.taxDelivery).toBeCloseTo(300 * INDIA_STCG_RATE);
+    expect(result.taxStcg).toBeCloseTo(300 * INDIA_STCG_RATE);
     expect(result.pat).toBeCloseTo(450 - result.tax);
+  });
+
+  it('keeps BTST P&L separate while taxing it as STCG', () => {
+    const result = buildPnLTaxBreakdown([
+      trade({
+        tradeType: 'delivery',
+        buyDate: '2026-01-05',
+        sellDate: '2026-01-06',
+        holdingDays: 1,
+        netPnL: 120,
+      }),
+      trade({
+        tradeType: 'delivery',
+        buyDate: '2026-01-05',
+        sellDate: '2026-02-05',
+        holdingDays: 31,
+        netPnL: 80,
+      }),
+    ]);
+    expect(result.btst.net).toBe(120);
+    expect(result.stcg.net).toBe(80);
+    expect(result.taxStcg).toBeCloseTo(200 * INDIA_STCG_RATE);
   });
 
   it('treats same-day trades as intraday for tax', () => {
@@ -99,8 +219,8 @@ describe('buildPnLTaxBreakdown', () => {
       trade({
         tradeType: 'same_day',
         remark: '',
-        buyDate: '2026-03-01',
-        sellDate: '2026-03-01',
+        buyDate: '2026-03-02',
+        sellDate: '2026-03-02',
         holdingDays: 0,
         netPnL: 80,
       }),
