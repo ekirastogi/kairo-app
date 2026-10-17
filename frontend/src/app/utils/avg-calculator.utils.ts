@@ -14,8 +14,6 @@ export interface AvgTarget {
   id: string;
   price: number;
   quantity: number;
-  /** Net profit this slice was solved for; used to refresh the exit price when qty changes. */
-  profitGoal?: number;
 }
 
 export interface AvgCalculatorSummary {
@@ -50,13 +48,8 @@ export function createFill(side: FillSide, price: number, quantity: number): Avg
   return { id: newId(), side, price, quantity };
 }
 
-export function createTarget(price: number, quantity: number, profitGoal?: number): AvgTarget {
-  return {
-    id: newId(),
-    price,
-    quantity,
-    ...(profitGoal != null && Number.isFinite(profitGoal) ? { profitGoal } : {}),
-  };
+export function createTarget(price: number, quantity: number): AvgTarget {
+  return { id: newId(), price, quantity };
 }
 
 interface OpenLot {
