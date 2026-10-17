@@ -188,18 +188,93 @@
             <h3 class="text-sm font-semibold text-slate-900">Exit guide</h3>
             <p class="mt-0.5 text-xs text-slate-500">{{ positionLabel() }} · prices include charges.</p>
           </div>
-          <div class="flex items-center gap-2">
-            @if (targets().length > 1) {
-              <button type="button" class="rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800" (click)="splitEvenly()">
-                Split evenly
-              </button>
-            }
-            <button type="button" class="text-xs font-semibold text-slate-500 hover:text-red-600" (click)="resetExits()">Reset</button>
-          </div>
+          <button type="button" class="text-xs font-semibold text-slate-500 hover:text-red-600" (click)="resetExits()">Reset</button>
         </div>
       </div>
 
       <div class="space-y-3 p-4">
+        <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5">
+          <label class="block field-label">
+            Target profit after charges
+            <input
+              class="input-field mt-0.5 !py-2"
+              type="number"
+              inputmode="decimal"
+              step="100"
+              placeholder="5000"
+              [ngModel]="draftTargetProfit"
+              (ngModelChange)="setTargetProfit($event)"
+              (keydown)="onTargetKeydown($event)"
+            />
+          </label>
+          <p class="mt-1.5 text-[11px] text-slate-500">Net you want on the whole trade. Remaining shares update the yellow prices below.</p>
+        </div>
+
+        @if (targetError()) {
+          <p class="text-xs text-red-600">{{ targetError() }}</p>
+        }
+
+        @if (position()) {
+          <div class="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 sm:grid-cols-3">
+            <div>
+              <p class="field-label">Booked net</p>
+              <p class="text-base font-bold tabular-nums" [class]="bookedTrip() ? pnlClass(bookedTrip()!.netPnL) : 'text-slate-400'">
+                {{ bookedTrip() ? formatCurrency(bookedTrip()!.netPnL) : '—' }}
+              </p>
+            </div>
+            <div>
+              <p class="field-label">Open</p>
+              <p class="text-base font-bold tabular-nums text-slate-900">{{ position()!.quantity | number }}</p>
+              <p class="text-[11px] text-slate-500">at {{ formatPrice(position()!.avgPrice) }}</p>
+            </div>
+            <div class="col-span-2 sm:col-span-1">
+              <p class="field-label">Open breakeven</p>
+              <p class="text-base font-bold tabular-nums text-slate-900">
+                {{ breakeven() != null ? formatPrice(breakeven()!) : '—' }}
+              </p>
+            </div>
+          </div>
+
+          @if (stayGreen() || remainingProfitExit()) {
+            <div class="grid gap-3 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2.5 sm:grid-cols-2">
+              @if (stayGreen(); as stop) {
+                <div>
+                  <p class="text-xs font-semibold text-amber-900">{{ stop.label }}</p>
+                  <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">
+                    Exit at {{ formatPrice(stop.price) }}
+                    <span class="ml-1 text-[11px] font-semibold" [class]="pnlClass(stop.movePerShare)">{{ signedMove(stop.movePerShare) }} / sh</span>
+                  </p>
+                  <p class="mt-0.5 text-[11px] text-amber-800">Keeps the whole trade at least flat after charges.</p>
+                </div>
+              }
+              @if (remainingProfitExit(); as tgt) {
+                <div>
+                  <p class="text-xs font-semibold text-amber-900">Target for remaining</p>
+                  <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">
+                    Exit at {{ formatPrice(tgt.price) }}
+                    <span class="ml-1 text-[11px] font-semibold" [class]="pnlClass(tgt.movePerShare)">{{ signedMove(tgt.movePerShare) }} / sh</span>
+                  </p>
+                  <p class="mt-0.5 text-[11px] text-amber-800">
+                    {{ tgt.quantity | number }} remaining ·
+                    <span class="font-semibold tabular-nums" [class]="pnlClass(remainingProfitGoal() ?? 0)">{{ formatCurrency(remainingProfitGoal() ?? 0) }}</span>
+                    more net to hit {{ formatCurrency(targetProfit() ?? 0) }}
+                  </p>
+                </div>
+              } @else if (targetProfit() == null) {
+                <div>
+                  <p class="text-xs font-semibold text-amber-900">Target for remaining</p>
+                  <p class="mt-0.5 text-[11px] text-amber-800">Enter a target profit above to solve the remaining exit price.</p>
+                </div>
+              }
+            </div>
+          }
+        } @else if (!fullyClosed()) {
+          <div class="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center">
+            <p class="text-sm font-medium text-slate-700">No open quantity</p>
+            <p class="mt-1 text-xs text-slate-500">Add lots on the left to see stay-green and remaining target prices.</p>
+          </div>
+        }
+
         <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5">
           <p class="field-label mb-1.5">Custom exit</p>
           <div class="flex flex-wrap items-end gap-2">
@@ -217,7 +292,7 @@
             </label>
             <button type="button" class="btn-secondary !px-3 !py-2 text-sm" (click)="addCustomExit()">Add</button>
           </div>
-          <p class="mt-1.5 text-[11px] text-slate-500">Partial cover or book-out. Blank qty uses the still-open size. The table below is for what remains.</p>
+          <p class="mt-1.5 text-[11px] text-slate-500">Partial cover or book-out. Blank qty uses the still-open size. Yellow prices then update for what remains.</p>
         </div>
 
         @if (exitError()) {
@@ -272,212 +347,6 @@
             </p>
           </div>
         }
-
-        @if (position()) {
-          <div class="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 sm:grid-cols-3">
-            <div>
-              <p class="field-label">Booked net</p>
-              <p class="text-base font-bold tabular-nums" [class]="bookedTrip() ? pnlClass(bookedTrip()!.netPnL) : 'text-slate-400'">
-                {{ bookedTrip() ? formatCurrency(bookedTrip()!.netPnL) : '—' }}
-              </p>
-            </div>
-            <div>
-              <p class="field-label">Open</p>
-              <p class="text-base font-bold tabular-nums text-slate-900">{{ position()!.quantity | number }}</p>
-              <p class="text-[11px] text-slate-500">at {{ formatPrice(position()!.avgPrice) }}</p>
-            </div>
-            <div class="col-span-2 sm:col-span-1">
-              <p class="field-label">Open breakeven</p>
-              <p class="text-base font-bold tabular-nums text-slate-900">
-                {{ breakeven() != null ? formatPrice(breakeven()!) : '—' }}
-              </p>
-            </div>
-          </div>
-
-          @if (stayGreen(); as stop) {
-            <div class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2.5">
-              <div>
-                <p class="text-xs font-semibold text-amber-900">{{ stop.label }}</p>
-                <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">
-                  Exit at {{ formatPrice(stop.price) }}
-                  <span class="ml-1 text-[11px] font-semibold" [class]="pnlClass(stop.movePerShare)">{{ signedMove(stop.movePerShare) }} / sh</span>
-                </p>
-              </div>
-              <button type="button" class="rounded-md px-2 py-1 text-[11px] font-semibold text-kairo-700 hover:bg-white" (click)="addPresetTarget(stop.goal)">Use</button>
-            </div>
-          }
-
-          <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5">
-            <p class="field-label mb-1.5">Profit exit</p>
-            <div class="flex flex-wrap items-end gap-2">
-              <label class="min-w-[8rem] flex-1 field-label">
-                Profit I want (net)
-                <input
-                  class="input-field mt-0.5 !py-2"
-                  type="number"
-                  inputmode="decimal"
-                  step="100"
-                  placeholder="5000"
-                  [(ngModel)]="draftProfit"
-                  (keydown)="onTargetKeydown($event)"
-                />
-              </label>
-              <label class="w-24 field-label">
-                Qty
-                <input
-                  class="input-field mt-0.5 !py-2"
-                  type="number"
-                  inputmode="numeric"
-                  min="1"
-                  step="1"
-                  [placeholder]="unallocatedQty() > 0 ? (unallocatedQty() | number) : 'all'"
-                  [(ngModel)]="draftTargetQty"
-                  (keydown)="onTargetKeydown($event)"
-                />
-              </label>
-              <button type="button" class="btn-secondary !px-3 !py-2 text-sm" (click)="addProfitTarget()">Add</button>
-            </div>
-            @if (profitExitPreview(); as preview) {
-              <p class="mt-2 text-sm text-slate-700">
-                Exit
-                <span class="font-bold tabular-nums text-slate-900">{{ preview.quantity | number }}</span>
-                at
-                <span class="font-bold tabular-nums text-slate-900">{{ formatPrice(preview.price) }}</span>
-                to make
-                <span class="font-semibold tabular-nums" [class]="pnlClass(preview.profit)">{{ formatCurrency(preview.profit) }}</span>
-                net
-                <span class="text-[11px] text-slate-500">
-                  · {{ signedMove(preview.movePerShare) }}/sh · {{ formatPctSigned(preview.movePct) }} · charges {{ formatPrice(preview.charges) }}
-                </span>
-              </p>
-            } @else {
-              <p class="mt-1.5 text-[11px] text-slate-500">
-                Enter profit for the still-open qty (or a slice). Add more exits and the next target price updates on leftover shares.
-              </p>
-            }
-          </div>
-        } @else if (!fullyClosed()) {
-          <div class="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center">
-            <p class="text-sm font-medium text-slate-700">No open quantity</p>
-            <p class="mt-1 text-xs text-slate-500">Add lots on the left, then a partial exit on the right.</p>
-          </div>
-        }
-
-        @if (targetError()) {
-          <p class="text-xs text-red-600">{{ targetError() }}</p>
-        }
-
-        @if (position() && unallocatedQty() !== 0) {
-          <p class="text-xs" [class.text-amber-600]="unallocatedQty() > 0" [class.text-red-600]="unallocatedQty() < 0">
-            Unallocated open qty: {{ unallocatedQty() | number }}
-          </p>
-        }
-
-        <div class="space-y-2">
-          @for (row of targetRows(); track row.target.id; let i = $index) {
-            <div class="target-row">
-              <div class="flex items-center justify-between gap-2">
-                <div class="flex items-baseline gap-2">
-                  <span class="rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">T{{ i + 1 }}</span>
-                  <input
-                    class="w-28 rounded-lg border border-slate-200 px-2 py-1 text-sm font-bold tabular-nums text-slate-900 focus:border-kairo-500 focus:outline-none"
-                    type="number"
-                    inputmode="decimal"
-                    min="0"
-                    step="0.05"
-                    [ngModel]="row.target.price || null"
-                    (ngModelChange)="setTargetPrice(row.target.id, $event)"
-                    aria-label="Target price"
-                  />
-                  @if (row.target.profitGoal != null) {
-                    <span class="text-[11px] font-semibold tabular-nums text-slate-500">{{ formatCurrency(row.target.profitGoal) }} goal</span>
-                  }
-                  @if (row.slice && row.slice.quantity > 0) {
-                    <span class="text-xs font-semibold tabular-nums" [class]="pnlClass(row.slice.movePct)">{{ formatPctSigned(row.slice.movePct) }}</span>
-                  }
-                </div>
-                <div class="flex items-center gap-1">
-                  <input
-                    class="qty-input"
-                    type="number"
-                    inputmode="numeric"
-                    min="0"
-                    step="1"
-                    [ngModel]="row.target.quantity || null"
-                    (ngModelChange)="setTargetQty(row.target.id, $event)"
-                    aria-label="Quantity to exit at this target"
-                  />
-                  <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-600" (click)="removeTarget(row.target.id)" aria-label="Remove target">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-              @if (row.slice && row.slice.quantity > 0 && row.slice.price > 0) {
-                <p class="mt-1.5 text-[11px] text-slate-500">
-                  {{ row.slice.quantity | number }} shares · {{ row.slice.sharePct | number: '1.0-0' }}% of open qty
-                </p>
-                <div class="mt-2 grid grid-cols-3 gap-2">
-                  <div class="target-metric">
-                    <p class="target-metric-label">Gross</p>
-                    <p class="target-metric-value" [class]="pnlClass(row.slice.grossPnL)">{{ formatCurrency(row.slice.grossPnL) }}</p>
-                  </div>
-                  <div class="target-metric">
-                    <p class="target-metric-label">Charges</p>
-                    <p class="target-metric-value text-red-600">−{{ formatPrice(row.slice.charges) }}</p>
-                  </div>
-                  <div class="target-metric bg-slate-900">
-                    <p class="target-metric-label !text-slate-400">Net</p>
-                    <p
-                      class="target-metric-value"
-                      [class.text-emerald-300]="row.slice.netPnL > 0"
-                      [class.text-red-300]="row.slice.netPnL < 0"
-                      [class.text-slate-200]="row.slice.netPnL === 0"
-                    >
-                      {{ formatCurrency(row.slice.netPnL) }}
-                    </p>
-                  </div>
-                </div>
-              }
-            </div>
-          }
-        </div>
-
-        @if (ladder(); as total) {
-          @if (total.allocatedQty > 0) {
-            <div class="rounded-xl border border-slate-900 bg-slate-900 p-3 text-white">
-              <div class="flex items-center justify-between">
-                <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Open ladder</p>
-                <p class="text-[11px] text-slate-400">
-                  {{ total.allocatedQty | number }} shares · avg exit {{ formatPrice(total.avgExitPrice) }}
-                </p>
-              </div>
-              <div class="mt-2 grid grid-cols-3 gap-2">
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Gross</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums">{{ formatCurrency(total.grossPnL) }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Charges</p>
-                  <p class="mt-0.5 text-sm font-bold tabular-nums text-red-300">−{{ formatPrice(total.charges) }}</p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net</p>
-                  <p
-                    class="mt-0.5 text-sm font-bold tabular-nums"
-                    [class.text-emerald-300]="total.netPnL > 0"
-                    [class.text-red-300]="total.netPnL < 0"
-                    [class.text-slate-200]="total.netPnL === 0"
-                  >
-                    {{ formatCurrency(total.netPnL) }}
-                  </p>
-                </div>
-              </div>
-            </div>
-          }
-        }
       </div>
 
       <div class="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-3">
@@ -513,9 +382,9 @@
     </div>
     <div class="space-y-3 text-sm text-slate-600">
       <p><span class="font-semibold text-slate-800">Trade name</span> is optional. Leave it blank to keep using the stock name on the tab and in the trade book.</p>
-      <p><span class="font-semibold text-slate-800">Lots</span> open the position. <span class="font-semibold text-slate-800">Custom exit</span> is a partial cover or book-out — remaining qty and FIFO average then drive the guide.</p>
-      <p><span class="font-semibold text-slate-800">Profit exit</span> solves the charge-aware price for the profit you want on a qty. Keep adding slices; leftover shares get a new target price.</p>
-      <p><span class="font-semibold text-slate-800">Booked net</span> is closed P&amp;L after charges. <span class="font-semibold text-slate-800">Stop to stay green</span> is the remaining exit that keeps the whole trade at least flat.</p>
+      <p><span class="font-semibold text-slate-800">Lots</span> open the position. <span class="font-semibold text-slate-800">Target profit</span> is the net you want after charges on the whole trade — no quantity to enter.</p>
+      <p><span class="font-semibold text-slate-800">Custom exit</span> is a partial cover or book-out. After each one, the yellow ribbon updates: stay-green stop and the remaining target price for leftover shares.</p>
+      <p><span class="font-semibold text-slate-800">Booked net</span> is closed P&amp;L after charges. <span class="font-semibold text-slate-800">Stop to stay green</span> keeps the whole trade at least flat. <span class="font-semibold text-slate-800">Target for remaining</span> is the charge-aware price that still hits your profit on what is left.</p>
       <p><span class="font-semibold text-slate-800">Fully closed</span> means buys and sells match. Add it to the trade book as a closed trade for today — it shows up in trade history with entry, exit, and net P&amp;L.</p>
     </div>
   </div>

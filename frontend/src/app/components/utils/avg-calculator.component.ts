@@ -2,14 +2,13 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { formatCurrency, formatPrice, formatPctSigned, formatDate, pnlClass } from '../../utils/format.utils';
+import { formatCurrency, formatPrice, formatDate, pnlClass } from '../../utils/format.utils';
 import {
   AvgFill,
   AvgPosition,
   AvgTarget,
   FillSide,
   createFill,
-  createTarget,
   fillsToExecutionLegs,
   openPosition,
   positionDirection,
@@ -45,6 +44,8 @@ interface StockPlan {
   fills: AvgFill[];
   exits: AvgFill[];
   targets: AvgTarget[];
+  /** Whole-trade net profit after charges. Remaining qty is always used. */
+  targetProfit?: number | null;
   historySavedAt?: number;
   updatedAt: number;
 }
@@ -63,6 +64,7 @@ function emptyPlan(partial?: Partial<StockPlan>): StockPlan {
     fills: [],
     exits: [],
     targets: [],
+    targetProfit: null,
     updatedAt: Date.now(),
     ...partial,
   };
@@ -84,6 +86,8 @@ function normalizePlan(raw: Partial<StockPlan> & { id?: string; markPrice?: numb
         }))
       : [],
     historySavedAt: raw.historySavedAt,
+    targetProfit:
+      raw.targetProfit != null && Number.isFinite(raw.targetProfit) ? raw.targetProfit : null,
     updatedAt: raw.updatedAt ?? Date.now(),
   });
 }
@@ -190,6 +194,7 @@ export class AvgCalculatorComponent {
   fills = signal<AvgFill[]>(this.activePlan().fills);
   exits = signal<AvgFill[]>(this.activePlan().exits);
   targets = signal<AvgTarget[]>(this.activePlan().targets);
+  targetProfit = signal<number | null>(this.activePlan().targetProfit ?? null);
   historySavedAt = signal<number | null>(this.activePlan().historySavedAt ?? null);
 
   draftSide = signal<FillSide>('buy');
@@ -198,8 +203,7 @@ export class AvgCalculatorComponent {
   draftQty = '';
   draftExitPrice = '';
   draftExitQty = '';
-  draftTargetQty = '';
-  draftProfit = '';
+  draftTargetProfit = this.activePlan().targetProfit != null ? String(this.activePlan().targetProfit) : '';
   helpOpen = signal(false);
   addError = signal<string | null>(null);
   exitError = signal<string | null>(null);
@@ -210,7 +214,6 @@ export class AvgCalculatorComponent {
 
   readonly formatCurrency = formatCurrency;
   readonly formatPrice = formatPrice;
-  readonly formatPctSigned = formatPctSigned;
   readonly pnlClass = pnlClass;
   readonly segmentLabels = CHARGE_SEGMENT_LABELS;
   readonly segments = CHARGE_SEGMENTS.filter((segment) => segment !== 'mtf');
@@ -224,30 +227,6 @@ export class AvgCalculatorComponent {
 
   book = computed(() => summarizeFills([...this.fills(), ...this.exits()]));
   position = computed(() => openPosition(this.book()));
-
-  ladder = computed(() => {
-    const position = this.position();
-    if (!position) return null;
-    return this.charges.ladder({
-      segment: this.segment(),
-      direction: positionDirection(position),
-      entryPrice: position.avgPrice,
-      totalQuantity: position.quantity,
-      slices: this.targets().map((target) => ({ quantity: target.quantity, price: target.price })),
-    });
-  });
-
-  targetRows = computed(() => {
-    const slices = this.ladder()?.slices ?? [];
-    return this.targets().map((target, i) => ({ target, slice: slices[i] ?? null }));
-  });
-
-  unallocatedQty = computed(() => {
-    const position = this.position();
-    if (!position) return 0;
-    const allocated = this.targets().reduce((sum, t) => sum + Math.max(0, t.quantity || 0), 0);
-    return position.quantity - allocated;
-  });
 
   breakeven = computed(() => {
     const position = this.position();
@@ -296,10 +275,23 @@ export class AvgCalculatorComponent {
     };
   });
 
+  remainingProfitGoal = computed(() => {
+    const goal = this.targetProfit();
+    if (goal == null) return null;
+    return goal - (this.bookedTrip()?.netPnL ?? 0);
+  });
+
+  remainingProfitExit = computed(() => {
+    const goal = this.remainingProfitGoal();
+    const position = this.position();
+    if (goal == null || !position) return null;
+    return this.solveProfitExit(goal, position.quantity);
+  });
+
   canAddToBook = computed(() => {
     if (!this.symbol().trim()) return false;
     if (this.fullyClosed()) return this.book().matchedQty > 0 && !this.historySavedAt();
-    return this.position() != null && this.targets().length > 0;
+    return this.position() != null;
   });
 
   addToBookHint = computed(() => {
@@ -307,7 +299,6 @@ export class AvgCalculatorComponent {
     if (!this.symbol().trim()) return 'Pick a stock first';
     if (this.fullyClosed() && this.historySavedAt()) return 'Already added as a closed trade';
     if (!this.position()) return 'Add lots to open a position';
-    if (!this.targets().length) return 'Add an exit target first';
     return null;
   });
 
@@ -459,6 +450,15 @@ export class AvgCalculatorComponent {
     this.persist();
   }
 
+  setTargetProfit(value: string | number | null): void {
+    const raw = value == null ? '' : String(value);
+    this.draftTargetProfit = raw;
+    const parsed = Number(raw);
+    this.targetProfit.set(Number.isFinite(parsed) && raw.trim() !== '' ? parsed : null);
+    this.targetError.set(null);
+    this.persist();
+  }
+
   private parseLot(
     priceRaw: string,
     qtyRaw: string,
@@ -485,49 +485,9 @@ export class AvgCalculatorComponent {
     return { price, quantity };
   }
 
-  private defaultSliceQty(): number {
-    const left = this.unallocatedQty();
-    return left > 0 ? left : 0;
-  }
-
-  addProfitTarget(): void {
-    const position = this.position();
-    if (!position) {
-      this.targetError.set('Add lots on the left, then optional partial exits');
-      return;
-    }
-    const goal = Number(this.draftProfit);
-    if (!Number.isFinite(goal) || goal <= 0) {
-      this.targetError.set('Enter the profit you are aiming for');
-      return;
-    }
-    if (this.addSolvedTarget(goal, Number(this.draftTargetQty))) {
-      this.draftProfit = '';
-      this.draftTargetQty = '';
-    }
-  }
-
-  addPresetTarget(profit: number): void {
-    this.addSolvedTarget(profit, this.defaultSliceQty());
-  }
-
-  profitExitPreview(): {
-    quantity: number;
-    price: number;
-    profit: number;
-    movePerShare: number;
-    movePct: number;
-    charges: number;
-  } | null {
-    const goal = Number(this.draftProfit);
-    if (!Number.isFinite(goal) || goal === 0) return null;
-    const solved = this.solveProfitExit(goal, Number(this.draftTargetQty));
-    return solved ? { ...solved, profit: goal } : null;
-  }
-
   private solveProfitExit(
     netProfit: number,
-    typedQty: number
+    quantity: number
   ): {
     quantity: number;
     price: number;
@@ -536,10 +496,7 @@ export class AvgCalculatorComponent {
     charges: number;
   } | null {
     const position = this.position();
-    if (!position) return null;
-    const quantity =
-      Number.isFinite(typedQty) && typedQty > 0 ? typedQty : this.defaultSliceQty();
-    if (quantity <= 0) return null;
+    if (!position || quantity <= 0) return null;
     const solved = this.charges.profitTarget({ ...this.tradeFor(position), quantity }, netProfit);
     if (!solved) return null;
     const roundDir =
@@ -553,82 +510,6 @@ export class AvgCalculatorComponent {
       movePct: solved.movePct,
       charges: solved.roundTrip.charges,
     };
-  }
-
-  private addSolvedTarget(netProfit: number, typedQty: number): boolean {
-    const position = this.position();
-    if (!position) {
-      this.targetError.set('Open quantity is zero after the exits you added');
-      return false;
-    }
-    const solved = this.solveProfitExit(netProfit, typedQty);
-    if (!solved) {
-      const quantity =
-        Number.isFinite(typedQty) && typedQty > 0 ? typedQty : this.defaultSliceQty();
-      this.targetError.set(
-        quantity <= 0
-          ? 'Nothing left to allocate — reduce an existing target first'
-          : 'That amount is not reachable at a valid price'
-      );
-      return false;
-    }
-
-    this.targetError.set(null);
-    this.targets.update((rows) => [
-      ...rows,
-      createTarget(solved.price, solved.quantity, netProfit),
-    ]);
-    this.persist();
-    return true;
-  }
-
-  setTargetQty(id: string, value: unknown): void {
-    const quantity = Number(value);
-    const nextQty = Number.isFinite(quantity) && quantity > 0 ? quantity : 0;
-    this.targets.update((rows) =>
-      rows.map((row) => {
-        if (row.id !== id) return row;
-        if (nextQty <= 0 || row.profitGoal == null) {
-          return { ...row, quantity: nextQty };
-        }
-        const solved = this.solveProfitExit(row.profitGoal, nextQty);
-        return solved
-          ? { ...row, quantity: solved.quantity, price: solved.price }
-          : { ...row, quantity: nextQty };
-      })
-    );
-    this.persist();
-  }
-
-  setTargetPrice(id: string, value: unknown): void {
-    const price = Number(value);
-    this.targets.update((rows) =>
-      rows.map((row) =>
-        row.id === id
-          ? {
-              ...row,
-              price: Number.isFinite(price) && price > 0 ? price : 0,
-              profitGoal: undefined,
-            }
-          : row
-      )
-    );
-    this.persist();
-  }
-
-  splitEvenly(): void {
-    const position = this.position();
-    const rows = this.targets();
-    if (!position || !rows.length) return;
-    const each = Math.floor(position.quantity / rows.length);
-    const remainder = position.quantity - each * rows.length;
-    this.targets.set(rows.map((row, i) => ({ ...row, quantity: each + (i < remainder ? 1 : 0) })));
-    this.persist();
-  }
-
-  removeTarget(id: string): void {
-    this.targets.update((rows) => rows.filter((row) => row.id !== id));
-    this.persist();
   }
 
   newPlan(): void {
@@ -667,6 +548,8 @@ export class AvgCalculatorComponent {
     this.fills.set(plan.fills);
     this.exits.set(plan.exits);
     this.targets.set(plan.targets.map((t) => ({ ...t, quantity: t.quantity ?? 0 })));
+    this.targetProfit.set(plan.targetProfit ?? null);
+    this.draftTargetProfit = plan.targetProfit != null ? String(plan.targetProfit) : '';
     this.historySavedAt.set(plan.historySavedAt ?? null);
     this.notice.set(null);
     this.targetError.set(null);
@@ -699,13 +582,14 @@ export class AvgCalculatorComponent {
     const position = this.position();
     const symbol = this.symbol().trim().toUpperCase();
     if (!position || !symbol) return;
-    const targets = this.targets()
-      .filter((target) => target.quantity > 0 && target.price > 0)
-      .map((target) => ({ quantity: target.quantity, price: target.price }));
-    if (!targets.length) {
-      this.notice.set('Add at least one target with a quantity and price');
+    const remaining = this.remainingProfitExit();
+    const stop = this.stayGreen();
+    const exitPrice = remaining?.price ?? stop?.price;
+    if (exitPrice == null) {
+      this.notice.set('Set a target profit, or add lots so a stay-green price can be solved');
       return;
     }
+    const targets = [{ quantity: position.quantity, price: exitPrice }];
 
     this.savingToBook.set(true);
     try {
@@ -788,7 +672,7 @@ export class AvgCalculatorComponent {
   onTargetKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter') {
       event.preventDefault();
-      this.addProfitTarget();
+      (event.target as HTMLInputElement | null)?.blur();
     }
   }
 
@@ -850,6 +734,7 @@ export class AvgCalculatorComponent {
       fills: this.fills(),
       exits: this.exits(),
       targets: this.targets(),
+      targetProfit: this.targetProfit(),
       historySavedAt: this.historySavedAt() ?? undefined,
       updatedAt: Date.now(),
     };
