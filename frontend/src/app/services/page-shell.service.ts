@@ -6,9 +6,15 @@ export class PageShellService {
   private readonly routeSubtitle = signal<string | null>(null);
   private readonly overrideTitle = signal<string | null>(null);
   private readonly overrideSubtitle = signal<string | null>(null);
+  /** When set, the top bar shows the reusable page-cache refresh control. */
+  readonly cachePageId = signal<string | null>(null);
 
   readonly title = computed(() => this.overrideTitle() ?? this.routeTitle());
   readonly subtitle = computed(() => this.overrideSubtitle() ?? this.routeSubtitle());
+
+  setCachePage(pageId: string | null): void {
+    this.cachePageId.set(pageId);
+  }
 
   setRouteHeader(title: string, subtitle?: string | null): void {
     this.routeTitle.set(title);

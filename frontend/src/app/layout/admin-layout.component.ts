@@ -10,6 +10,7 @@ import { NotificationService } from '../services/notification.service';
 import { ToastService } from '../services/toast.service';
 import { FilterUrlService } from '../services/filter-url.service';
 import { BrandLogoComponent } from '../components/shared/brand-logo/brand-logo.component';
+import { PageCacheRefreshButtonComponent } from '../components/shared/page-cache-refresh-button/page-cache-refresh-button.component';
 import { BRAND } from '../constants/brand';
 
 interface NavItem {
@@ -34,7 +35,7 @@ interface MobileNavItem {
 @Component({
   selector: 'app-admin-layout',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, BrandLogoComponent],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, BrandLogoComponent, PageCacheRefreshButtonComponent],
   templateUrl: './admin-layout.component.html',
 })
 export class AdminLayoutComponent implements OnInit, OnDestroy {

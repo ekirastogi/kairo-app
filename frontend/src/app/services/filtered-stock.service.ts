@@ -99,6 +99,14 @@ export class FilteredStockService {
     });
   }
 
+  /** Force the next filter effect to re-query (page refresh / cache clear). */
+  invalidate(): void {
+    this.lastQueryKey = '';
+    this.dateFiltered.set([]);
+    this.error.set(null);
+    this.loading.set(false);
+  }
+
   private async reloadFromTrades(
     clientCode: string,
     dateRange: { min: string; max: string },

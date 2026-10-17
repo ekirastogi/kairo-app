@@ -20,7 +20,15 @@ import { normalizeSymbol } from '../utils/upload-merge.utils';
 
 @Injectable({ providedIn: 'root' })
 export class AnalysisService {
+  /** Memo of full AnalysisResult by report + filter fingerprint (cleared on upload / refresh). */
+  private resultCache = new Map<string, AnalysisResult>();
+  private static readonly MAX_CACHED_RESULTS = 8;
+
   analyze(report: Report, opts: AnalysisOptions = {}): AnalysisResult {
+    const cacheKey = this.resultCacheKey(report, opts);
+    const hit = this.resultCache.get(cacheKey);
+    if (hit) return hit;
+
     const allTrades = report.trades ?? [];
     const stockSummary = report.stockSummary ?? [];
     const charges = report.charges ?? { items: [], total: 0 };
@@ -69,7 +77,7 @@ export class AnalysisService {
       return built;
     };
 
-    return {
+    const result: AnalysisResult = {
       summary,
       get daily() {
         return periodBuckets('daily');
@@ -89,6 +97,37 @@ export class AnalysisService {
         tradeTypes: opts.tradeTypes ?? [],
       },
     };
+    this.rememberResult(cacheKey, result);
+    return result;
+  }
+
+  /** Drop memoized analysis (page refresh / new upload). */
+  clearCache(): void {
+    this.resultCache.clear();
+  }
+
+  private rememberResult(key: string, result: AnalysisResult): void {
+    this.resultCache.set(key, result);
+    if (this.resultCache.size <= AnalysisService.MAX_CACHED_RESULTS) return;
+    const oldest = this.resultCache.keys().next().value;
+    if (oldest !== undefined) this.resultCache.delete(oldest);
+  }
+
+  private resultCacheKey(report: Report, opts: AnalysisOptions): string {
+    const types = [...(opts.tradeTypes ?? [])].map(String).sort().join(',');
+    return [
+      report.summary?.clientCode ?? '',
+      report.summary?.realisedPnL ?? '',
+      report.dateRange?.min ?? '',
+      report.dateRange?.max ?? '',
+      report.totalTradeCount ?? report.trades?.length ?? 0,
+      report.stockSummary?.length ?? 0,
+      report.dailyAnalytics?.length ?? 0,
+      report.tradesLoaded ? 1 : 0,
+      opts.startDate ?? '',
+      opts.endDate ?? '',
+      types,
+    ].join('|');
   }
 
   private filterTrades(trades: Trade[], opts: AnalysisOptions): Trade[] {

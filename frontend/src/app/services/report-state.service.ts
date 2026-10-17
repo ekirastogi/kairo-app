@@ -1,4 +1,4 @@
-import { Injectable, inject, signal, computed } from '@angular/core';
+import { Injectable, Injector, inject, signal, computed } from '@angular/core';
 import {
   AnalysisOptions,
   AnalysisResult,
@@ -7,13 +7,14 @@ import {
   ReportHistoryEntry,
   TradeType,
 } from '../models/trade.models';
-import { UI_CACHE_TTL_MS } from '../constants/cache.constants';
+import { REPORT_SESSION_CACHE_TTL_MS } from '../constants/cache.constants';
 import { AnalysisService } from './analysis.service';
 import { ParserService } from './parser.service';
 import { TradeLedgerService } from './trade-ledger.service';
 import { ClientAccountService } from './client-account.service';
 import { AuthService } from './auth.service';
 import { DateRangePresetId } from '../utils/date-range-preset.utils';
+import { ANALYTICS_PAGE_ID, UiPageCacheService } from './ui-page-cache.service';
 
 const MAX_REPORT_HISTORY = 5;
 const HISTORY_STORAGE_KEY = 'groww-pl-report-history';
@@ -57,6 +58,7 @@ export class ReportStateService {
   private ledger = inject(TradeLedgerService);
   private clientSvc = inject(ClientAccountService);
   private auth = inject(AuthService);
+  private injector = inject(Injector);
   private periodicRefreshStarted = false;
   private periodicRefreshTimer?: number;
   private tradesLoadPromise: Promise<void> | null = null;
@@ -343,6 +345,23 @@ export class ReportStateService {
         }
       }
     }
+    this.onReportDataChanged(prev, report);
+  }
+
+  /** New P&L file / different ledger snapshot — drop memoized analysis and UI tab cache. */
+  private onReportDataChanged(prev: Report | null, next: Report): void {
+    if (prev && reportFingerprint(prev) === reportFingerprint(next)) return;
+    this.analysisService.clearCache();
+    this.uiCache().invalidateAll();
+  }
+
+  private uiCache(): UiPageCacheService {
+    return this.injector.get(UiPageCacheService);
+  }
+
+  /** Drop the sessionStorage report snapshot so the next load hits the backend. */
+  clearFirebaseReportSessionCache(): void {
+    this.clearFirebaseReportCache();
   }
 
   applyFirebaseReport(report: Report): void {
@@ -400,6 +419,9 @@ export class ReportStateService {
     if (chartPeriod) this.chartPeriod.set(chartPeriod);
     if (topStocks) this.topStocksCount.set(topStocks);
     void options;
+    if (!sameDates || !sameTypes) {
+      this.uiCache().invalidatePage(ANALYTICS_PAGE_ID);
+    }
   }
 
   resetFilters(defaultTypes: TradeType[] = DEFAULT_TRADE_TYPES): void {
@@ -412,6 +434,7 @@ export class ReportStateService {
     this.selectedTradeTypes.set(defaultTypes);
     this.chartPeriod.set('daily');
     this.topStocksCount.set(10);
+    this.uiCache().invalidatePage(ANALYTICS_PAGE_ID);
   }
 
   clear(): void {
@@ -426,6 +449,8 @@ export class ReportStateService {
     this.reportHistory.set([]);
     this.saveHistoryToStorage([]);
     this.clearFirebaseReportCache();
+    this.analysisService.clearCache();
+    this.uiCache().invalidateAll();
   }
 
   private isValidReport(report: Report): boolean {
@@ -444,7 +469,7 @@ export class ReportStateService {
       const parsed = JSON.parse(raw) as CachedFirebaseReport | Report;
       const savedAt = 'savedAt' in parsed && typeof parsed.savedAt === 'number' ? parsed.savedAt : 0;
       const report = 'report' in parsed ? parsed.report : parsed;
-      if (!savedAt || Date.now() - savedAt > UI_CACHE_TTL_MS) {
+      if (!savedAt || Date.now() - savedAt > REPORT_SESSION_CACHE_TTL_MS) {
         sessionStorage.removeItem(firebaseReportCacheKey(uid, clientCode));
         return null;
       }

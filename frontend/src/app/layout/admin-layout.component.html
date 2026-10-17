@@ -112,6 +112,9 @@
               <app-brand-logo variant="dark" [compact]="true" [showTagline]="false" class="lg:hidden" />
             }
           </div>
+          @if (pageShell.cachePageId(); as cachePage) {
+            <app-page-cache-refresh-button class="shrink-0" [pageId]="cachePage" />
+          }
         </div>
       </header>
     }

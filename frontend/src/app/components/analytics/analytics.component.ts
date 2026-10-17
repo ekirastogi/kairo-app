@@ -93,6 +93,8 @@ import {
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
 import { WatchlistsComponent } from '../watchlists/watchlists.component';
 import { analysePnlTierSplit } from '../../utils/pnl-watchlist.utils';
+import { PageShellService } from '../../services/page-shell.service';
+import { ANALYTICS_PAGE_ID, UiPageCacheService } from '../../services/ui-page-cache.service';
 
 /** Calendar heatmap scope: every date, or only the days the market actually traded. */
 type CalendarSessionFilter = 'all' | 'open';
@@ -223,6 +225,8 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   readonly lazyTrades = inject(LazyTradeLoaderService);
   readonly customLists = inject(CustomStockListService);
   private analysisSvc = inject(AnalysisService);
+  private pageShell = inject(PageShellService);
+  private pageCache = inject(UiPageCacheService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private navSub?: Subscription;
@@ -273,7 +277,22 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   analysis = computed(() => this.state.analysis());
   chargeRatio = computed(() => this.analysis()?.summary.chargeRatio ?? 0);
 
+  /**
+   * Cache this tab the first time the user opens it for the current date/type window.
+   * Revisiting the same tab skips a chart rebuild until dates, upload, or Refresh data.
+   */
+  private readonly _cacheActiveTab = effect(() => {
+    const tab = this.activeTab();
+    this.pageCache.revision();
+    this.state.startDate();
+    this.state.endDate();
+    this.state.selectedTradeTypes();
+    this.state.report();
+    untracked(() => this.cacheTabVisit(tab));
+  }, { allowSignalWrites: true });
+
   async ngOnInit(): Promise<void> {
+    this.pageShell.setCachePage(ANALYTICS_PAGE_ID);
     this.syncTabFromUrl();
     this.navSub = this.router.events
       .pipe(filter((event) => event instanceof NavigationEnd))
@@ -287,6 +306,13 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.navSub?.unsubscribe();
+    this.pageShell.setCachePage(null);
+  }
+
+  private cacheTabVisit(tab: AnalyticsTab): void {
+    const visited = this.pageCache.hasVisited(ANALYTICS_PAGE_ID, tab);
+    this.pageCache.markVisited(ANALYTICS_PAGE_ID, tab);
+    if (!visited) this.chartVersion.update((v) => v + 1);
   }
 
   private syncDailyCalendarToLatest(): void {
@@ -352,7 +378,6 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
 
   setTab(tab: AnalyticsTab): void {
     this.activeTab.set(tab);
-    this.chartVersion.update((v) => v + 1);
     if (tab === 'stocks' || tab === 'tiers') {
       void this.customLists.ensureLoaded();
     }
