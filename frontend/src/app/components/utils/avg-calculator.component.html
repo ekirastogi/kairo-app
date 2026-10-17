@@ -272,55 +272,129 @@
           </div>
         }
 
-        @if (position()) {
-          <div class="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 sm:grid-cols-3">
-            <div>
-              <p class="field-label">Booked net</p>
-              <p class="text-base font-bold tabular-nums" [class]="bookedTrip() ? pnlClass(bookedTrip()!.netPnL) : 'text-slate-400'">
-                {{ bookedTrip() ? formatCurrency(bookedTrip()!.netPnL) : '—' }}
-              </p>
-            </div>
-            <div>
-              <p class="field-label">Open</p>
-              <p class="text-base font-bold tabular-nums text-slate-900">{{ position()!.quantity | number }}</p>
-              <p class="text-[11px] text-slate-500">at {{ formatPrice(position()!.avgPrice) }}</p>
-            </div>
-            <div class="col-span-2 sm:col-span-1">
-              <p class="field-label">Open breakeven</p>
-              <p class="text-base font-bold tabular-nums text-slate-900">
-                {{ breakeven() != null ? formatPrice(breakeven()!) : '—' }}
-              </p>
-            </div>
-          </div>
-
-          @if (stayGreen(); as stop) {
-            <div class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2.5">
+        @if (rightTab() === 'guide') {
+          @if (position()) {
+            <div class="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 sm:grid-cols-3">
               <div>
-                <p class="text-xs font-semibold text-amber-900">{{ stop.label }}</p>
-                <p class="mt-0.5 text-sm font-bold tabular-nums text-slate-900">
-                  Exit at {{ formatPrice(stop.price) }}
-                  <span class="ml-1 text-[11px] font-semibold" [class]="pnlClass(stop.movePerShare)">{{ signedMove(stop.movePerShare) }} / sh</span>
+                <p class="field-label">Booked net</p>
+                <p class="text-base font-bold tabular-nums" [class]="bookedTrip() ? pnlClass(bookedTrip()!.netPnL) : 'text-slate-400'">
+                  {{ bookedTrip() ? formatCurrency(bookedTrip()!.netPnL) : '—' }}
                 </p>
               </div>
-              <button type="button" class="rounded-md px-2 py-1 text-[11px] font-semibold text-kairo-700 hover:bg-white" (click)="addPresetTarget(stop.goal)">Use</button>
+              <div>
+                <p class="field-label">Open</p>
+                <p class="text-base font-bold tabular-nums text-slate-900">{{ position()!.quantity | number }}</p>
+                <p class="text-[11px] text-slate-500">at {{ formatPrice(position()!.avgPrice) }}</p>
+              </div>
+              <div class="col-span-2 sm:col-span-1">
+                <p class="field-label">Open breakeven</p>
+                <p class="text-base font-bold tabular-nums text-slate-900">
+                  {{ breakeven() != null ? formatPrice(breakeven()!) : '—' }}
+                </p>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto rounded-xl border border-slate-200">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  <tr>
+                    <th class="px-3 py-2">Goal</th>
+                    <th class="px-3 py-2">Exit at</th>
+                    <th class="px-3 py-2">Move / sh</th>
+                    <th class="px-3 py-2">Move %</th>
+                    <th class="px-3 py-2">Charges</th>
+                    <th class="px-3 py-2 text-right"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @if (stayGreen(); as stop) {
+                    <tr class="border-t border-slate-100 bg-amber-50/70">
+                      <td class="px-3 py-2 font-semibold text-amber-900">{{ stop.label }}</td>
+                      <td class="px-3 py-2 font-bold tabular-nums text-slate-900 whitespace-nowrap">
+                        {{ formatPrice(stop.price) }}
+                      </td>
+                      <td class="px-3 py-2 tabular-nums" [class]="pnlClass(stop.movePerShare)">{{ signedMove(stop.movePerShare) }}</td>
+                      <td class="px-3 py-2 tabular-nums" [class]="pnlClass(stop.movePct)">{{ formatPctSigned(stop.movePct) }}</td>
+                      <td class="px-3 py-2 tabular-nums text-red-600">{{ formatPrice(stop.charges) }}</td>
+                      <td class="px-2 py-2 text-right">
+                        <button type="button" class="rounded-md px-2 py-1 text-[11px] font-semibold text-kairo-700 hover:bg-kairo-50" (click)="addPresetTarget(stop.goal)">Use</button>
+                      </td>
+                    </tr>
+                  }
+                  @for (row of exitGuideRows(); track row.profit) {
+                    <tr class="border-t border-slate-100">
+                      <td class="px-3 py-2 font-semibold tabular-nums text-slate-800">+{{ formatCurrency(row.profit) }} more</td>
+                      <td class="px-3 py-2 font-bold tabular-nums text-slate-900 whitespace-nowrap">
+                        {{ row.price != null ? formatPrice(row.price) : '—' }}
+                      </td>
+                      <td class="px-3 py-2 tabular-nums" [class]="row.movePerShare != null ? pnlClass(row.movePerShare) : 'text-slate-400'">
+                        {{ signedMove(row.movePerShare) }}
+                      </td>
+                      <td class="px-3 py-2 tabular-nums" [class]="row.movePct != null ? pnlClass(row.movePct) : 'text-slate-400'">
+                        {{ row.movePct != null ? formatPctSigned(row.movePct) : '—' }}
+                      </td>
+                      <td class="px-3 py-2 tabular-nums text-red-600">
+                        {{ row.charges != null ? formatPrice(row.charges) : '—' }}
+                      </td>
+                      <td class="px-2 py-2 text-right">
+                        <button
+                          type="button"
+                          class="rounded-md px-2 py-1 text-[11px] font-semibold text-kairo-700 hover:bg-kairo-50"
+                          [disabled]="row.price == null"
+                          (click)="addPresetTarget(row.profit)"
+                        >
+                          Use
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else if (!fullyClosed()) {
+            <div class="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center">
+              <p class="text-sm font-medium text-slate-700">No open quantity</p>
+              <p class="mt-1 text-xs text-slate-500">Add lots on the left, then a partial exit on the right.</p>
             </div>
           }
+        }
 
+        @if (rightTab() === 'price' || rightTab() === 'profit') {
           <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5">
-            <p class="field-label mb-1.5">Profit exit</p>
-            <div class="flex flex-wrap items-end gap-2">
-              <label class="min-w-[8rem] flex-1 field-label">
-                Profit I want (net)
-                <input
-                  class="input-field mt-0.5 !py-2"
-                  type="number"
-                  inputmode="decimal"
-                  step="100"
-                  placeholder="5000"
-                  [(ngModel)]="draftProfit"
-                  (keydown)="onTargetKeydown($event)"
-                />
-              </label>
+            <div class="flex items-end gap-2">
+              @if (rightTab() === 'price') {
+                <label class="min-w-0 flex-1 field-label">
+                  Target price
+                  <input
+                    class="input-field mt-0.5 !py-2"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    step="0.05"
+                    placeholder="0.00"
+                    [(ngModel)]="draftTarget"
+                    (keydown)="onTargetKeydown($event)"
+                  />
+                </label>
+              } @else {
+                <label class="min-w-0 flex-1 field-label">
+                  Profit I want (net)
+                  <input
+                    class="input-field mt-0.5 !py-2"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    [step]="profitUnit() === 'pct' ? 0.5 : 100"
+                    [placeholder]="profitUnit() === 'pct' ? '2' : '5000'"
+                    [(ngModel)]="draftProfit"
+                    (keydown)="onTargetKeydown($event)"
+                  />
+                </label>
+                <div class="flex rounded-lg bg-white p-0.5 shadow-sm">
+                  <button type="button" class="mini-toggle" [class.mini-toggle-active]="profitUnit() === 'inr'" (click)="setProfitUnit('inr')">₹</button>
+                  <button type="button" class="mini-toggle" [class.mini-toggle-active]="profitUnit() === 'pct'" (click)="setProfitUnit('pct')">%</button>
+                </div>
+              }
               <label class="w-24 field-label">
                 Qty
                 <input
@@ -334,31 +408,8 @@
                   (keydown)="onTargetKeydown($event)"
                 />
               </label>
-              <button type="button" class="btn-secondary !px-3 !py-2 text-sm" (click)="addProfitTarget()">Add</button>
+              <button type="button" class="btn-secondary !px-3 !py-2 text-sm" (click)="submitTarget()">Add</button>
             </div>
-            @if (profitExitPreview(); as preview) {
-              <p class="mt-2 text-sm text-slate-700">
-                Exit
-                <span class="font-bold tabular-nums text-slate-900">{{ preview.quantity | number }}</span>
-                at
-                <span class="font-bold tabular-nums text-slate-900">{{ formatPrice(preview.price) }}</span>
-                to make
-                <span class="font-semibold tabular-nums" [class]="pnlClass(Number(draftProfit))">{{ formatCurrency(Number(draftProfit)) }}</span>
-                net
-                <span class="text-[11px] text-slate-500">
-                  · {{ signedMove(preview.movePerShare) }}/sh · {{ formatPctSigned(preview.movePct) }} · charges {{ formatPrice(preview.charges) }}
-                </span>
-              </p>
-            } @else {
-              <p class="mt-1.5 text-[11px] text-slate-500">
-                Enter profit for the still-open qty (or a slice). Add more exits and the next target price updates on leftover shares.
-              </p>
-            }
-          </div>
-        } @else if (!fullyClosed()) {
-          <div class="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center">
-            <p class="text-sm font-medium text-slate-700">No open quantity</p>
-            <p class="mt-1 text-xs text-slate-500">Add lots on the left, then a partial exit on the right.</p>
           </div>
         }
 
@@ -388,9 +439,6 @@
                     (ngModelChange)="setTargetPrice(row.target.id, $event)"
                     aria-label="Target price"
                   />
-                  @if (row.target.profitGoal != null) {
-                    <span class="text-[11px] font-semibold tabular-nums text-slate-500">{{ formatCurrency(row.target.profitGoal) }} goal</span>
-                  }
                   @if (row.slice && row.slice.quantity > 0) {
                     <span class="text-xs font-semibold tabular-nums" [class]="pnlClass(row.slice.movePct)">{{ formatPctSigned(row.slice.movePct) }}</span>
                   }
