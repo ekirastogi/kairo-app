@@ -82,8 +82,8 @@
           </div>
 
           @if (pnlTaxBreakdown(); as taxPnl) {
-            <details class="pnl-tax-accordion" open>
-              <summary>
+            <details class="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" open>
+              <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 marker:content-none group-open:border-b group-open:border-slate-100 [&::-webkit-details-marker]:hidden">
                 <div class="min-w-0">
                   <p class="text-sm font-semibold text-slate-900">P&amp;L details &amp; tax</p>
                   <p class="mt-0.5 text-xs text-slate-500">

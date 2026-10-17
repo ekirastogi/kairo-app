@@ -163,18 +163,6 @@ const ANALYTICS_TABS: AnalyticsTab[] = [
     .insight-card {
       @apply rounded-xl border border-slate-200 bg-white p-4 shadow-sm;
     }
-    .pnl-tax-accordion {
-      @apply overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm;
-    }
-    .pnl-tax-accordion > summary {
-      @apply flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3;
-    }
-    .pnl-tax-accordion > summary::-webkit-details-marker {
-      display: none;
-    }
-    .pnl-tax-accordion[open] > summary {
-      @apply border-b border-slate-100;
-    }
     .insight-card-best {
       @apply border-emerald-200 bg-emerald-50/40;
     }
