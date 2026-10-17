@@ -22,7 +22,6 @@ import { CustomStockListService } from '../../services/custom-stock-list.service
 import { AnalysisService } from '../../services/analysis.service';
 import { PeriodBucket, StockSummary, TRADE_TYPE_LABELS, Trade, TradeType } from '../../models/trade.models';
 import { formatCompactCurrency, formatCurrency, formatDate, formatPctSigned, pnlClass } from '../../utils/format.utils';
-import { INDIA_SLAB_RATE, buildPnLTaxBreakdown } from '../../utils/pnl-tax.utils';
 import { holdingsTotals } from '../../utils/holdings.utils';
 import { stockIdentityKey } from '../../utils/stock-identity.utils';
 import { effectiveAnalysisDateRange, isFullReportDateRange } from '../../utils/filter-stock-profiles.utils';
@@ -237,12 +236,6 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   readonly formatDate = formatDate;
   readonly formatPctSigned = formatPctSigned;
   readonly pnlClass = pnlClass;
-  readonly indiaSlabPct = Math.round(INDIA_SLAB_RATE * 100);
-  readonly taxRateCopy = {
-    slab: `${Math.round(INDIA_SLAB_RATE * 100)}% slab + 4% cess`,
-    stcg: '20% STCG + 4% cess',
-    ltcg: '12.5% LTCG + 4% cess after ₹1.25L',
-  };
   readonly tradeTypeLabels = TRADE_TYPE_LABELS;
   readonly tabs: { id: AnalyticsTab; label: string }[] = [
     { id: 'stocks', label: 'Stocks' },
@@ -288,11 +281,6 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
    * Cache this tab the first time the user opens it for the current date/type window.
    * Revisiting the same tab skips a chart rebuild until dates, upload, or Refresh data.
    */
-  private readonly _loadOverviewTrades = effect(() => {
-    if (this.activeTab() !== 'overview') return;
-    untracked(() => void this.state.ensureTradesLoaded());
-  });
-
   private readonly _cacheActiveTab = effect(() => {
     const tab = this.activeTab();
     this.pageCache.revision();
@@ -1648,15 +1636,6 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
         winTrades: 0,
         lossTrades: 0,
       };
-  });
-
-  pnlTaxBreakdown = computed(() => {
-    const trades = this.analysis()?.filteredTrades ?? [];
-    const dailyRows = filterDailyAnalytics(
-      this.state.report()?.dailyAnalytics ?? [],
-      this.state.analysisOptions()
-    );
-    return buildPnLTaxBreakdown(trades, this.chargeRatio(), dailyRows);
   });
 
   stockDayWinLossSummary = computed(() => {
