@@ -154,6 +154,10 @@ export class TradePlansComponent implements OnInit, OnDestroy {
   assignTargetDate = signal('');
   assignError = signal<string | null>(null);
   assignBusy = signal(false);
+  bulkEdit = signal(false);
+  selectedIds = signal<Set<string>>(new Set());
+  bulkBusy = signal(false);
+  bulkMessage = signal<string | null>(null);
   private hashChangeHandler = () => this.applyFromHash(false);
 
   upcomingTabs = computed(() =>
@@ -308,6 +312,19 @@ export class TradePlansComponent implements OnInit, OnDestroy {
     return `Carry forward ${preview.count} ${tradeWord} from ${dateLabel}`;
   });
 
+  visibleBulkTrades = computed(() =>
+    this.isOpenView() ? this.sortedOpenTrades() : this.sortedTrades()
+  );
+
+  selectedCount = computed(() => this.selectedIds().size);
+
+  allVisibleSelected = computed(() => {
+    const rows = this.visibleBulkTrades();
+    if (!rows.length) return false;
+    const selected = this.selectedIds();
+    return rows.every((t) => selected.has(t.id));
+  });
+
   constructor() {
     effect(() => {
       const date = this.tradeDate();
@@ -341,11 +358,13 @@ export class TradePlansComponent implements OnInit, OnDestroy {
       this.viewMode.set('open');
       this.calendarOpen.set(false);
       this.openPage.set(0);
+      this.clearBulkState();
       if (syncHash || legacyView === 'open') replaceTradePlanHash('open');
       return;
     }
 
     this.viewMode.set('date');
+    this.clearBulkState();
     const date = legacyDate || parsed.date;
     if (date) {
       this.tradeDate.set(normalizePlanViewDate(date));
@@ -357,6 +376,7 @@ export class TradePlansComponent implements OnInit, OnDestroy {
     this.viewMode.set('open');
     this.calendarOpen.set(false);
     this.openPage.set(0);
+    this.clearBulkState();
     if (syncRoute) replaceTradePlanHash('open');
   }
 
@@ -364,6 +384,7 @@ export class TradePlansComponent implements OnInit, OnDestroy {
     this.viewMode.set('date');
     this.setTradeDate(iso);
     this.calendarOpen.set(false);
+    this.clearBulkState();
   }
 
   onPastDatePick(value: string): void {
@@ -371,6 +392,7 @@ export class TradePlansComponent implements OnInit, OnDestroy {
     this.viewMode.set('date');
     this.setTradeDate(value);
     this.calendarOpen.set(false);
+    this.clearBulkState();
   }
 
   toggleCalendar(): void {
@@ -704,6 +726,90 @@ export class TradePlansComponent implements OnInit, OnDestroy {
   async removeTrade(id: string): Promise<void> {
     if (!confirm('Remove this planned trade?')) return;
     await this.planSvc.remove(id);
+  }
+
+  startBulkEdit(): void {
+    this.bulkEdit.set(true);
+    this.bulkMessage.set(null);
+    this.closeMenu();
+  }
+
+  exitBulkEdit(): void {
+    this.clearBulkState();
+  }
+
+  isSelected(id: string): boolean {
+    return this.selectedIds().has(id);
+  }
+
+  toggleSelect(id: string, event?: Event): void {
+    event?.stopPropagation();
+    this.selectedIds.update((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  toggleSelectAllVisible(): void {
+    const rows = this.visibleBulkTrades();
+    this.selectedIds.update((current) => {
+      const next = new Set(current);
+      if (rows.length && rows.every((t) => next.has(t.id))) {
+        for (const t of rows) next.delete(t.id);
+      } else {
+        for (const t of rows) next.add(t.id);
+      }
+      return next;
+    });
+  }
+
+  async deleteSelected(): Promise<void> {
+    const ids = [...this.selectedIds()];
+    if (!ids.length || this.bulkBusy()) return;
+    const tradeWord = ids.length === 1 ? 'trade' : 'trades';
+    if (!confirm(`Remove ${ids.length} selected ${tradeWord}? This cannot be undone.`)) return;
+    this.bulkBusy.set(true);
+    this.bulkMessage.set(null);
+    try {
+      const removed = await this.planSvc.removeMany(ids);
+      this.selectedIds.set(new Set());
+      this.bulkMessage.set(removed ? `Removed ${removed} ${removed === 1 ? 'trade' : 'trades'}` : 'No trades removed');
+    } catch (e) {
+      this.bulkMessage.set(e instanceof Error ? e.message : 'Failed to delete selected trades');
+    } finally {
+      this.bulkBusy.set(false);
+    }
+  }
+
+  async deleteAllInView(): Promise<void> {
+    if (this.bulkBusy()) return;
+    const count = this.isOpenView() ? this.openTradesTotal() : this.sortedTrades().length;
+    if (!count) return;
+    const scope = this.isOpenView() ? 'open trades' : `trades for ${this.dateHeading()}`;
+    if (!confirm(`Remove all ${count} ${scope}? This cannot be undone.`)) return;
+    this.bulkBusy.set(true);
+    this.bulkMessage.set(null);
+    try {
+      const removed = this.isOpenView()
+        ? await this.planSvc.removeAllOpen()
+        : await this.planSvc.removeAllForDate(this.tradeDate());
+      this.selectedIds.set(new Set());
+      this.bulkMessage.set(removed ? `Removed ${removed} ${removed === 1 ? 'trade' : 'trades'}` : 'No trades removed');
+      this.bulkEdit.set(false);
+    } catch (e) {
+      this.bulkMessage.set(e instanceof Error ? e.message : 'Failed to delete trades');
+    } finally {
+      this.bulkBusy.set(false);
+    }
+  }
+
+  private clearBulkState(): void {
+    this.bulkEdit.set(false);
+    this.selectedIds.set(new Set());
+    this.bulkMessage.set(null);
+    this.bulkBusy.set(false);
   }
 
   segmentLabel(t: PlannedTrade): string {

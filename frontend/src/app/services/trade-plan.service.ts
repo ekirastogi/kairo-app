@@ -874,14 +874,67 @@ export class TradePlanService {
   }
 
   async remove(id: string): Promise<void> {
+    await this.removeMany([id]);
+  }
+
+  async removeMany(ids: string[]): Promise<number> {
     const uid = await this.auth.getDataUserId();
     if (!uid) throw new Error('Sign in to delete trades');
+    const uniqueIds = [...new Set(ids.filter(Boolean))];
+    if (!uniqueIds.length) return 0;
+    const chunkSize = 100;
+    for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+      const chunk = uniqueIds.slice(i, i + chunkSize);
+      const { error } = await this.supabase.client
+        .from('planned_trades')
+        .delete()
+        .in('id', chunk)
+        .eq('user_id', uid);
+      if (error) throw error;
+    }
+    return uniqueIds.length;
+  }
+
+  async removeAllOpen(): Promise<number> {
+    const uid = await this.auth.getDataUserId();
+    if (!uid) throw new Error('Sign in to delete trades');
+    const { data, error: selectError } = await this.supabase.client
+      .from('planned_trades')
+      .select('id')
+      .eq('user_id', uid)
+      .eq('status', 'open')
+      .eq('trade_date', OPEN_TRADE_POOL_DATE);
+    if (selectError) throw selectError;
+    if (!data?.length) return 0;
     const { error } = await this.supabase.client
       .from('planned_trades')
       .delete()
-      .eq('id', id)
-      .eq('user_id', uid);
+      .eq('user_id', uid)
+      .eq('status', 'open')
+      .eq('trade_date', OPEN_TRADE_POOL_DATE);
     if (error) throw error;
+    return data.length;
+  }
+
+  async removeAllForDate(tradeDate: string): Promise<number> {
+    const uid = await this.auth.getDataUserId();
+    if (!uid) throw new Error('Sign in to delete trades');
+    const { data, error: selectError } = await this.supabase.client
+      .from('planned_trades')
+      .select('id')
+      .eq('user_id', uid)
+      .eq('trade_date', tradeDate)
+      .neq('status', 'open');
+    if (selectError) throw selectError;
+    if (!data?.length) return 0;
+    const { error } = await this.supabase.client
+      .from('planned_trades')
+      .delete()
+      .eq('user_id', uid)
+      .eq('trade_date', tradeDate)
+      .neq('status', 'open');
+    if (error) throw error;
+    return data.length;
   }
 
   async deleteAll(): Promise<number> {
