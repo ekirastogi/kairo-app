@@ -456,6 +456,36 @@ export class TradePlansComponent implements OnInit, OnDestroy {
     return TradePlanService.pctVsCmp(t.targetPrice, this.liveCmp(t));
   }
 
+  /** Planned price move from average entry to target, signed for longs/shorts. */
+  planMovePct(t: PlannedTrade): number | null {
+    return TradePlanService.exitPctVsEntry(t.entryPrice, t.targetPrice, t.segment, t.direction);
+  }
+
+  fillMovePct(t: PlannedTrade): number | null {
+    const summary = this.executionSummary(t);
+    if (!summary) return null;
+    return TradePlanService.exitPctVsEntry(
+      summary.avgBuyPrice,
+      summary.avgSellPrice,
+      t.segment,
+      t.direction
+    );
+  }
+
+  displayedMovePct(t: PlannedTrade): number | null {
+    if (t.status === 'executed') {
+      return this.fillMovePct(t) ?? this.planMovePct(t);
+    }
+    return this.planMovePct(t);
+  }
+
+  moveLabel(t: PlannedTrade): string {
+    if (t.status === 'executed' && this.fillMovePct(t) != null) {
+      return 'Fill move';
+    }
+    return `${this.entryLabel(t)} → ${this.exitLabel(t)}`;
+  }
+
   stopLossPnL(t: PlannedTrade): number | null {
     return TradePlanService.stopLossPnL(t);
   }
