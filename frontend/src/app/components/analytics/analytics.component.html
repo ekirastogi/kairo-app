@@ -81,6 +81,84 @@
             </div>
           </div>
 
+          @if (pnlTaxBreakdown(); as taxPnl) {
+            <details class="pnl-tax-accordion" open>
+              <summary>
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-slate-900">P&amp;L details &amp; tax</p>
+                  <p class="mt-0.5 text-xs text-slate-500">
+                    Intraday at {{ indiaSlabPct }}% slab + 4% cess · delivery at listed-equity STCG/LTCG rates
+                  </p>
+                </div>
+                <div class="shrink-0 text-right">
+                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">PAT</p>
+                  <p class="text-sm font-bold tabular-nums" [class]="pnlClass(taxPnl.pat)">
+                    {{ formatCurrency(taxPnl.pat) }}
+                  </p>
+                </div>
+              </summary>
+              <div class="space-y-4 px-4 py-4">
+                <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  <div class="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2.5">
+                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Profit intraday</p>
+                    <p class="mt-1 text-sm font-bold tabular-nums" [class]="pnlClass(taxPnl.intraday.profit)">
+                      {{ taxPnl.hasOutcomeSplit ? formatCurrency(taxPnl.intraday.profit) : '—' }}
+                    </p>
+                  </div>
+                  <div class="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2.5">
+                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Loss intraday</p>
+                    <p class="mt-1 text-sm font-bold tabular-nums" [class]="pnlClass(taxPnl.intraday.loss)">
+                      {{ taxPnl.hasOutcomeSplit ? formatCurrency(taxPnl.intraday.loss) : '—' }}
+                    </p>
+                  </div>
+                  <div class="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2.5">
+                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net P&amp;L intraday</p>
+                    <p class="mt-1 text-sm font-bold tabular-nums" [class]="pnlClass(taxPnl.intraday.net)">
+                      {{ formatCurrency(taxPnl.intraday.net) }}
+                    </p>
+                  </div>
+                  <div class="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2.5">
+                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Profit delivery</p>
+                    <p class="mt-1 text-sm font-bold tabular-nums" [class]="pnlClass(taxPnl.delivery.profit)">
+                      {{ taxPnl.hasOutcomeSplit ? formatCurrency(taxPnl.delivery.profit) : '—' }}
+                    </p>
+                  </div>
+                  <div class="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2.5">
+                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Loss delivery</p>
+                    <p class="mt-1 text-sm font-bold tabular-nums" [class]="pnlClass(taxPnl.delivery.loss)">
+                      {{ taxPnl.hasOutcomeSplit ? formatCurrency(taxPnl.delivery.loss) : '—' }}
+                    </p>
+                  </div>
+                  <div class="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2.5">
+                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net P&amp;L delivery</p>
+                    <p class="mt-1 text-sm font-bold tabular-nums" [class]="pnlClass(taxPnl.delivery.net)">
+                      {{ formatCurrency(taxPnl.delivery.net) }}
+                    </p>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  <div class="rounded-lg border border-amber-100 bg-amber-50/70 px-3 py-2.5">
+                    <p class="text-[10px] font-semibold uppercase tracking-wide text-amber-700/80">Total tax</p>
+                    <p class="mt-1 text-sm font-bold tabular-nums text-amber-800">
+                      {{ formatCurrency(taxPnl.tax) }}
+                    </p>
+                  </div>
+                  <div class="rounded-lg border border-indigo-100 bg-indigo-50/70 px-3 py-2.5 sm:col-span-2">
+                    <p class="text-[10px] font-semibold uppercase tracking-wide text-indigo-700/80">PAT</p>
+                    <p class="mt-1 text-sm font-bold tabular-nums" [class]="pnlClass(taxPnl.pat)">
+                      {{ formatCurrency(taxPnl.pat) }}
+                    </p>
+                  </div>
+                </div>
+                <p class="text-[11px] leading-relaxed text-slate-400">
+                  Estimate only. Intraday (incl. same-day) is treated as speculative income at the
+                  {{ indiaSlabPct }}% slab plus 4% cess. Delivery uses 20% STCG (under 12 months) or 12.5% LTCG
+                  after the ₹1.25L exemption. Losses in one bucket do not offset the other.
+                </p>
+              </div>
+            </details>
+          }
+
           @if (cumulativeExtremes(); as extremes) {
             <div class="insight-card">
               <div class="mb-1 flex flex-wrap items-end justify-between gap-2">

@@ -22,6 +22,7 @@ import { CustomStockListService } from '../../services/custom-stock-list.service
 import { AnalysisService } from '../../services/analysis.service';
 import { PeriodBucket, StockSummary, TRADE_TYPE_LABELS, Trade, TradeType } from '../../models/trade.models';
 import { formatCompactCurrency, formatCurrency, formatDate, formatPctSigned, pnlClass } from '../../utils/format.utils';
+import { INDIA_SLAB_RATE, buildPnLTaxBreakdown } from '../../utils/pnl-tax.utils';
 import { holdingsTotals } from '../../utils/holdings.utils';
 import { stockIdentityKey } from '../../utils/stock-identity.utils';
 import { effectiveAnalysisDateRange, isFullReportDateRange } from '../../utils/filter-stock-profiles.utils';
@@ -162,6 +163,18 @@ const ANALYTICS_TABS: AnalyticsTab[] = [
     .insight-card {
       @apply rounded-xl border border-slate-200 bg-white p-4 shadow-sm;
     }
+    .pnl-tax-accordion {
+      @apply overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm;
+    }
+    .pnl-tax-accordion > summary {
+      @apply flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3;
+    }
+    .pnl-tax-accordion > summary::-webkit-details-marker {
+      display: none;
+    }
+    .pnl-tax-accordion[open] > summary {
+      @apply border-b border-slate-100;
+    }
     .insight-card-best {
       @apply border-emerald-200 bg-emerald-50/40;
     }
@@ -236,6 +249,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   readonly formatDate = formatDate;
   readonly formatPctSigned = formatPctSigned;
   readonly pnlClass = pnlClass;
+  readonly indiaSlabPct = Math.round(INDIA_SLAB_RATE * 100);
   readonly tradeTypeLabels = TRADE_TYPE_LABELS;
   readonly tabs: { id: AnalyticsTab; label: string }[] = [
     { id: 'stocks', label: 'Stocks' },
@@ -1631,11 +1645,20 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     }
 
     return {
-      avgWinPerTrade: 0,
-      avgLossPerTrade: 0,
-      winTrades: 0,
-      lossTrades: 0,
-    };
+        avgWinPerTrade: 0,
+        avgLossPerTrade: 0,
+        winTrades: 0,
+        lossTrades: 0,
+      };
+  });
+
+  pnlTaxBreakdown = computed(() => {
+    const trades = this.analysis()?.filteredTrades ?? [];
+    const dailyRows = filterDailyAnalytics(
+      this.state.report()?.dailyAnalytics ?? [],
+      this.state.analysisOptions()
+    );
+    return buildPnLTaxBreakdown(trades, this.chargeRatio(), dailyRows);
   });
 
   stockDayWinLossSummary = computed(() => {
