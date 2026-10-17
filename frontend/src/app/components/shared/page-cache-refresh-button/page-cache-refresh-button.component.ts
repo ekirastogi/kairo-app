@@ -14,14 +14,15 @@ import { ToastService } from '../../../services/toast.service';
   template: `
     <button
       type="button"
-      class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 disabled:cursor-wait disabled:opacity-60"
+      class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 disabled:cursor-wait disabled:opacity-60"
       [disabled]="busy()"
       [attr.aria-busy]="busy()"
-      [title]="busy() ? 'Refreshing…' : 'Clear cached data for this page and reload'"
+      [attr.aria-label]="busy() ? 'Refreshing data' : 'Refresh data'"
+      [title]="busy() ? 'Refreshing…' : 'Refresh data'"
       (click)="refresh()"
     >
       <svg
-        class="h-3.5 w-3.5 shrink-0"
+        class="h-5 w-5 shrink-0"
         [class.animate-spin]="busy()"
         fill="none"
         stroke="currentColor"
@@ -35,7 +36,6 @@ import { ToastService } from '../../../services/toast.service';
           d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
         />
       </svg>
-      <span>{{ busy() ? 'Refreshing…' : label() }}</span>
     </button>
   `,
 })
@@ -45,7 +45,6 @@ export class PageCacheRefreshButtonComponent {
 
   /** Page cache namespace — defaults to the home Performance page. */
   pageId = input<string>(ANALYTICS_PAGE_ID);
-  label = input('Refresh data');
 
   readonly busy = computed(() => this.cache.refreshing() === this.pageId());
 
