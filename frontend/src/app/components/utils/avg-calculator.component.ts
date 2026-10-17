@@ -37,9 +37,13 @@ const LEGACY_PLANS_KEY = 'kairo-stock-plans-v1';
 const LEGACY_SHEETS_KEY = 'kairo-avg-sheets-v1';
 const LEGACY_STATE_KEY = 'kairo-avg-calculator-v2';
 
+type ProfitUnit = 'inr' | 'pct';
+type RightTab = 'guide' | 'price' | 'profit';
+
+const PROFIT_PRESETS = [1000, 5000, 10000, 25000, 50000] as const;
+
 interface StockPlan {
   id: string;
-  name: string;
   symbol: string;
   segment: ChargeSegment;
   fills: AvgFill[];
@@ -57,7 +61,6 @@ interface PlansStore {
 function emptyPlan(partial?: Partial<StockPlan>): StockPlan {
   return {
     id: crypto.randomUUID(),
-    name: '',
     symbol: '',
     segment: 'delivery',
     fills: [],
@@ -71,17 +74,12 @@ function emptyPlan(partial?: Partial<StockPlan>): StockPlan {
 function normalizePlan(raw: Partial<StockPlan> & { id?: string; markPrice?: number | null }): StockPlan {
   return emptyPlan({
     id: raw.id ?? crypto.randomUUID(),
-    name: raw.name ?? '',
     symbol: raw.symbol ?? '',
     segment: raw.segment ?? 'delivery',
     fills: Array.isArray(raw.fills) ? raw.fills : [],
     exits: Array.isArray(raw.exits) ? raw.exits : [],
     targets: Array.isArray(raw.targets)
-      ? raw.targets.map((t) => ({
-          ...t,
-          quantity: t.quantity ?? 0,
-          profitGoal: t.profitGoal,
-        }))
+      ? raw.targets.map((t) => ({ ...t, quantity: t.quantity ?? 0 }))
       : [],
     historySavedAt: raw.historySavedAt,
     updatedAt: raw.updatedAt ?? Date.now(),
@@ -178,7 +176,6 @@ export class AvgCalculatorComponent {
   }
 
   symbol = signal<string>(this.activePlan().symbol);
-  planName = signal<string>(this.activePlan().name);
   symbolQuery = signal<string>(this.activePlan().symbol);
   stockName = signal('');
   stockExchange = signal('');
@@ -198,8 +195,11 @@ export class AvgCalculatorComponent {
   draftQty = '';
   draftExitPrice = '';
   draftExitQty = '';
+  draftTarget = '';
   draftTargetQty = '';
   draftProfit = '';
+  rightTab = signal<RightTab>('guide');
+  profitUnit = signal<ProfitUnit>('inr');
   helpOpen = signal(false);
   addError = signal<string | null>(null);
   exitError = signal<string | null>(null);
@@ -214,6 +214,7 @@ export class AvgCalculatorComponent {
   readonly pnlClass = pnlClass;
   readonly segmentLabels = CHARGE_SEGMENT_LABELS;
   readonly segments = CHARGE_SEGMENTS.filter((segment) => segment !== 'mtf');
+  readonly profitPresets = PROFIT_PRESETS;
 
   stockHintName = computed(() => {
     const name = this.stockName();
@@ -296,6 +297,32 @@ export class AvgCalculatorComponent {
     };
   });
 
+  exitGuideRows = computed(() => {
+    const position = this.position();
+    if (!position) return [];
+    const trade = this.tradeFor(position);
+    const tick = position.side === 'buy' ? 'up' : 'down';
+    return PROFIT_PRESETS.map((profit) => {
+      const solved = this.charges.profitTarget(trade, profit);
+      if (!solved) {
+        return {
+          profit,
+          price: null as number | null,
+          movePerShare: null as number | null,
+          movePct: null as number | null,
+          charges: null as number | null,
+        };
+      }
+      return {
+        profit,
+        price: roundToTick(solved.targetPrice, tick),
+        movePerShare: solved.movePerShare,
+        movePct: solved.movePct,
+        charges: solved.roundTrip.charges,
+      };
+    });
+  });
+
   canAddToBook = computed(() => {
     if (!this.symbol().trim()) return false;
     if (this.fullyClosed()) return this.book().matchedQty > 0 && !this.historySavedAt();
@@ -326,20 +353,8 @@ export class AvgCalculatorComponent {
   }
 
   planLabel(plan: StockPlan): string {
-    const active = plan.id === this.planId();
-    const name = (active ? this.planName() : plan.name).trim();
-    if (name) return name;
-    const symbol = (active ? this.symbol() : plan.symbol).trim();
+    const symbol = plan.id === this.planId() ? this.symbol().trim() : plan.symbol.trim();
     return symbol || 'New plan';
-  }
-
-  setPlanName(value: string): void {
-    this.planName.set(value);
-    this.persist();
-  }
-
-  displayName(): string {
-    return this.planName().trim() || this.stockName().trim() || this.symbol().trim();
   }
 
   setSide(side: FillSide): void {
@@ -402,6 +417,15 @@ export class AvgCalculatorComponent {
     } finally {
       this.refreshBusy.set(false);
     }
+  }
+
+  setRightTab(tab: RightTab): void {
+    this.rightTab.set(tab);
+    this.targetError.set(null);
+  }
+
+  setProfitUnit(unit: ProfitUnit): void {
+    this.profitUnit.set(unit);
   }
 
   toggleHelp(): void {
