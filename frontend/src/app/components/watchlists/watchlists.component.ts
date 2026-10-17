@@ -18,9 +18,11 @@ import {
   PNL_WATCHLIST_TIERS,
   PnlTierMode,
   stockSummariesForPnlTier,
+  stocksForAnalyseBand,
   tierDisplayName,
   tierShortLabel,
 } from '../../utils/pnl-watchlist.utils';
+import { formatCurrency, pnlClass } from '../../utils/format.utils';
 import { normalizeSymbol } from '../../utils/upload-merge.utils';
 import { FILTER_QUERY_KEYS, readWatchlistFilters } from '../../utils/filter-url.utils';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
@@ -127,6 +129,9 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   stockFilterRules = signal<StockFilterRule[]>([]);
   scenarioPanelOpen = signal(false);
   analysePieLevel = signal<'all' | 'profit' | 'loss'>('all');
+  selectedAnalyseBand = signal<number | null>(null);
+  readonly formatCurrency = formatCurrency;
+  readonly pnlClass = pnlClass;
 
   bookStocks = computed((): StockSummary[] => this.filteredStocks.stocks());
 
@@ -306,6 +311,12 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     return buildAnalyseTierChartConfig(this.analyseProfitBuckets(), this.analyseLossBuckets());
   });
 
+  selectedAnalyseBandStocks = computed(() => {
+    const index = this.selectedAnalyseBand();
+    if (index == null || this.activeTab() !== 'analyse') return null;
+    return stocksForAnalyseBand(this.bookStocks(), index);
+  });
+
   analyseSplitTitle = computed(() => {
     const level = this.analysePieLevel();
     if (level === 'profit') return 'Profitable stocks vs losing';
@@ -339,6 +350,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     this.activeTab.set(tab);
     this.selectedAutoTierId.set(null);
     this.analysePieLevel.set('all');
+    this.selectedAnalyseBand.set(null);
     this.lazyTrades.clear();
     this.filterUrl.patchWatchlistQuery({
       [FILTER_QUERY_KEYS.side]: tab,
@@ -372,6 +384,10 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   stockSymbol(stock: StockSummary): string {
     return stock.symbol || normalizeSymbol(stock.stockName);
+  }
+
+  onAnalyseTierClick(index: number): void {
+    this.selectedAnalyseBand.update((current) => (current === index ? null : index));
   }
 
   onAnalysePieClick(index: number): void {

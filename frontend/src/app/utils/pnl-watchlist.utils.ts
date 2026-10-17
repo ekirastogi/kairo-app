@@ -198,6 +198,28 @@ function analyseBucketIndex(magnitude: number): number {
   return ANALYSE_PNL_CEILINGS.length;
 }
 
+/** Stocks in one Analyse histogram band (same index as the bar chart). */
+export function stocksForAnalyseBand(
+  summaries: StockSummary[],
+  bandIndex: number
+): { profit: StockSummary[]; loss: StockSummary[]; label: string } {
+  const labels = emptyAnalyseBuckets('profit');
+  const label = labels[bandIndex]?.label ?? '';
+  const profit: StockSummary[] = [];
+  const loss: StockSummary[] = [];
+  if (bandIndex < 0 || bandIndex >= labels.length) return { profit, loss, label };
+  for (const stock of summaries) {
+    if (stock.netPnL > 0 && analyseBucketIndex(stock.netPnL) === bandIndex) {
+      profit.push(stock);
+    } else if (stock.netPnL < 0 && analyseBucketIndex(Math.abs(stock.netPnL)) === bandIndex) {
+      loss.push(stock);
+    }
+  }
+  profit.sort((a, b) => b.netPnL - a.netPnL);
+  loss.sort((a, b) => a.netPnL - b.netPnL);
+  return { profit, loss, label };
+}
+
 /** One pass over stocks → profit and loss histogram buckets. */
 export function analysePnlTierSplit(summaries: StockSummary[]): {
   profit: PnlAnalyseBucket[];

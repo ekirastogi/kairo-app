@@ -78,8 +78,10 @@
             class="h-full"
             [config]="analyseTierChartConfig()"
             title="Stocks by P&amp;L tier"
-            subtitle="How many profitable vs losing stocks sit in each band"
+            subtitle="Click a band to list its stocks below"
+            [interactive]="true"
             emptyMessage="No stocks in this view"
+            (pointClick)="onAnalyseTierClick($event)"
           >
             <div chartHeader class="flex shrink-0 items-center gap-3 pt-0.5">
               <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
@@ -93,6 +95,73 @@
             </div>
           </app-chart-card>
         </div>
+
+        @if (selectedAnalyseBandStocks(); as band) {
+          <div class="card overflow-hidden">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+              <div>
+                <h3 class="text-sm font-semibold text-slate-900">{{ band.label }}</h3>
+                <p class="text-xs text-slate-500">
+                  {{ band.profit.length + band.loss.length }} stocks ·
+                  {{ band.profit.length }} profitable ·
+                  {{ band.loss.length }} losing
+                </p>
+              </div>
+              <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="selectedAnalyseBand.set(null)">
+                Close
+              </button>
+            </div>
+            <div class="grid h-[22rem] grid-cols-2 divide-x divide-slate-100">
+              <div class="flex min-h-0 min-w-0 flex-col">
+                <p class="shrink-0 border-b border-slate-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+                  Profitable ({{ band.profit.length }})
+                </p>
+                <div class="min-h-0 flex-1 overflow-y-auto">
+                  @for (stock of band.profit; track stock.isin || stock.symbol || stock.stockName) {
+                    <a
+                      class="flex items-center justify-between gap-2 border-b border-slate-50 px-3 py-2 hover:bg-emerald-50/60"
+                      [routerLink]="['/stock', stockSymbol(stock)]"
+                    >
+                      <span class="min-w-0">
+                        <span class="block truncate text-sm font-semibold text-slate-900">{{ stock.stockName }}</span>
+                        <span class="text-[11px] text-slate-400">{{ stockSymbol(stock) }} · {{ stock.tradeCount }}t</span>
+                      </span>
+                      <span class="shrink-0 text-sm font-semibold tabular-nums" [class]="pnlClass(stock.netPnL)">
+                        {{ formatCurrency(stock.netPnL) }}
+                      </span>
+                    </a>
+                  } @empty {
+                    <p class="px-3 py-6 text-center text-xs text-slate-500">No profitable stocks in this band</p>
+                  }
+                </div>
+              </div>
+              <div class="flex min-h-0 min-w-0 flex-col">
+                <p class="shrink-0 border-b border-slate-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-red-700">
+                  Losing ({{ band.loss.length }})
+                </p>
+                <div class="min-h-0 flex-1 overflow-y-auto">
+                  @for (stock of band.loss; track stock.isin || stock.symbol || stock.stockName) {
+                    <a
+                      class="flex items-center justify-between gap-2 border-b border-slate-50 px-3 py-2 hover:bg-red-50/60"
+                      [routerLink]="['/stock', stockSymbol(stock)]"
+                    >
+                      <span class="min-w-0">
+                        <span class="block truncate text-sm font-semibold text-slate-900">{{ stock.stockName }}</span>
+                        <span class="text-[11px] text-slate-400">{{ stockSymbol(stock) }} · {{ stock.tradeCount }}t</span>
+                      </span>
+                      <span class="shrink-0 text-sm font-semibold tabular-nums" [class]="pnlClass(stock.netPnL)">
+                        {{ formatCurrency(stock.netPnL) }}
+                      </span>
+                    </a>
+                  } @empty {
+                    <p class="px-3 py-6 text-center text-xs text-slate-500">No losing stocks in this band</p>
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        }
+
         <div class="h-[260px] min-h-0 min-w-0 sm:h-[300px]">
           <app-chart-card
             class="h-full"
