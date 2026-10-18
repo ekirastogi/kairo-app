@@ -6,11 +6,13 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { combineLatest, distinctUntilChanged, from, map, switchMap } from 'rxjs';
 import { ExecutionLeg, RegistryStock, TradeSegment } from '../../models/trading-journal.models';
 import { ChargesService } from '../../services/charges.service';
+import { MarketQuoteService } from '../../services/market-quote.service';
 import { PriceTracker, PriceTrackerService } from '../../services/price-tracker.service';
 import { RegistryStockService } from '../../services/registry-stock.service';
 import { ScreenerService, ScreenerSnapshot } from '../../services/screener.service';
 import { ToastService } from '../../services/toast.service';
 import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
+import { formatDataAge } from '../../utils/data-age.utils';
 import { formatCurrency, formatPctSigned, formatPrice, pnlClass } from '../../utils/format.utils';
 import {
   allocateTrackerSlices,
@@ -28,6 +30,21 @@ import {
 
 const DEFAULT_QTY = 1000;
 const TARGET_PCT = 0.01;
+const CMP_STALE_MS = 30 * 60 * 1000;
+const REFRESH_WINDOWS = [
+  { id: '30m', label: '30 min', ms: 30 * 60 * 1000 },
+  { id: '1h', label: '1 hour', ms: 60 * 60 * 1000 },
+  { id: '4h', label: '4 hours', ms: 4 * 60 * 60 * 1000 },
+  { id: '1d', label: '1 day', ms: 24 * 60 * 60 * 1000 },
+] as const;
+
+interface RefreshCandidate {
+  symbol: string;
+  name: string;
+  isin?: string;
+  ageMs: number | null;
+  ageLabel: string;
+}
 
 type Side = 'Long' | 'Short';
 type SideKey = 'short' | 'long';
@@ -75,15 +92,13 @@ interface BookRow extends PriceTracker {
   styles: `
     :host { display: block; width: 100%; }
     .tb-input { font-variant-numeric: tabular-nums; }
-    .plan-blotter .col-next { width: 16%; }
-    .plan-blotter .col-qty { width: 10%; }
-    .plan-blotter .col-action { width: 12%; }
   `,
 })
 export class TradeBookComponent {
   private trackerSvc = inject(PriceTrackerService);
   private registrySvc = inject(RegistryStockService);
   private screener = inject(ScreenerService);
+  private quotes = inject(MarketQuoteService);
   private toast = inject(ToastService);
   private charges = inject(ChargesService);
 
@@ -113,8 +128,11 @@ export class TradeBookComponent {
   bulkOpen = signal(false);
   busy = signal(false);
   screenerBusy = signal(false);
-  screenerDone = signal(0);
-  screenerTotal = signal(0);
+  refreshBusy = signal(false);
+  refreshPickerOpen = signal(false);
+  refreshPreset = signal('30m');
+  refreshSelection = signal<string[]>([]);
+  readonly refreshWindows = REFRESH_WINDOWS;
   searchQuery = signal('');
   editingId = signal<string | null>(null);
   editQty = '';
@@ -159,6 +177,26 @@ export class TradeBookComponent {
     return rows.every((row) => selected.has(row.id));
   });
   triggerCount = computed(() => this.rows().filter((row) => row.triggerHit).length);
+
+  refreshCandidates = computed((): RefreshCandidate[] => {
+    const now = Date.now();
+    const bySymbol = new Map<string, { symbol: string; name: string; isin?: string }>();
+    for (const plan of this.plans()) {
+      const symbol = plan.symbol.trim().toUpperCase();
+      if (!symbol || bySymbol.has(symbol)) continue;
+      bySymbol.set(symbol, { symbol, name: plan.stockName || symbol, isin: plan.isin });
+    }
+    return [...bySymbol.values()]
+      .map((plan) => {
+        const at = this.liveCmpAt(plan);
+        return {
+          ...plan,
+          ageMs: at != null ? Math.max(0, now - at) : null,
+          ageLabel: formatDataAge(at),
+        };
+      })
+      .sort((a, b) => (b.ageMs ?? Number.POSITIVE_INFINITY) - (a.ageMs ?? Number.POSITIVE_INFINITY));
+  });
 
   cardReady(card: DraftCard): boolean {
     return this.parsedLines(card).length > 0;
@@ -269,11 +307,14 @@ export class TradeBookComponent {
   }
 
   rowClass(row: BookRow): string {
-    const parts = ['plan-row'];
-    if (row.triggerHit) parts.push('plan-row-trigger');
-    else if (row.proximity === 'hot') parts.push('plan-row-hot');
-    else if (row.proximity === 'near') parts.push('plan-row-near');
-    return parts.join(' ');
+    if (row.triggerHit) return 'plan-row-trigger';
+    if (row.proximity === 'hot') return 'plan-row-hot';
+    if (row.proximity === 'near') return 'plan-row-near';
+    return '';
+  }
+
+  isLong(action: string): boolean {
+    return this.displayAction(action) === 'Long';
   }
 
   proximityClass(row: BookRow): string {
@@ -323,8 +364,57 @@ export class TradeBookComponent {
   }
 
   toggleBulk(): void {
+    this.refreshPickerOpen.set(false);
     this.bulkOpen.update((open) => !open);
     if (!this.bulkOpen()) this.selectedIds.set(new Set());
+  }
+
+  openRefreshPicker(): void {
+    if (this.refreshBusy() || this.screenerBusy()) return;
+    if (this.refreshPickerOpen()) {
+      this.refreshPickerOpen.set(false);
+      return;
+    }
+    this.bulkOpen.set(false);
+    this.selectRefreshOlderThan(CMP_STALE_MS, '30m');
+    this.refreshPickerOpen.set(true);
+  }
+
+  selectAllRefresh(): void {
+    this.refreshPreset.set('all');
+    this.refreshSelection.set(this.refreshCandidates().map((row) => row.symbol));
+  }
+
+  clearRefresh(): void {
+    this.refreshPreset.set('none');
+    this.refreshSelection.set([]);
+  }
+
+  selectRefreshOlderThan(ms: number, preset: string): void {
+    this.refreshPreset.set(preset);
+    this.refreshSelection.set(
+      this.refreshCandidates()
+        .filter((row) => row.ageMs == null || row.ageMs >= ms)
+        .map((row) => row.symbol)
+    );
+  }
+
+  isRefreshSelected(symbol: string): boolean {
+    return this.refreshSelection().includes(symbol);
+  }
+
+  toggleRefresh(symbol: string): void {
+    this.refreshPreset.set('custom');
+    this.refreshSelection.update((current) =>
+      current.includes(symbol) ? current.filter((item) => item !== symbol) : [...current, symbol]
+    );
+  }
+
+  confirmRefresh(): void {
+    const symbols = this.refreshSelection();
+    if (!symbols.length || this.refreshBusy()) return;
+    this.refreshPickerOpen.set(false);
+    void this.refreshCmp(symbols);
   }
 
   toggleSelect(id: string): void {
@@ -389,18 +479,7 @@ export class TradeBookComponent {
       this.toast.error('Pick a stock first');
       return;
     }
-    await this.refreshSymbols([stock.symbol]);
-  }
-
-  async refreshSelectedScreener(): Promise<void> {
-    const selected = this.selectedIds();
-    const rows = selected.size ? this.rows().filter((row) => selected.has(row.id)) : this.rows();
-    const symbols = [...new Set(rows.map((row) => row.symbol.trim().toUpperCase()).filter(Boolean))];
-    if (!symbols.length) {
-      this.toast.error('No stocks to refresh');
-      return;
-    }
-    await this.refreshSymbols(symbols);
+    await this.refreshScreenerStocks([stock.symbol]);
   }
 
   nextLevelsLabel(prices: number[]): string {
@@ -466,16 +545,56 @@ export class TradeBookComponent {
     return listed;
   }
 
-  private async refreshSymbols(symbols: string[]): Promise<void> {
-    if (this.screenerBusy()) return;
-    this.screenerBusy.set(true);
-    this.screenerDone.set(0);
-    this.screenerTotal.set(symbols.length);
+  private async refreshCmp(symbols: string[]): Promise<void> {
+    if (!symbols.length || this.refreshBusy()) return;
+    this.refreshBusy.set(true);
     const failed: string[] = [];
     let updated = 0;
     try {
-      for (const [index, symbol] of symbols.entries()) {
-        this.screenerDone.set(index);
+      for (const symbol of symbols) {
+        const plan = this.plans().find((row) => row.symbol.trim().toUpperCase() === symbol);
+        const registry = this.registryFor(plan ?? { symbol });
+        if (!registry) {
+          failed.push(symbol);
+          continue;
+        }
+        try {
+          const quote = await this.quotes.quote(symbol, {
+            isin: plan?.isin || registry.isin,
+            name: plan?.stockName || registry.name,
+          });
+          const next: RegistryStock = {
+            ...registry,
+            currentPrice: quote.price,
+            updatedAt: quote.fetchedAt || Date.now(),
+          };
+          await this.registrySvc.save(next);
+          this.refreshedRegistry.update((rows) => [...rows.filter((row) => row.symbol !== next.symbol), next]);
+          updated += 1;
+        } catch {
+          failed.push(symbol);
+        }
+      }
+      this.registrySvc.reload();
+      this.planRegistryTick.update((n) => n + 1);
+      const failNote = failed.length
+        ? ` ${failed.length} failed: ${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}.`
+        : '';
+      const message = `Refreshed CMP for ${updated} stock${updated === 1 ? '' : 's'}.${failNote}`;
+      if (failed.length) this.toast.error(message);
+      else this.toast.success(message);
+    } finally {
+      this.refreshBusy.set(false);
+    }
+  }
+
+  private async refreshScreenerStocks(symbols: string[]): Promise<void> {
+    if (this.screenerBusy()) return;
+    this.screenerBusy.set(true);
+    const failed: string[] = [];
+    let updated = 0;
+    try {
+      for (const symbol of symbols) {
         try {
           const existing = await this.registrySvc.getBySymbol(symbol);
           const data = await this.screener.fetchStock(symbol, {
@@ -502,8 +621,6 @@ export class TradeBookComponent {
       else this.toast.success(message);
     } finally {
       this.screenerBusy.set(false);
-      this.screenerDone.set(0);
-      this.screenerTotal.set(0);
     }
   }
 
@@ -640,13 +757,22 @@ export class TradeBookComponent {
     }).netPnL;
   }
 
-  private liveCmp(plan: { symbol: string; isin?: string }): number | undefined {
+  private registryFor(plan: { symbol: string; isin?: string }): RegistryStock | undefined {
     const symbol = plan.symbol.trim().toUpperCase();
-    const stock =
+    return (
       this.refreshedRegistry().find((row) => row.symbol.toUpperCase() === symbol) ??
-      this.planRegistry().find((row) => row.symbol.toUpperCase() === symbol);
-    const price = stock?.currentPrice;
+      this.planRegistry().find((row) => row.symbol.toUpperCase() === symbol)
+    );
+  }
+
+  private liveCmp(plan: { symbol: string; isin?: string }): number | undefined {
+    const price = this.registryFor(plan)?.currentPrice;
     return price != null && price > 0 ? price : undefined;
+  }
+
+  private liveCmpAt(plan: { symbol: string; isin?: string }): number | undefined {
+    const at = this.registryFor(plan)?.updatedAt;
+    return at != null && at > 0 ? at : undefined;
   }
 
   private patchCard(key: number, patch: Partial<DraftCard>): void {

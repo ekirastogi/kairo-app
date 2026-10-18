@@ -28,15 +28,16 @@
     </button>
     <button
       type="button"
-      class="plan-tool-btn"
-      (click)="refreshSelectedScreener()"
-      [disabled]="screenerBusy() || busy() || !rows().length"
+      class="plan-tool-btn plan-icon-btn"
+      [class.plan-tool-btn-on]="refreshPickerOpen()"
+      (click)="openRefreshPicker()"
+      [disabled]="refreshBusy() || screenerBusy() || busy() || !refreshCandidates().length"
+      aria-label="Refresh CMP"
+      title="Refresh CMP"
     >
-      @if (screenerBusy()) {
-        Screener {{ screenerDone() + 1 }}/{{ screenerTotal() }}
-      } @else {
-        Screener
-      }
+      <svg class="h-4 w-4" [class.animate-spin]="refreshBusy()" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V2.929a.75.75 0 00-1.5 0V5.36l-.31-.31a7 7 0 00-11.712 3.138.75.75 0 101.45.388A5.5 5.5 0 0113.89 6.11l.311.31h-2.432a.75.75 0 000 1.5h4.243a.75.75 0 00.53-.219z" clip-rule="evenodd" />
+      </svg>
     </button>
     <button type="button" class="plan-tool-btn plan-tool-btn-primary" (click)="addCard()" [disabled]="busy()">
       Add plan
@@ -60,6 +61,56 @@
         Delete all ({{ rows().length }})
       </button>
     </div>
+  }
+
+  @if (refreshPickerOpen()) {
+    <section class="plan-refresh">
+      <header class="plan-refresh-head">
+        <h2>Refresh CMP</h2>
+        <button type="button" class="plan-link" (click)="refreshPickerOpen.set(false)">Close</button>
+      </header>
+      <div class="plan-refresh-actions">
+        <button type="button" class="plan-refresh-chip" [class.plan-refresh-chip-on]="refreshPreset() === 'all'" (click)="selectAllRefresh()">Select all</button>
+        <button type="button" class="plan-refresh-chip" [class.plan-refresh-chip-on]="refreshPreset() === 'none'" (click)="clearRefresh()">Deselect all</button>
+        @for (window of refreshWindows; track window.id) {
+          <button
+            type="button"
+            class="plan-refresh-chip"
+            [class.plan-refresh-chip-on]="refreshPreset() === window.id"
+            (click)="selectRefreshOlderThan(window.ms, window.id)"
+          >Older than {{ window.label }}</button>
+        }
+      </div>
+      <ul class="plan-refresh-list">
+        @for (stock of refreshCandidates(); track stock.symbol) {
+          <li>
+            <label class="plan-refresh-row">
+              <input
+                type="checkbox"
+                [checked]="isRefreshSelected(stock.symbol)"
+                (change)="toggleRefresh(stock.symbol)"
+              />
+              <span class="sym">{{ stock.symbol }}</span>
+              <span class="name">{{ stock.name }}</span>
+              <span class="age">{{ stock.ageLabel }}</span>
+            </label>
+          </li>
+        } @empty {
+          <li class="plan-refresh-empty">No open plans to refresh.</li>
+        }
+      </ul>
+      <footer class="plan-refresh-foot">
+        <button
+          type="button"
+          class="plan-tool-btn plan-tool-btn-primary"
+          [disabled]="refreshBusy() || !refreshSelection().length"
+          (click)="confirmRefresh()"
+        >
+          Refresh {{ refreshSelection().length || '' }}
+        </button>
+        <button type="button" class="plan-link" (click)="refreshPickerOpen.set(false)">Cancel</button>
+      </footer>
+    </section>
   }
 
   @if (cards().length) {
@@ -243,109 +294,86 @@
     </div>
   }
 
-  <div class="plan-list">
-    <table class="plan-blotter">
-      <thead>
-        <tr>
-          @if (bulkOpen()) {
-            <th class="w-8"></th>
-          }
-          <th class="col-stock">Stock</th>
-          <th class="num col-pair">
-            <span class="pair-head"><span>CMP</span><span class="pair-sub">Trigger</span></span>
-          </th>
-          <th class="num col-diff">Dist.</th>
-          <th class="col-next">Follow-up</th>
-          <th class="num col-qty">Qty</th>
-          <th class="num col-pair">
-            <span class="pair-head"><span>Target</span><span class="pair-sub">Move</span></span>
-          </th>
-          <th class="desk num col-net">Profit</th>
-          <th class="col-action"></th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (row of rows(); track row.id) {
-          <tr [class]="rowClass(row)">
-            @if (bulkOpen()) {
-              <td class="w-8">
-                <input type="checkbox" class="h-4 w-4 rounded border-slate-300" [checked]="selectedIds().has(row.id)" (change)="toggleSelect(row.id)" />
-              </td>
-            }
-            <td class="stock col-stock">
-              <span class="stock-id">
-                <a class="sym" [routerLink]="['/stock', row.symbol]">{{ row.symbol }}</a>
-                <span class="stock-tags">
-                  <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
-                  @if (row.triggerHit) {
-                    <span class="side side-trigger">Hit</span>
-                  }
-                </span>
-              </span>
-              <span class="name">{{ row.stockName || row.symbol }}</span>
-            </td>
-            <td class="num col-pair" [class.text-cyan-800]="row.triggerHit">
-              <span class="pair">
-                <span class="pair-main">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</span>
-                <span class="pair-sub" [class.text-cyan-700]="row.triggerHit">{{ formatPrice(row.targetPrice) }}</span>
-              </span>
-            </td>
-            <td class="num col-diff">
-              @if (row.diffPct != null) {
-                <span [class]="proximityClass(row)">{{ formatPctSigned(row.diffPct) }}</span>
-              } @else {
-                <span class="mute">—</span>
+  <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    @if (!rows().length) {
+      <p class="px-4 py-10 text-center text-sm text-slate-400">No working orders. Click Add plan to create one.</p>
+    } @else {
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-left text-sm">
+          <thead class="bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            <tr>
+              @if (bulkOpen()) {
+                <th class="w-10 px-3 py-2"></th>
               }
-            </td>
-            <td class="col-next">
-              <span class="text-[11px] text-slate-500">{{ nextLevelsLabel(row.nextTargets) }}</span>
-            </td>
-            <td class="num col-qty">
-              @if (editingId() === row.id) {
-                <input
-                  class="input-field !w-20 !px-1.5 !py-1 text-right font-mono text-xs"
-                  type="number"
-                  min="1"
-                  [(ngModel)]="editQty"
-                  (click)="$event.stopPropagation()"
-                />
-              } @else {
-                <span class="tabular-nums">{{ row.quantity || defaultQty }}</span>
-              }
-            </td>
-            <td class="num col-pair">
-              <span class="pair">
-                <span class="pair-main">{{ exitLabel(row) }}</span>
-                @if (row.triggerMovePct != null) {
-                  <span class="pair-sub font-medium" [class]="pnlClass(row.triggerMovePct)">
-                    {{ formatPctSigned(row.triggerMovePct) }} {{ row.moveKind }}
-                  </span>
+              <th class="px-3 py-2">Symbol</th>
+              <th class="px-3 py-2">Side</th>
+              <th class="px-3 py-2 text-right">Trigger</th>
+              <th class="px-3 py-2">Follow-up</th>
+              <th class="px-3 py-2 text-right">Target</th>
+              <th class="px-3 py-2 text-right">Qty</th>
+              <th class="px-3 py-2 text-right">Profit</th>
+              <th class="px-3 py-2">Book</th>
+              <th class="px-3 py-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.id) {
+              <tr class="border-t border-slate-100" [ngClass]="rowClass(row)">
+                @if (bulkOpen()) {
+                  <td class="px-3 py-2">
+                    <input type="checkbox" [checked]="selectedIds().has(row.id)" (change)="toggleSelect(row.id)" />
+                  </td>
                 }
-              </span>
-            </td>
-            <td class="desk num col-net">
-              @if (row.targetProfit != null) {
-                <span class="font-semibold" [class]="pnlClass(row.targetProfit)">{{ formatCurrency(row.targetProfit) }}</span>
-              } @else {
-                <span class="mute">—</span>
-              }
-            </td>
-            <td class="col-action text-right">
-              @if (editingId() === row.id) {
-                <button type="button" class="plan-link" [disabled]="busy()" (click)="saveQty(row)">Save</button>
-                <button type="button" class="ml-2 text-[11px] font-semibold text-slate-500 hover:underline" (click)="cancelEdit()">Cancel</button>
-              } @else {
-                <button type="button" class="plan-link" [disabled]="busy()" (click)="startEdit(row)">Edit</button>
-                <button type="button" class="plan-link ml-2" [disabled]="busy()" (click)="addPlanToHistory(row)">Fill</button>
-              }
-            </td>
-          </tr>
-        } @empty {
-          <tr>
-            <td class="empty" [attr.colspan]="bulkOpen() ? 9 : 8">No working orders. Click Add plan to create one.</td>
-          </tr>
-        }
-      </tbody>
-    </table>
-  </div>
+                <td class="px-3 py-2">
+                  <a [routerLink]="['/stock', row.symbol]" class="font-mono text-xs font-bold tracking-wide text-slate-900 hover:text-kairo-700">{{ row.symbol }}</a>
+                  <div class="text-[11px] text-slate-400">{{ row.stockName }}</div>
+                </td>
+                <td class="px-3 py-2">
+                  <span
+                    class="inline-block min-w-[3.25rem] rounded px-1.5 py-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-white"
+                    [class.bg-emerald-600]="isLong(row.action)"
+                    [class.bg-rose-600]="!isLong(row.action)"
+                  >
+                    {{ isLong(row.action) ? 'Buy' : 'Sell' }}
+                  </span>
+                </td>
+                <td class="px-3 py-2 text-right font-mono text-xs font-semibold">{{ formatPrice(row.targetPrice) }}</td>
+                <td class="px-3 py-2 font-mono text-[11px] text-slate-500">{{ nextLevelsLabel(row.nextTargets) }}</td>
+                <td class="px-3 py-2 text-right font-mono text-xs">{{ exitLabel(row) }}</td>
+                <td class="px-3 py-2 text-right">
+                  @if (editingId() === row.id) {
+                    <input
+                      class="input-field ml-auto !w-20 !px-1.5 !py-1 text-right font-mono text-xs"
+                      type="number"
+                      min="1"
+                      [(ngModel)]="editQty"
+                    />
+                  } @else {
+                    <span class="font-mono text-xs">{{ row.quantity || defaultQty }}</span>
+                  }
+                </td>
+                <td class="px-3 py-2 text-right font-mono text-xs">
+                  @if (row.targetProfit != null) {
+                    <span class="font-semibold" [class]="pnlClass(row.targetProfit)">{{ formatCurrency(row.targetProfit) }}</span>
+                  } @else {
+                    <span class="text-slate-400">—</span>
+                  }
+                </td>
+                <td class="px-3 py-2 text-[11px] uppercase tracking-wide text-slate-500">{{ row.segment || 'intraday' }}</td>
+                <td class="px-3 py-2 text-right whitespace-nowrap">
+                  @if (editingId() === row.id) {
+                    <button type="button" class="text-[11px] font-semibold text-kairo-700 hover:underline" [disabled]="busy()" (click)="saveQty(row)">Save</button>
+                    <button type="button" class="ml-2 text-[11px] font-semibold text-slate-500 hover:underline" (click)="cancelEdit()">Cancel</button>
+                  } @else {
+                    <button type="button" class="text-[11px] font-semibold text-kairo-700 hover:underline" [disabled]="busy()" (click)="startEdit(row)">Edit</button>
+                    <button type="button" class="ml-2 text-[11px] font-semibold text-kairo-700 hover:underline" [disabled]="busy()" (click)="addPlanToHistory(row)">Fill</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
 </div>
