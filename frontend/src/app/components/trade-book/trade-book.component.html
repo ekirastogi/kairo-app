@@ -307,6 +307,7 @@
               }
               <th class="px-3 py-2">Symbol</th>
               <th class="px-3 py-2">Side</th>
+              <th class="px-3 py-2 text-right">CMP</th>
               <th class="px-3 py-2 text-right">Trigger</th>
               <th class="px-3 py-2 text-right">Dist.</th>
               <th class="px-3 py-2">Follow-up</th>
@@ -336,6 +337,9 @@
                   >
                     {{ sideBookLabel(row) }}
                   </span>
+                </td>
+                <td class="px-3 py-2 text-right font-mono text-xs font-semibold" [class.text-cyan-800]="row.triggerHit">
+                  {{ row.cmp ? formatPrice(row.cmp) : '—' }}
                 </td>
                 <td class="px-3 py-2 text-right font-mono text-xs font-semibold">{{ formatPrice(row.targetPrice) }}</td>
                 <td class="px-3 py-2 text-right font-mono text-xs">
@@ -367,7 +371,7 @@
               </tr>
               @if (editingId() === row.id) {
                 <tr class="border-t border-slate-100 bg-slate-50">
-                  <td [attr.colspan]="bulkOpen() ? 10 : 9" class="px-3 py-3">
+                  <td [attr.colspan]="bulkOpen() ? 11 : 10" class="px-3 py-3">
                     <div class="grid gap-2 sm:grid-cols-12">
                       <div class="sm:col-span-2">
                         <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">Side</span>
