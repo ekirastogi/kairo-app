@@ -137,8 +137,8 @@
                     [ngModel]="line.segment"
                     (ngModelChange)="setLine(card, line.key, { segment: $event })"
                   >
-                    <option value="delivery">Delivery</option>
                     <option value="intraday">Intraday</option>
+                    <option value="delivery">Delivery</option>
                   </select>
                 </label>
                 <button type="button" class="btn-ghost mb-0.5 px-2 text-xs text-rose-700" (click)="removeLine(card, line.key)">
@@ -261,7 +261,7 @@
                 <td class="px-3 py-2 tabular-nums text-slate-600">{{ nextLevelsLabel(row.nextTargets) }}</td>
                 <td class="px-3 py-2 tabular-nums">{{ exitLabel(row) }}</td>
                 <td class="px-3 py-2 tabular-nums">{{ row.quantity || defaultQty }}</td>
-                <td class="px-3 py-2 capitalize text-slate-600">{{ row.segment || 'delivery' }}</td>
+                <td class="px-3 py-2 capitalize text-slate-600">{{ row.segment || 'intraday' }}</td>
                 <td class="px-3 py-2 text-right">
                   <button type="button" class="btn-ghost text-xs" [disabled]="busy()" (click)="addPlanToHistory(row)">
                     Add to history

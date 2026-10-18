@@ -454,7 +454,7 @@ export class TradeBookComponent {
       nextTargets: prices.slice(1),
       quantity: qty,
       target,
-      segment: line.segment === 'intraday' ? 'intraday' : 'delivery',
+      segment: line.segment === 'delivery' ? 'delivery' : 'intraday',
     };
   }
 
@@ -511,7 +511,7 @@ export class TradeBookComponent {
       prices: '',
       quantity: String(DEFAULT_QTY),
       target: '',
-      segment: 'delivery',
+      segment: 'intraday',
     };
   }
 }
