@@ -1,0 +1,277 @@
+<div class="mx-auto max-w-6xl space-y-4">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <p class="text-sm text-slate-600">
+        Notebook-style trade book. First price is the trigger; extra prices are add-on levels. Quantity defaults to
+        {{ defaultQty }}, target defaults to {{ targetPctLabel }}
+        <span class="text-emerald-700">up for longs</span>
+        /
+        <span class="text-rose-700">down for shorts</span>.
+      </p>
+      <p class="mt-1 text-xs text-slate-500">
+        {{ previewCount() }} ready to save ·
+        <a routerLink="/trade-plans" class="font-semibold text-kairo-700 hover:underline">Open trade plans</a>
+        ·
+        <a routerLink="/trade-plans/history" class="font-semibold text-kairo-700 hover:underline">Trade history</a>
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" class="btn-ghost text-sm" (click)="addCard()">+ Stock</button>
+      <button
+        type="button"
+        class="btn-secondary text-sm"
+        (click)="addDraftsToHistory()"
+        [disabled]="busy() || !previewCount()"
+      >
+        Add to history
+      </button>
+      <button type="button" class="btn-primary text-sm" (click)="createPlans()" [disabled]="busy() || !previewCount()">
+        Create {{ previewCount() || '' }} plan{{ previewCount() === 1 ? '' : 's' }}
+      </button>
+    </div>
+  </div>
+
+  <div class="space-y-3">
+    @for (card of cards(); track card.key) {
+      <section class="card p-4 sm:p-5">
+        <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
+          <div class="min-w-0 flex-1">
+            <app-stock-search-input
+              [query]="card.query"
+              [selectedName]="card.stock?.name || ''"
+              [selectedExchange]="card.stock?.exchange || ''"
+              [extraStocks]="card.stock ? [card.stock] : []"
+              placeholder="Stock name or symbol…"
+              (queryChange)="onQuery(card, $event)"
+              (picked)="onPicked(card, $event)"
+            />
+            @if (card.stock?.currentPrice) {
+              <p class="mt-1 text-[11px] text-slate-500">
+                CMP {{ formatPrice(card.stock!.currentPrice) }}
+                @if (card.stock?.screenerFetchedAt) {
+                  · Screener {{ card.stock!.screenerFetchedAt | date:'short' }}
+                }
+              </p>
+            }
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="btn-ghost text-xs"
+              (click)="refreshCardScreener(card)"
+              [disabled]="screenerBusy() || busy()"
+            >
+              @if (screenerBusy()) {
+                Refreshing…
+              } @else {
+                Refresh from Screener
+              }
+            </button>
+            <button type="button" class="btn-ghost text-xs text-rose-700" (click)="removeCard(card.key)">Remove</button>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          @for (line of card.lines; track line.key) {
+            <div class="grid items-end gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2 sm:grid-cols-12">
+              <div class="sm:col-span-2">
+                <span class="mb-1 block text-[11px] text-slate-500">Side</span>
+                <div class="flex rounded-lg border border-slate-200 bg-white p-0.5">
+                  <button
+                    type="button"
+                    class="flex-1 rounded-md px-2 py-1 text-xs font-semibold"
+                    [class.bg-emerald-600]="line.action === 'Long'"
+                    [class.text-white]="line.action === 'Long'"
+                    [class.text-slate-500]="line.action !== 'Long'"
+                    (click)="setLine(card, line.key, { action: 'Long' })"
+                  >
+                    Long
+                  </button>
+                  <button
+                    type="button"
+                    class="flex-1 rounded-md px-2 py-1 text-xs font-semibold"
+                    [class.bg-rose-600]="line.action === 'Short'"
+                    [class.text-white]="line.action === 'Short'"
+                    [class.text-slate-500]="line.action !== 'Short'"
+                    (click)="setLine(card, line.key, { action: 'Short' })"
+                  >
+                    Short
+                  </button>
+                </div>
+              </div>
+              <label class="block text-xs sm:col-span-4">
+                <span class="text-slate-500">Prices · first is trigger</span>
+                <input
+                  class="input-field mt-1 !py-1.5"
+                  [ngModel]="line.prices"
+                  (ngModelChange)="setLine(card, line.key, { prices: $event })"
+                  placeholder="848, 860"
+                />
+              </label>
+              <label class="block text-xs sm:col-span-2">
+                <span class="text-slate-500">Qty</span>
+                <input
+                  class="input-field mt-1 !py-1.5"
+                  type="number"
+                  min="1"
+                  [ngModel]="line.quantity"
+                  (ngModelChange)="setLine(card, line.key, { quantity: $event })"
+                />
+              </label>
+              <label class="block text-xs sm:col-span-2">
+                <span class="text-slate-500">Target ({{ targetPctLabel }} default)</span>
+                <input
+                  class="input-field mt-1 !py-1.5"
+                  type="number"
+                  step="0.01"
+                  [ngModel]="line.target"
+                  (ngModelChange)="setLine(card, line.key, { target: $event })"
+                  [placeholder]="previewTarget(line) ? formatPrice(previewTarget(line)) : 'auto'"
+                />
+              </label>
+              <div class="flex items-end justify-between gap-2 sm:col-span-2">
+                <label class="block min-w-0 flex-1 text-xs">
+                  <span class="text-slate-500">Segment</span>
+                  <select
+                    class="input-field mt-1 !py-1.5"
+                    [ngModel]="line.segment"
+                    (ngModelChange)="setLine(card, line.key, { segment: $event })"
+                  >
+                    <option value="delivery">Delivery</option>
+                    <option value="intraday">Intraday</option>
+                  </select>
+                </label>
+                <button type="button" class="btn-ghost mb-0.5 px-2 text-xs text-rose-700" (click)="removeLine(card, line.key)">
+                  ×
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button type="button" class="btn-ghost text-xs" (click)="addLine(card, 'Long')">+ Long line</button>
+          <button type="button" class="btn-ghost text-xs" (click)="addLine(card, 'Short')">+ Short line</button>
+          @if (parsedLines(card).length) {
+            <p class="ml-auto self-center text-[11px] text-slate-500">
+              @for (line of parsedLines(card); track line.trigger + line.action; let last = $last) {
+                <span [class.text-rose-700]="line.action === 'Short'" [class.text-emerald-700]="line.action === 'Long'">
+                  {{ line.action }} {{ '@' }} {{ formatPrice(line.trigger) }}
+                  @if (line.nextTargets.length) {
+                    · {{ nextLevelsLabel(line.nextTargets) }}
+                  }
+                  → {{ formatPrice(line.target) }}
+                </span>
+                @if (!last) {
+                  <span class="text-slate-300"> · </span>
+                }
+              }
+            </p>
+          }
+        </div>
+      </section>
+    }
+  </div>
+
+  <section class="card overflow-hidden">
+    <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 px-4 py-3">
+      <h2 class="mr-auto text-sm font-semibold text-slate-900">Open plans</h2>
+      <input
+        class="input-field !w-40 !py-1.5 text-sm"
+        type="search"
+        placeholder="Search"
+        [ngModel]="searchQuery()"
+        (ngModelChange)="searchQuery.set($event)"
+      />
+      <button type="button" class="btn-ghost text-xs" [class.text-rose-700]="bulkOpen()" (click)="toggleBulk()">
+        Bulk delete
+      </button>
+      <button
+        type="button"
+        class="btn-ghost text-xs"
+        (click)="refreshSelectedScreener()"
+        [disabled]="screenerBusy() || busy() || !filteredPlans().length"
+      >
+        @if (screenerBusy()) {
+          Screener {{ screenerDone() + 1 }}/{{ screenerTotal() }}
+        } @else {
+          Refresh from Screener
+        }
+      </button>
+    </div>
+
+    @if (bulkOpen()) {
+      <div class="flex flex-wrap items-center gap-2 border-b border-red-200 bg-red-50 px-4 py-2">
+        <button type="button" class="btn-ghost text-xs" (click)="toggleSelectAllVisible()">
+          {{ allVisibleSelected() ? 'Deselect all' : 'Select all' }}
+        </button>
+        <button type="button" class="btn-ghost text-xs text-rose-700" [disabled]="busy() || !selectedCount()" (click)="deleteSelected()">
+          Delete selected{{ selectedCount() ? ' (' + selectedCount() + ')' : '' }}
+        </button>
+        <button type="button" class="btn-ghost text-xs text-rose-700" [disabled]="busy()" (click)="deleteAllVisible()">
+          Delete all ({{ filteredPlans().length }})
+        </button>
+      </div>
+    }
+
+    @if (!filteredPlans().length) {
+      <p class="px-4 py-8 text-center text-sm text-slate-500">No open plans yet. Add a stock above and create plans.</p>
+    } @else {
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-left text-sm">
+          <thead class="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+            <tr>
+              @if (bulkOpen()) {
+                <th class="w-10 px-3 py-2"></th>
+              }
+              <th class="px-3 py-2">Stock</th>
+              <th class="px-3 py-2">Side</th>
+              <th class="px-3 py-2">Trigger</th>
+              <th class="px-3 py-2">Next</th>
+              <th class="px-3 py-2">Target</th>
+              <th class="px-3 py-2">Qty</th>
+              <th class="px-3 py-2">Segment</th>
+              <th class="px-3 py-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of filteredPlans(); track row.id) {
+              <tr class="border-t border-slate-100">
+                @if (bulkOpen()) {
+                  <td class="px-3 py-2">
+                    <input type="checkbox" [checked]="selectedIds().has(row.id)" (change)="toggleSelect(row.id)" />
+                  </td>
+                }
+                <td class="px-3 py-2">
+                  <a [routerLink]="['/stock', row.symbol]" class="font-semibold text-slate-900 hover:underline">{{ row.symbol }}</a>
+                  <div class="text-[11px] text-slate-500">{{ row.stockName }}</div>
+                </td>
+                <td class="px-3 py-2">
+                  <span
+                    class="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                    [class.bg-emerald-50]="row.action === 'Long'"
+                    [class.text-emerald-700]="row.action === 'Long'"
+                    [class.bg-rose-50]="row.action !== 'Long'"
+                    [class.text-rose-700]="row.action !== 'Long'"
+                  >
+                    {{ row.action }}
+                  </span>
+                </td>
+                <td class="px-3 py-2 tabular-nums">{{ formatPrice(row.targetPrice) }}</td>
+                <td class="px-3 py-2 tabular-nums text-slate-600">{{ nextLevelsLabel(row.nextTargets) }}</td>
+                <td class="px-3 py-2 tabular-nums">{{ exitLabel(row) }}</td>
+                <td class="px-3 py-2 tabular-nums">{{ row.quantity || defaultQty }}</td>
+                <td class="px-3 py-2 capitalize text-slate-600">{{ row.segment || 'delivery' }}</td>
+                <td class="px-3 py-2 text-right">
+                  <button type="button" class="btn-ghost text-xs" [disabled]="busy()" (click)="addPlanToHistory(row)">
+                    Add to history
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</div>

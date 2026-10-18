@@ -113,6 +113,15 @@ export const routes: Routes = [
           subtitle: 'Trigger, size, and exits with live CMP and net P&L',
         },
       },
+      {
+        path: 'trade-book',
+        loadComponent: () =>
+          import('./components/trade-book/trade-book.component').then((m) => m.TradeBookComponent),
+        data: {
+          title: 'TradeBook',
+          subtitle: 'Quick notebook-style trade plans with 1% targets',
+        },
+      },
       { path: 'tracking', redirectTo: 'trade-plans', pathMatch: 'full' },
       {
         path: 'momentum',
