@@ -95,6 +95,24 @@ export function trackerDirection(action: string): TradeDirection {
   return trackerIsSell(action) ? 'short' : 'long';
 }
 
+/**
+ * Favorable % move from trigger to target: increase for longs, drop for shorts.
+ * Positive means the target is in the profitable direction.
+ */
+export function trackerTriggerToTargetPct(
+  trigger: number | undefined | null,
+  target: number | undefined | null,
+  action: string
+): number | null {
+  if (trigger == null || trigger <= 0 || target == null || target <= 0) return null;
+  if (trackerIsSell(action)) return ((trigger - target) / trigger) * 100;
+  return ((target - trigger) / trigger) * 100;
+}
+
+export function trackerMoveKind(action: string): 'drop' | 'up' {
+  return trackerIsSell(action) ? 'drop' : 'up';
+}
+
 export function trackerEntryPrice(plan: TrackerPlanSnapshot): number | null {
   if (plan.entryPrice != null && plan.entryPrice > 0) return plan.entryPrice;
   if (plan.targetPrice > 0) return plan.targetPrice;

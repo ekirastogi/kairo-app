@@ -282,6 +282,20 @@
               }
               <button type="button" class="plan-link" (click)="addExit()">+ Exit</button>
             </div>
+            @if (formMoveLines(); as lines) {
+              @if (lines.length) {
+                <div class="mt-1.5 space-y-0.5 text-[11px] tabular-nums text-slate-500">
+                  @for (line of lines; track line.label) {
+                    <p>
+                      Trigger → {{ line.label }}
+                      <span class="font-semibold" [class]="pnlClass(line.pct)">
+                        {{ formatPctSigned(line.pct) }} {{ line.kind }}
+                      </span>
+                    </p>
+                  }
+                </div>
+              }
+            }
           </div>
         </div>
 
@@ -382,6 +396,11 @@
               <span class="pair">
                 <span class="pair-main">{{ formatPrice(entryFor(row)) }}</span>
                 <span class="pair-sub">{{ exitFor(row) != null ? formatPrice(exitFor(row)!) : '—' }}</span>
+                @if (row.triggerMovePct != null) {
+                  <span class="pair-sub font-medium" [class]="pnlClass(row.triggerMovePct)">
+                    {{ formatPctSigned(row.triggerMovePct) }} {{ row.moveKind }}
+                  </span>
+                }
               </span>
             </td>
             <td class="num col-diff">
@@ -452,7 +471,14 @@
                         @for (slice of slices; track slice.key) {
                           <div class="ticket-levels-row">
                             <span>{{ slice.label }}</span>
-                            <span>{{ formatPrice(slice.price) }}</span>
+                            <span>
+                              {{ formatPrice(slice.price) }}
+                              @if (sliceMovePct(row, slice.price); as movePct) {
+                                <span class="ml-1 text-[10px] font-medium" [class]="pnlClass(movePct)">
+                                  {{ formatPctSigned(movePct) }} {{ row.moveKind }}
+                                </span>
+                              }
+                            </span>
                             <span>{{ slice.quantity | number }}</span>
                             <span [class]="pnlClass(slice.netPnL)">{{ formatCurrency(slice.netPnL) }}</span>
                           </div>

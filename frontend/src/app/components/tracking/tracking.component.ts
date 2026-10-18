@@ -26,6 +26,8 @@ import {
   trackerProximity,
   trackerSegment,
   trackerTriggerHit,
+  trackerTriggerToTargetPct,
+  trackerMoveKind,
 } from '../../utils/price-tracker.utils';
 import { TableSortState } from '../../utils/table-sort.utils';
 
@@ -69,6 +71,8 @@ interface TrackerRow extends PriceTracker {
   triggerHit: boolean;
   sized: boolean;
   economics: TrackerEconomics | null;
+  triggerMovePct: number | null;
+  moveKind: 'drop' | 'up';
 }
 
 interface RefreshCandidate {
@@ -235,6 +239,8 @@ export class TrackingComponent implements OnInit, OnDestroy {
         triggerHit: trackerTriggerHit(t.action, cmp, t.targetPrice),
         sized: economics != null,
         economics,
+        triggerMovePct: trackerTriggerToTargetPct(t.targetPrice, t.targets?.[0]?.price, t.action),
+        moveKind: trackerMoveKind(t.action),
       };
     });
     const forSymbol = mapped.filter((row) => this.matchesLocked(row));
@@ -885,6 +891,26 @@ export class TrackingComponent implements OnInit, OnDestroy {
 
   formPreview(): TrackerEconomics | null {
     return this.economicsFor(this.formSnapshot());
+  }
+
+  formMoveLines(): { label: string; pct: number; kind: 'drop' | 'up' }[] {
+    const snapshot = this.formSnapshot();
+    const kind = trackerMoveKind(snapshot.action);
+    const lines: { label: string; pct: number; kind: 'drop' | 'up' }[] = [];
+    snapshot.targets?.forEach((target, index) => {
+      const pct = trackerTriggerToTargetPct(snapshot.targetPrice, target.price, snapshot.action);
+      if (pct == null) return;
+      lines.push({
+        label: snapshot.targets!.length > 1 ? `T${index + 1}` : 'Target',
+        pct,
+        kind,
+      });
+    });
+    return lines;
+  }
+
+  sliceMovePct(row: TrackerRow, price: number): number | null {
+    return trackerTriggerToTargetPct(row.targetPrice, price, row.action);
   }
 
   nextLevelsLabel(prices: number[]): string {
