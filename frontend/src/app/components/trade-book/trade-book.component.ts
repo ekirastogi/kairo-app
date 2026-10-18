@@ -135,7 +135,13 @@ export class TradeBookComponent {
   readonly refreshWindows = REFRESH_WINDOWS;
   searchQuery = signal('');
   editingId = signal<string | null>(null);
-  editQty = '';
+  editForm = {
+    action: 'Long' as Side,
+    prices: '',
+    quantity: '',
+    target: '',
+    segment: 'intraday' as TradeSegment,
+  };
 
   rows = computed((): BookRow[] => {
     this.charges.rates();
@@ -215,49 +221,63 @@ export class TradeBookComponent {
   }
 
   startEdit(row: PriceTracker): void {
+    const prices = [row.targetPrice, ...(row.nextTargets ?? [])].filter((price) => price > 0);
     this.editingId.set(row.id);
-    this.editQty = String(row.quantity && row.quantity > 0 ? row.quantity : DEFAULT_QTY);
+    this.editForm = {
+      action: this.displayAction(row.action),
+      prices: prices.join(', '),
+      quantity: String(row.quantity && row.quantity > 0 ? row.quantity : DEFAULT_QTY),
+      target: row.targets?.[0]?.price ? String(row.targets[0].price) : '',
+      segment: row.segment === 'delivery' ? 'delivery' : 'intraday',
+    };
   }
 
   cancelEdit(): void {
     this.editingId.set(null);
-    this.editQty = '';
+    this.editForm = {
+      action: 'Long',
+      prices: '',
+      quantity: String(DEFAULT_QTY),
+      target: '',
+      segment: 'intraday',
+    };
   }
 
-  async saveQty(row: PriceTracker): Promise<void> {
+  async saveEdit(row: PriceTracker): Promise<void> {
     if (this.busy()) return;
-    const qty = parseFloat(this.editQty);
-    if (!(qty > 0)) {
-      this.toast.error('Enter a quantity greater than 0');
+    const parsed = this.parseSide(this.editForm.action, {
+      prices: this.editForm.prices,
+      quantity: this.editForm.quantity,
+      target: this.editForm.target,
+      segment: this.editForm.segment,
+    });
+    if (!parsed) {
+      this.toast.error('Enter at least one trigger price');
       return;
     }
     this.busy.set(true);
     try {
-      const targets = (row.targets ?? []).map((target) => ({
-        price: target.price,
-        quantity: qty,
-      }));
       await this.trackerSvc.save(
         {
           symbol: row.symbol,
           stockName: row.stockName,
           isin: row.isin,
-          action: row.action,
-          targetPrice: row.targetPrice,
-          nextTargets: row.nextTargets,
-          targets,
-          quantity: qty,
-          segment: row.segment,
-          entryPrice: row.entryPrice,
+          action: parsed.action,
+          targetPrice: parsed.trigger,
+          nextTargets: parsed.nextTargets,
+          targets: [{ price: parsed.target, quantity: parsed.quantity }],
+          quantity: parsed.quantity,
+          segment: parsed.segment,
+          entryPrice: parsed.trigger,
           stopLoss: row.stopLoss,
           notes: row.notes,
         },
         row.id
       );
       this.cancelEdit();
-      this.toast.success(`Updated ${row.symbol} quantity to ${qty}`);
+      this.toast.success(`Updated ${row.symbol}`);
     } catch (e) {
-      this.toast.error(e instanceof Error ? e.message : 'Failed to update quantity');
+      this.toast.error(e instanceof Error ? e.message : 'Failed to update plan');
     } finally {
       this.busy.set(false);
     }
