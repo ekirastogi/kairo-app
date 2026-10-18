@@ -16,10 +16,9 @@ const DEFAULT_QTY = 1000;
 const TARGET_PCT = 0.01;
 
 type Side = 'Long' | 'Short';
+type SideKey = 'short' | 'long';
 
-interface DraftLine {
-  key: number;
-  action: Side;
+interface DraftSide {
   prices: string;
   quantity: string;
   target: string;
@@ -30,7 +29,8 @@ interface DraftCard {
   key: number;
   query: string;
   stock: RegistryStock | null;
-  lines: DraftLine[];
+  short: DraftSide;
+  long: DraftSide;
 }
 
 interface ParsedLine {
@@ -47,6 +47,11 @@ interface ParsedLine {
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, StockSearchInputComponent],
   templateUrl: './trade-book.component.html',
+  host: { class: 'block' },
+  styles: `
+    :host { font-variant-numeric: tabular-nums; }
+    .tb-input { font-variant-numeric: tabular-nums; }
+  `,
 })
 export class TradeBookComponent {
   private trackerSvc = inject(PriceTrackerService);
@@ -112,27 +117,40 @@ export class TradeBookComponent {
     });
   }
 
-  addLine(card: DraftCard, action: Side = 'Long'): void {
-    this.patchCard(card.key, {
-      lines: [...card.lines, this.emptyLine(action)],
-    });
-  }
-
-  removeLine(card: DraftCard, key: number): void {
-    const lines = card.lines.filter((line) => line.key !== key);
-    this.patchCard(card.key, { lines: lines.length ? lines : [this.emptyLine('Long')] });
-  }
-
-  setLine(card: DraftCard, key: number, patch: Partial<DraftLine>): void {
-    this.patchCard(card.key, {
-      lines: card.lines.map((line) => (line.key === key ? { ...line, ...patch } : line)),
-    });
+  setSide(card: DraftCard, side: SideKey, patch: Partial<DraftSide>): void {
+    this.patchCard(card.key, { [side]: { ...card[side], ...patch } });
   }
 
   parsedLines(card: DraftCard): ParsedLine[] {
-    return card.lines
-      .map((line) => this.parseLine(line))
-      .filter((line): line is ParsedLine => line != null);
+    return [
+      this.parseSide('Short', card.short),
+      this.parseSide('Long', card.long),
+    ].filter((line): line is ParsedLine => line != null);
+  }
+
+  shortPlan(card: DraftCard): ParsedLine | null {
+    return this.parseSide('Short', card.short);
+  }
+
+  longPlan(card: DraftCard): ParsedLine | null {
+    return this.parseSide('Long', card.long);
+  }
+
+  levelChips(side: DraftSide, action: Side): Array<{ label: string; price: number; kind: 'trigger' | 'next' }> {
+    const parsed = this.parseSide(action, side);
+    if (!parsed) return [];
+    return [
+      { label: 'Trigger', price: parsed.trigger, kind: 'trigger' as const },
+      ...parsed.nextTargets.map((price, index) => ({
+        label: `L${index + 2}`,
+        price,
+        kind: 'next' as const,
+      })),
+    ];
+  }
+
+  isLong(action: string): boolean {
+    return !trackerIsSell(action);
   }
 
   defaultTarget(trigger: number, action: Side): number {
@@ -141,9 +159,8 @@ export class TradeBookComponent {
     return Math.round(raw * 100) / 100;
   }
 
-  previewTarget(line: DraftLine): number {
-    const parsed = this.parseLine(line);
-    return parsed?.target ?? 0;
+  previewTarget(side: DraftSide, action: Side): number {
+    return this.parseSide(action, side)?.target ?? 0;
   }
 
   async createPlans(): Promise<void> {
@@ -437,24 +454,24 @@ export class TradeBookComponent {
     };
   }
 
-  private parseLine(line: DraftLine): ParsedLine | null {
-    const prices = this.parsePriceList(line.prices);
+  private parseSide(action: Side, side: DraftSide): ParsedLine | null {
+    const prices = this.parsePriceList(side.prices);
     if (!prices.length) return null;
     const trigger = prices[0];
-    const quantity = parseFloat(line.quantity);
+    const quantity = parseFloat(side.quantity);
     const qty = Number.isFinite(quantity) && quantity > 0 ? quantity : DEFAULT_QTY;
-    const typedTarget = parseFloat(line.target);
+    const typedTarget = parseFloat(side.target);
     const target =
       Number.isFinite(typedTarget) && typedTarget > 0
         ? Math.round(typedTarget * 100) / 100
-        : this.defaultTarget(trigger, line.action);
+        : this.defaultTarget(trigger, action);
     return {
-      action: line.action,
+      action,
       trigger,
       nextTargets: prices.slice(1),
       quantity: qty,
       target,
-      segment: line.segment === 'delivery' ? 'delivery' : 'intraday',
+      segment: side.segment === 'delivery' ? 'delivery' : 'intraday',
     };
   }
 
@@ -500,14 +517,13 @@ export class TradeBookComponent {
       key: this.nextKey++,
       query: '',
       stock: null,
-      lines: [this.emptyLine('Short'), this.emptyLine('Long')],
+      short: this.emptySide(),
+      long: this.emptySide(),
     };
   }
 
-  private emptyLine(action: Side): DraftLine {
+  private emptySide(): DraftSide {
     return {
-      key: this.nextKey++,
-      action,
       prices: '',
       quantity: String(DEFAULT_QTY),
       target: '',
