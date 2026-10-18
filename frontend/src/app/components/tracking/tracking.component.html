@@ -89,7 +89,7 @@
         [disabled]="bulkBusy() || !selectedCount()"
         (click)="deleteSelected()"
       >
-        Delete selected{{ selectedCount() ? ` (${selectedCount()})` : '' }}
+        Delete selected{{ selectedCount() ? (' (' + selectedCount() + ')') : '' }}
       </button>
       <button type="button" class="plan-tool-btn text-xs text-red-700" [disabled]="bulkBusy()" (click)="deleteAllVisible()">
         Delete all ({{ rows().length }})
