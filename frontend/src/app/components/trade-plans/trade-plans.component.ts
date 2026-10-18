@@ -154,7 +154,6 @@ export class TradePlansComponent implements OnInit, OnDestroy {
   assignTargetDate = signal('');
   assignError = signal<string | null>(null);
   assignBusy = signal(false);
-  bulkEdit = signal(false);
   selectedIds = signal<Set<string>>(new Set());
   bulkBusy = signal(false);
   bulkMessage = signal<string | null>(null);
@@ -726,16 +725,11 @@ export class TradePlansComponent implements OnInit, OnDestroy {
   async removeTrade(id: string): Promise<void> {
     if (!confirm('Remove this planned trade?')) return;
     await this.planSvc.remove(id);
-  }
-
-  startBulkEdit(): void {
-    this.bulkEdit.set(true);
-    this.bulkMessage.set(null);
-    this.closeMenu();
-  }
-
-  exitBulkEdit(): void {
-    this.clearBulkState();
+    this.selectedIds.update((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
   }
 
   isSelected(id: string): boolean {
@@ -797,7 +791,6 @@ export class TradePlansComponent implements OnInit, OnDestroy {
         : await this.planSvc.removeAllForDate(this.tradeDate());
       this.selectedIds.set(new Set());
       this.bulkMessage.set(removed ? `Removed ${removed} ${removed === 1 ? 'trade' : 'trades'}` : 'No trades removed');
-      this.bulkEdit.set(false);
     } catch (e) {
       this.bulkMessage.set(e instanceof Error ? e.message : 'Failed to delete trades');
     } finally {
@@ -806,7 +799,6 @@ export class TradePlansComponent implements OnInit, OnDestroy {
   }
 
   private clearBulkState(): void {
-    this.bulkEdit.set(false);
     this.selectedIds.set(new Set());
     this.bulkMessage.set(null);
     this.bulkBusy.set(false);
