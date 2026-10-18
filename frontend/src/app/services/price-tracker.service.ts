@@ -206,15 +206,26 @@ export class PriceTrackerService {
   }
 
   async remove(id: string): Promise<void> {
+    await this.removeMany([id]);
+  }
+
+  async removeMany(ids: string[]): Promise<number> {
     const uid = await this.auth.getDataUserId();
     if (!uid) throw new Error('Sign in to remove trackers');
-    const { error } = await this.supabase.client
-      .from('price_trackers')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', uid);
-    if (error) throw error;
+    const uniqueIds = [...new Set(ids.filter(Boolean))];
+    if (!uniqueIds.length) return 0;
+    const chunkSize = 100;
+    for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+      const chunk = uniqueIds.slice(i, i + chunkSize);
+      const { error } = await this.supabase.client
+        .from('price_trackers')
+        .delete()
+        .in('id', chunk)
+        .eq('user_id', uid);
+      if (error) throw error;
+    }
     this.notifyOpenChanged();
+    return uniqueIds.length;
   }
 
   async execute(id: string, buyLegs: ExecutionLeg[], sellLegs: ExecutionLeg[]): Promise<void> {

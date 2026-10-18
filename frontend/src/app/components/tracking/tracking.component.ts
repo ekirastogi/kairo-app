@@ -149,6 +149,9 @@ export class TrackingComponent implements OnInit, OnDestroy {
   refreshPickerOpen = signal(false);
   refreshPreset = signal<string>('30m');
   refreshSelection = signal<string[]>([]);
+  bulkDeleteOpen = signal(false);
+  selectedIds = signal<Set<string>>(new Set());
+  bulkBusy = signal(false);
   readonly refreshWindows = REFRESH_WINDOWS;
   autoRefresh = signal(false);
   private autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -250,9 +253,14 @@ export class TrackingComponent implements OnInit, OnDestroy {
     return [...hits, ...rest];
   });
 
-  nearCount = computed(() => this.rows().filter((r) => !r.triggerHit && r.proximity === 'near').length);
-  hotCount = computed(() => this.rows().filter((r) => !r.triggerHit && r.proximity === 'hot').length);
   triggerCount = computed(() => this.rows().filter((r) => r.triggerHit).length);
+  selectedCount = computed(() => this.selectedIds().size);
+  allVisibleSelected = computed(() => {
+    const rows = this.rows();
+    if (!rows.length) return false;
+    const selected = this.selectedIds();
+    return rows.every((row) => selected.has(row.id));
+  });
   sizedCount = computed(() => this.rows().filter((r) => r.sized).length);
 
   historyRows = computed(() => {
@@ -944,9 +952,89 @@ export class TrackingComponent implements OnInit, OnDestroy {
     try {
       await this.trackerSvc.remove(tracker.id);
       if (this.editingId() === tracker.id) this.cancelForm();
+      this.selectedIds.update((current) => {
+        const next = new Set(current);
+        next.delete(tracker.id);
+        return next;
+      });
       this.toast.success(`Removed ${tracker.symbol}`);
     } catch (e) {
       this.toast.error(e instanceof Error ? e.message : 'Failed to remove plan');
+    }
+  }
+
+  toggleBulkDelete(): void {
+    if (this.bulkDeleteOpen()) {
+      this.closeBulkDelete();
+      return;
+    }
+    this.refreshPickerOpen.set(false);
+    this.bulkDeleteOpen.set(true);
+  }
+
+  closeBulkDelete(): void {
+    this.bulkDeleteOpen.set(false);
+    this.selectedIds.set(new Set());
+    this.bulkBusy.set(false);
+  }
+
+  isSelected(id: string): boolean {
+    return this.selectedIds().has(id);
+  }
+
+  toggleSelect(id: string, event: Event): void {
+    event.stopPropagation();
+    this.selectedIds.update((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  toggleSelectAllVisible(): void {
+    const rows = this.rows();
+    this.selectedIds.update((current) => {
+      const next = new Set(current);
+      if (rows.length && rows.every((row) => next.has(row.id))) {
+        for (const row of rows) next.delete(row.id);
+      } else {
+        for (const row of rows) next.add(row.id);
+      }
+      return next;
+    });
+  }
+
+  async deleteSelected(): Promise<void> {
+    const ids = [...this.selectedIds()];
+    if (!ids.length || this.bulkBusy()) return;
+    const tradeWord = ids.length === 1 ? 'plan' : 'plans';
+    if (!confirm(`Remove ${ids.length} selected ${tradeWord}? This cannot be undone.`)) return;
+    this.bulkBusy.set(true);
+    try {
+      const removed = await this.trackerSvc.removeMany(ids);
+      this.selectedIds.set(new Set());
+      this.toast.success(`Removed ${removed} ${removed === 1 ? 'plan' : 'plans'}`);
+      if (!this.rows().length) this.closeBulkDelete();
+    } catch (e) {
+      this.toast.error(e instanceof Error ? e.message : 'Failed to delete selected plans');
+    } finally {
+      this.bulkBusy.set(false);
+    }
+  }
+
+  async deleteAllVisible(): Promise<void> {
+    const ids = this.rows().map((row) => row.id);
+    if (!ids.length || this.bulkBusy()) return;
+    if (!confirm(`Remove all ${ids.length} visible plans? This cannot be undone.`)) return;
+    this.bulkBusy.set(true);
+    try {
+      const removed = await this.trackerSvc.removeMany(ids);
+      this.toast.success(`Removed ${removed} ${removed === 1 ? 'plan' : 'plans'}`);
+      this.closeBulkDelete();
+    } catch (e) {
+      this.toast.error(e instanceof Error ? e.message : 'Failed to delete plans');
+      this.bulkBusy.set(false);
     }
   }
 
@@ -956,6 +1044,7 @@ export class TrackingComponent implements OnInit, OnDestroy {
       this.refreshPickerOpen.set(false);
       return;
     }
+    this.closeBulkDelete();
     this.selectRefreshOlderThan(CMP_STALE_MS, '30m');
     this.refreshPickerOpen.set(true);
   }
