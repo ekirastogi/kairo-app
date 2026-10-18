@@ -1,307 +1,351 @@
-<div class="tb mx-auto max-w-7xl space-y-3">
-  <header class="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-950 px-3 py-2 text-white shadow-sm">
-    <div class="min-w-0 flex-1">
-      <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Order ticket</p>
-      <p class="truncate text-sm font-semibold">
-        {{ previewCount() }} to send
-        <span class="font-normal text-slate-400">· {{ filteredPlans().length }} working</span>
-      </p>
-    </div>
-    <a routerLink="/trade-plans" class="rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-300 hover:bg-white/10 hover:text-white">Plans</a>
-    <a routerLink="/trade-plans/history" class="rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-300 hover:bg-white/10 hover:text-white">History</a>
-    <button type="button" class="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold hover:bg-white/10" (click)="addCard()">+ Ticket</button>
+<div class="plan-page">
+  <div class="plan-toolbar">
+    <input
+      class="plan-search"
+      type="search"
+      placeholder="Search"
+      [ngModel]="searchQuery()"
+      (ngModelChange)="searchQuery.set($event)"
+    />
+    <p class="plan-count">
+      {{ rows().length }}
+      @if (triggerCount()) {
+        <span class="text-cyan-700">· {{ triggerCount() }} at trigger</span>
+      }
+    </p>
     <button
       type="button"
-      class="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold hover:bg-white/10 disabled:opacity-40"
-      (click)="addDraftsToHistory()"
-      [disabled]="busy() || !previewCount()"
+      class="plan-tool-btn plan-icon-btn"
+      [class.plan-tool-btn-on]="bulkOpen()"
+      (click)="toggleBulk()"
+      [disabled]="busy() || !rows().length"
+      aria-label="Bulk delete"
+      title="Bulk delete"
     >
-      To history
+      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd" />
+      </svg>
     </button>
     <button
       type="button"
-      class="rounded-lg bg-cyan-400 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-40"
-      (click)="createPlans()"
-      [disabled]="busy() || !previewCount()"
+      class="plan-tool-btn"
+      (click)="refreshSelectedScreener()"
+      [disabled]="screenerBusy() || busy() || !rows().length"
     >
-      Send {{ previewCount() || '' }} {{ previewCount() === 1 ? 'plan' : 'plans' }}
+      @if (screenerBusy()) {
+        Screener {{ screenerDone() + 1 }}/{{ screenerTotal() }}
+      } @else {
+        Screener
+      }
     </button>
-  </header>
-
-  <p class="px-1 text-[11px] text-slate-500">
-    One short and one long per stock. First price is the trigger; extra prices on that side are follow-up levels, not extra trades.
-    Qty {{ defaultQty }} · target {{ targetPctLabel }}.
-  </p>
-
-  <div class="space-y-3">
-    @for (card of cards(); track card.key; let i = $index) {
-      <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2.5">
-          <span class="font-mono text-[11px] font-semibold text-slate-400">{{ (i + 1).toString().padStart(2, '0') }}</span>
-          <div class="min-w-0 flex-1">
-            <app-stock-search-input
-              [query]="card.query"
-              [selectedName]="card.stock?.name || ''"
-              [selectedExchange]="card.stock?.exchange || ''"
-              [extraStocks]="card.stock ? [card.stock] : []"
-              placeholder="Symbol…"
-              (queryChange)="onQuery(card, $event)"
-              (picked)="onPicked(card, $event)"
-            />
-          </div>
-          @if (card.stock?.currentPrice) {
-            <div class="text-right">
-              <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">CMP</p>
-              <p class="font-mono text-sm font-semibold text-slate-900">{{ formatPrice(card.stock!.currentPrice) }}</p>
-            </div>
-          }
-          <button
-            type="button"
-            class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-            (click)="refreshCardScreener(card)"
-            [disabled]="screenerBusy() || busy()"
-          >
-            {{ screenerBusy() ? 'Refreshing' : 'Screener' }}
-          </button>
-          <button type="button" class="rounded-lg px-2 py-1.5 text-[11px] font-semibold text-rose-600 hover:bg-rose-50" (click)="removeCard(card.key)">
-            Close
-          </button>
-        </div>
-
-        <div class="grid md:grid-cols-2">
-          <div class="border-b border-slate-200 p-3 md:border-b-0 md:border-r">
-            <div class="mb-2 flex items-center justify-between gap-2">
-              <span class="rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Sell / Short</span>
-              <span class="text-[11px] text-slate-400">{{ shortPlan(card) ? '1 trade' : 'idle' }}</span>
-            </div>
-            <label class="block">
-              <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Levels</span>
-              <input
-                class="tb-input mt-1 w-full rounded-lg border border-rose-200 bg-rose-50/40 px-2.5 py-2 font-mono text-sm text-slate-900 outline-none ring-rose-500/30 placeholder:text-slate-400 focus:ring-2"
-                [ngModel]="card.short.prices"
-                (ngModelChange)="setSide(card, 'short', { prices: $event })"
-                placeholder="331, 343, 356"
-              />
-            </label>
-            @if (levelChips(card.short, 'Short').length) {
-              <div class="mt-2 flex flex-wrap gap-1">
-                @for (chip of levelChips(card.short, 'Short'); track chip.label) {
-                  <span
-                    class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px]"
-                    [class.bg-rose-600]="chip.kind === 'trigger'"
-                    [class.text-white]="chip.kind === 'trigger'"
-                    [class.bg-rose-100]="chip.kind === 'next'"
-                    [class.text-rose-800]="chip.kind === 'next'"
-                  >
-                    <span class="text-[9px] font-semibold uppercase tracking-wide opacity-80">{{ chip.label }}</span>
-                    {{ formatPrice(chip.price) }}
-                  </span>
-                }
-              </div>
-            }
-            <div class="mt-2 grid grid-cols-3 gap-2">
-              <label class="block">
-                <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Qty</span>
-                <input
-                  class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 font-mono text-sm"
-                  type="number"
-                  min="1"
-                  [ngModel]="card.short.quantity"
-                  (ngModelChange)="setSide(card, 'short', { quantity: $event })"
-                />
-              </label>
-              <label class="block">
-                <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Target</span>
-                <input
-                  class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 font-mono text-sm"
-                  type="number"
-                  step="0.01"
-                  [ngModel]="card.short.target"
-                  (ngModelChange)="setSide(card, 'short', { target: $event })"
-                  [placeholder]="previewTarget(card.short, 'Short') ? formatPrice(previewTarget(card.short, 'Short')) : '1%'"
-                />
-              </label>
-              <label class="block">
-                <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Book</span>
-                <select
-                  class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm"
-                  [ngModel]="card.short.segment"
-                  (ngModelChange)="setSide(card, 'short', { segment: $event })"
-                >
-                  <option value="intraday">Intraday</option>
-                  <option value="delivery">Delivery</option>
-                </select>
-              </label>
-            </div>
-          </div>
-
-          <div class="p-3">
-            <div class="mb-2 flex items-center justify-between gap-2">
-              <span class="rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Buy / Long</span>
-              <span class="text-[11px] text-slate-400">{{ longPlan(card) ? '1 trade' : 'idle' }}</span>
-            </div>
-            <label class="block">
-              <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Levels</span>
-              <input
-                class="tb-input mt-1 w-full rounded-lg border border-emerald-200 bg-emerald-50/40 px-2.5 py-2 font-mono text-sm text-slate-900 outline-none ring-emerald-500/30 placeholder:text-slate-400 focus:ring-2"
-                [ngModel]="card.long.prices"
-                (ngModelChange)="setSide(card, 'long', { prices: $event })"
-                placeholder="800"
-              />
-            </label>
-            @if (levelChips(card.long, 'Long').length) {
-              <div class="mt-2 flex flex-wrap gap-1">
-                @for (chip of levelChips(card.long, 'Long'); track chip.label) {
-                  <span
-                    class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px]"
-                    [class.bg-emerald-600]="chip.kind === 'trigger'"
-                    [class.text-white]="chip.kind === 'trigger'"
-                    [class.bg-emerald-100]="chip.kind === 'next'"
-                    [class.text-emerald-800]="chip.kind === 'next'"
-                  >
-                    <span class="text-[9px] font-semibold uppercase tracking-wide opacity-80">{{ chip.label }}</span>
-                    {{ formatPrice(chip.price) }}
-                  </span>
-                }
-              </div>
-            }
-            <div class="mt-2 grid grid-cols-3 gap-2">
-              <label class="block">
-                <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Qty</span>
-                <input
-                  class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 font-mono text-sm"
-                  type="number"
-                  min="1"
-                  [ngModel]="card.long.quantity"
-                  (ngModelChange)="setSide(card, 'long', { quantity: $event })"
-                />
-              </label>
-              <label class="block">
-                <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Target</span>
-                <input
-                  class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 font-mono text-sm"
-                  type="number"
-                  step="0.01"
-                  [ngModel]="card.long.target"
-                  (ngModelChange)="setSide(card, 'long', { target: $event })"
-                  [placeholder]="previewTarget(card.long, 'Long') ? formatPrice(previewTarget(card.long, 'Long')) : '1%'"
-                />
-              </label>
-              <label class="block">
-                <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Book</span>
-                <select
-                  class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm"
-                  [ngModel]="card.long.segment"
-                  (ngModelChange)="setSide(card, 'long', { segment: $event })"
-                >
-                  <option value="intraday">Intraday</option>
-                  <option value="delivery">Delivery</option>
-                </select>
-              </label>
-            </div>
-          </div>
-        </div>
-      </section>
-    }
+    <button type="button" class="plan-tool-btn plan-tool-btn-primary" (click)="addCard()" [disabled]="busy()">
+      Add plan
+    </button>
   </div>
 
-  <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-    <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-950 px-3 py-2 text-white">
-      <h2 class="mr-auto text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Working orders</h2>
-      <input
-        class="w-36 rounded-md border border-white/10 bg-white/10 px-2 py-1 text-xs text-white outline-none placeholder:text-slate-400"
-        type="search"
-        placeholder="Filter"
-        [ngModel]="searchQuery()"
-        (ngModelChange)="searchQuery.set($event)"
-      />
-      <button type="button" class="rounded-md px-2 py-1 text-[11px] font-semibold text-slate-300 hover:bg-white/10" [class.text-rose-300]="bulkOpen()" (click)="toggleBulk()">
-        Bulk
+  @if (bulkOpen()) {
+    <div class="flex flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
+      <button type="button" class="plan-tool-btn text-xs" [disabled]="busy()" (click)="toggleSelectAllVisible()">
+        {{ allVisibleSelected() ? 'Deselect all' : 'Select all' }}
       </button>
       <button
         type="button"
-        class="rounded-md px-2 py-1 text-[11px] font-semibold text-slate-300 hover:bg-white/10 disabled:opacity-40"
-        (click)="refreshSelectedScreener()"
-        [disabled]="screenerBusy() || busy() || !filteredPlans().length"
+        class="plan-tool-btn text-xs text-red-700"
+        [disabled]="busy() || !selectedCount()"
+        (click)="deleteSelected()"
       >
-        @if (screenerBusy()) {
-          Screener {{ screenerDone() + 1 }}/{{ screenerTotal() }}
-        } @else {
-          Screener
-        }
+        Delete selected{{ selectedCount() ? (' (' + selectedCount() + ')') : '' }}
+      </button>
+      <button type="button" class="plan-tool-btn text-xs text-red-700" [disabled]="busy()" (click)="deleteAllVisible()">
+        Delete all ({{ rows().length }})
       </button>
     </div>
+  }
 
-    @if (bulkOpen()) {
-      <div class="flex flex-wrap items-center gap-2 border-b border-rose-200 bg-rose-50 px-3 py-2">
-        <button type="button" class="text-[11px] font-semibold text-slate-600" (click)="toggleSelectAllVisible()">
-          {{ allVisibleSelected() ? 'Deselect all' : 'Select all' }}
-        </button>
-        <button type="button" class="text-[11px] font-semibold text-rose-700 disabled:opacity-40" [disabled]="busy() || !selectedCount()" (click)="deleteSelected()">
-          Delete selected{{ selectedCount() ? ' (' + selectedCount() + ')' : '' }}
-        </button>
-        <button type="button" class="text-[11px] font-semibold text-rose-700 disabled:opacity-40" [disabled]="busy()" (click)="deleteAllVisible()">
-          Delete all ({{ filteredPlans().length }})
-        </button>
-      </div>
-    }
-
-    @if (!filteredPlans().length) {
-      <p class="px-4 py-10 text-center text-sm text-slate-400">No working orders. Fill a ticket and send.</p>
-    } @else {
-      <div class="overflow-x-auto">
-        <table class="min-w-full text-left text-sm">
-          <thead class="bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-            <tr>
-              @if (bulkOpen()) {
-                <th class="w-10 px-3 py-2"></th>
-              }
-              <th class="px-3 py-2">Symbol</th>
-              <th class="px-3 py-2">Side</th>
-              <th class="px-3 py-2 text-right">Trigger</th>
-              <th class="px-3 py-2">Follow-up</th>
-              <th class="px-3 py-2 text-right">Target</th>
-              <th class="px-3 py-2 text-right">Qty</th>
-              <th class="px-3 py-2">Book</th>
-              <th class="px-3 py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of filteredPlans(); track row.id) {
-              <tr class="border-t border-slate-100 hover:bg-slate-50">
-                @if (bulkOpen()) {
-                  <td class="px-3 py-2">
-                    <input type="checkbox" [checked]="selectedIds().has(row.id)" (change)="toggleSelect(row.id)" />
-                  </td>
-                }
-                <td class="px-3 py-2">
-                  <a [routerLink]="['/stock', row.symbol]" class="font-mono text-xs font-bold tracking-wide text-slate-900 hover:text-kairo-700">{{ row.symbol }}</a>
-                  <div class="text-[11px] text-slate-400">{{ row.stockName }}</div>
-                </td>
-                <td class="px-3 py-2">
-                  <span
-                    class="inline-block min-w-[3.25rem] rounded px-1.5 py-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-white"
-                    [class.bg-emerald-600]="isLong(row.action)"
-                    [class.bg-rose-600]="!isLong(row.action)"
-                  >
-                    {{ isLong(row.action) ? 'Buy' : 'Sell' }}
-                  </span>
-                </td>
-                <td class="px-3 py-2 text-right font-mono text-xs font-semibold">{{ formatPrice(row.targetPrice) }}</td>
-                <td class="px-3 py-2 font-mono text-[11px] text-slate-500">{{ nextLevelsLabel(row.nextTargets) }}</td>
-                <td class="px-3 py-2 text-right font-mono text-xs">{{ exitLabel(row) }}</td>
-                <td class="px-3 py-2 text-right font-mono text-xs">{{ row.quantity || defaultQty }}</td>
-                <td class="px-3 py-2 text-[11px] uppercase tracking-wide text-slate-500">{{ row.segment || 'intraday' }}</td>
-                <td class="px-3 py-2 text-right">
-                  <button type="button" class="text-[11px] font-semibold text-kairo-700 hover:underline disabled:opacity-40" [disabled]="busy()" (click)="addPlanToHistory(row)">
-                    Fill
-                  </button>
-                </td>
-              </tr>
+  @if (cards().length) {
+    <div class="space-y-3">
+      @for (card of cards(); track card.key) {
+        <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div class="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2.5">
+            <div class="min-w-0 flex-1">
+              <app-stock-search-input
+                [query]="card.query"
+                [selectedName]="card.stock?.name || ''"
+                [selectedExchange]="card.stock?.exchange || ''"
+                [extraStocks]="card.stock ? [card.stock] : []"
+                placeholder="Symbol…"
+                (queryChange)="onQuery(card, $event)"
+                (picked)="onPicked(card, $event)"
+              />
+            </div>
+            @if (card.stock?.currentPrice) {
+              <div class="text-right">
+                <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">CMP</p>
+                <p class="font-mono text-sm font-semibold text-slate-900">{{ formatPrice(card.stock!.currentPrice) }}</p>
+              </div>
             }
-          </tbody>
-        </table>
-      </div>
-    }
-  </section>
+            <button
+              type="button"
+              class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+              (click)="refreshCardScreener(card)"
+              [disabled]="screenerBusy() || busy()"
+            >
+              {{ screenerBusy() ? 'Refreshing' : 'Screener' }}
+            </button>
+            <button type="button" class="rounded-lg px-2 py-1.5 text-[11px] font-semibold text-rose-600 hover:bg-rose-50" (click)="removeCard(card.key)">
+              Close
+            </button>
+            <button
+              type="button"
+              class="rounded-lg bg-kairo-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-kairo-700 disabled:opacity-40"
+              (click)="saveCard(card)"
+              [disabled]="busy() || !cardReady(card)"
+            >
+              {{ busy() ? 'Saving…' : 'Save' }}
+            </button>
+          </div>
+
+          <div class="grid md:grid-cols-2">
+            <div class="border-b border-slate-200 p-3 md:border-b-0 md:border-r">
+              <div class="mb-2 flex items-center justify-between gap-2">
+                <span class="side side-short">Short</span>
+                <span class="text-[11px] text-slate-400">{{ shortPlan(card) ? '1 trade' : 'idle' }}</span>
+              </div>
+              <label class="block">
+                <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Levels</span>
+                <input
+                  class="tb-input mt-1 w-full rounded-lg border border-rose-200 bg-rose-50/40 px-2.5 py-2 font-mono text-sm text-slate-900 outline-none ring-rose-500/30 placeholder:text-slate-400 focus:ring-2"
+                  [ngModel]="card.short.prices"
+                  (ngModelChange)="setSide(card, 'short', { prices: $event })"
+                  placeholder="331, 343, 356"
+                />
+              </label>
+              @if (levelChips(card.short, 'Short').length) {
+                <div class="mt-2 flex flex-wrap gap-1">
+                  @for (chip of levelChips(card.short, 'Short'); track chip.label) {
+                    <span
+                      class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px]"
+                      [class.bg-rose-600]="chip.kind === 'trigger'"
+                      [class.text-white]="chip.kind === 'trigger'"
+                      [class.bg-rose-100]="chip.kind === 'next'"
+                      [class.text-rose-800]="chip.kind === 'next'"
+                    >
+                      <span class="text-[9px] font-semibold uppercase tracking-wide opacity-80">{{ chip.label }}</span>
+                      {{ formatPrice(chip.price) }}
+                    </span>
+                  }
+                </div>
+              }
+              <div class="mt-2 grid grid-cols-3 gap-2">
+                <label class="block">
+                  <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Qty</span>
+                  <input
+                    class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 font-mono text-sm"
+                    type="number"
+                    min="1"
+                    [ngModel]="card.short.quantity"
+                    (ngModelChange)="setSide(card, 'short', { quantity: $event })"
+                  />
+                </label>
+                <label class="block">
+                  <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Target</span>
+                  <input
+                    class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 font-mono text-sm"
+                    type="number"
+                    step="0.01"
+                    [ngModel]="card.short.target"
+                    (ngModelChange)="setSide(card, 'short', { target: $event })"
+                    [placeholder]="previewTarget(card.short, 'Short') ? formatPrice(previewTarget(card.short, 'Short')) : '1%'"
+                  />
+                </label>
+                <label class="block">
+                  <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Book</span>
+                  <select
+                    class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm"
+                    [ngModel]="card.short.segment"
+                    (ngModelChange)="setSide(card, 'short', { segment: $event })"
+                  >
+                    <option value="intraday">Intraday</option>
+                    <option value="delivery">Delivery</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div class="p-3">
+              <div class="mb-2 flex items-center justify-between gap-2">
+                <span class="side side-long">Long</span>
+                <span class="text-[11px] text-slate-400">{{ longPlan(card) ? '1 trade' : 'idle' }}</span>
+              </div>
+              <label class="block">
+                <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Levels</span>
+                <input
+                  class="tb-input mt-1 w-full rounded-lg border border-emerald-200 bg-emerald-50/40 px-2.5 py-2 font-mono text-sm text-slate-900 outline-none ring-emerald-500/30 placeholder:text-slate-400 focus:ring-2"
+                  [ngModel]="card.long.prices"
+                  (ngModelChange)="setSide(card, 'long', { prices: $event })"
+                  placeholder="800"
+                />
+              </label>
+              @if (levelChips(card.long, 'Long').length) {
+                <div class="mt-2 flex flex-wrap gap-1">
+                  @for (chip of levelChips(card.long, 'Long'); track chip.label) {
+                    <span
+                      class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px]"
+                      [class.bg-emerald-600]="chip.kind === 'trigger'"
+                      [class.text-white]="chip.kind === 'trigger'"
+                      [class.bg-emerald-100]="chip.kind === 'next'"
+                      [class.text-emerald-800]="chip.kind === 'next'"
+                    >
+                      <span class="text-[9px] font-semibold uppercase tracking-wide opacity-80">{{ chip.label }}</span>
+                      {{ formatPrice(chip.price) }}
+                    </span>
+                  }
+                </div>
+              }
+              <div class="mt-2 grid grid-cols-3 gap-2">
+                <label class="block">
+                  <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Qty</span>
+                  <input
+                    class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 font-mono text-sm"
+                    type="number"
+                    min="1"
+                    [ngModel]="card.long.quantity"
+                    (ngModelChange)="setSide(card, 'long', { quantity: $event })"
+                  />
+                </label>
+                <label class="block">
+                  <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Target</span>
+                  <input
+                    class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 font-mono text-sm"
+                    type="number"
+                    step="0.01"
+                    [ngModel]="card.long.target"
+                    (ngModelChange)="setSide(card, 'long', { target: $event })"
+                    [placeholder]="previewTarget(card.long, 'Long') ? formatPrice(previewTarget(card.long, 'Long')) : '1%'"
+                  />
+                </label>
+                <label class="block">
+                  <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Book</span>
+                  <select
+                    class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm"
+                    [ngModel]="card.long.segment"
+                    (ngModelChange)="setSide(card, 'long', { segment: $event })"
+                  >
+                    <option value="intraday">Intraday</option>
+                    <option value="delivery">Delivery</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+      }
+    </div>
+  }
+
+  <div class="plan-list">
+    <table class="plan-blotter">
+      <thead>
+        <tr>
+          @if (bulkOpen()) {
+            <th class="w-8"></th>
+          }
+          <th class="col-stock">Stock</th>
+          <th class="num col-pair">
+            <span class="pair-head"><span>CMP</span><span class="pair-sub">Trigger</span></span>
+          </th>
+          <th class="num col-diff">Dist.</th>
+          <th class="col-next">Follow-up</th>
+          <th class="num col-qty">Qty</th>
+          <th class="num col-pair">
+            <span class="pair-head"><span>Target</span><span class="pair-sub">Move</span></span>
+          </th>
+          <th class="desk num col-net">Profit</th>
+          <th class="col-action"></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows(); track row.id) {
+          <tr [class]="rowClass(row)">
+            @if (bulkOpen()) {
+              <td class="w-8">
+                <input type="checkbox" class="h-4 w-4 rounded border-slate-300" [checked]="selectedIds().has(row.id)" (change)="toggleSelect(row.id)" />
+              </td>
+            }
+            <td class="stock col-stock">
+              <span class="stock-id">
+                <a class="sym" [routerLink]="['/stock', row.symbol]">{{ row.symbol }}</a>
+                <span class="stock-tags">
+                  <span class="side" [class]="sideClass(row.action)">{{ displayAction(row.action) }}</span>
+                  @if (row.triggerHit) {
+                    <span class="side side-trigger">Hit</span>
+                  }
+                </span>
+              </span>
+              <span class="name">{{ row.stockName || row.symbol }}</span>
+            </td>
+            <td class="num col-pair" [class.text-cyan-800]="row.triggerHit">
+              <span class="pair">
+                <span class="pair-main">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</span>
+                <span class="pair-sub" [class.text-cyan-700]="row.triggerHit">{{ formatPrice(row.targetPrice) }}</span>
+              </span>
+            </td>
+            <td class="num col-diff">
+              @if (row.diffPct != null) {
+                <span [class]="proximityClass(row)">{{ formatPctSigned(row.diffPct) }}</span>
+              } @else {
+                <span class="mute">—</span>
+              }
+            </td>
+            <td class="col-next">
+              <span class="text-[11px] text-slate-500">{{ nextLevelsLabel(row.nextTargets) }}</span>
+            </td>
+            <td class="num col-qty">
+              @if (editingId() === row.id) {
+                <input
+                  class="input-field !w-20 !px-1.5 !py-1 text-right font-mono text-xs"
+                  type="number"
+                  min="1"
+                  [(ngModel)]="editQty"
+                  (click)="$event.stopPropagation()"
+                />
+              } @else {
+                <span class="tabular-nums">{{ row.quantity || defaultQty }}</span>
+              }
+            </td>
+            <td class="num col-pair">
+              <span class="pair">
+                <span class="pair-main">{{ exitLabel(row) }}</span>
+                @if (row.triggerMovePct != null) {
+                  <span class="pair-sub font-medium" [class]="pnlClass(row.triggerMovePct)">
+                    {{ formatPctSigned(row.triggerMovePct) }} {{ row.moveKind }}
+                  </span>
+                }
+              </span>
+            </td>
+            <td class="desk num col-net">
+              @if (row.targetProfit != null) {
+                <span class="font-semibold" [class]="pnlClass(row.targetProfit)">{{ formatCurrency(row.targetProfit) }}</span>
+              } @else {
+                <span class="mute">—</span>
+              }
+            </td>
+            <td class="col-action text-right">
+              @if (editingId() === row.id) {
+                <button type="button" class="plan-link" [disabled]="busy()" (click)="saveQty(row)">Save</button>
+                <button type="button" class="ml-2 text-[11px] font-semibold text-slate-500 hover:underline" (click)="cancelEdit()">Cancel</button>
+              } @else {
+                <button type="button" class="plan-link" [disabled]="busy()" (click)="startEdit(row)">Edit</button>
+                <button type="button" class="plan-link ml-2" [disabled]="busy()" (click)="addPlanToHistory(row)">Fill</button>
+              }
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td class="empty" [attr.colspan]="bulkOpen() ? 9 : 8">No working orders. Click Add plan to create one.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
 </div>

@@ -2,15 +2,29 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { combineLatest, distinctUntilChanged, from, map, switchMap } from 'rxjs';
 import { ExecutionLeg, RegistryStock, TradeSegment } from '../../models/trading-journal.models';
+import { ChargesService } from '../../services/charges.service';
 import { PriceTracker, PriceTrackerService } from '../../services/price-tracker.service';
 import { RegistryStockService } from '../../services/registry-stock.service';
 import { ScreenerService, ScreenerSnapshot } from '../../services/screener.service';
 import { ToastService } from '../../services/toast.service';
 import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
-import { formatPrice } from '../../utils/format.utils';
-import { trackerIsSell } from '../../utils/price-tracker.utils';
+import { formatCurrency, formatPctSigned, formatPrice, pnlClass } from '../../utils/format.utils';
+import {
+  allocateTrackerSlices,
+  trackerDiffPct,
+  trackerDirection,
+  trackerEntryPrice,
+  trackerIsSell,
+  trackerIsSized,
+  trackerMoveKind,
+  trackerProximity,
+  trackerSegment,
+  trackerTriggerHit,
+  trackerTriggerToTargetPct,
+} from '../../utils/price-tracker.utils';
 
 const DEFAULT_QTY = 1000;
 const TARGET_PCT = 0.01;
@@ -42,6 +56,16 @@ interface ParsedLine {
   segment: TradeSegment;
 }
 
+interface BookRow extends PriceTracker {
+  cmp?: number;
+  diffPct: number | null;
+  proximity: ReturnType<typeof trackerProximity>;
+  triggerHit: boolean;
+  triggerMovePct: number | null;
+  moveKind: 'drop' | 'up';
+  targetProfit: number | null;
+}
+
 @Component({
   selector: 'app-trade-book',
   standalone: true,
@@ -49,8 +73,11 @@ interface ParsedLine {
   templateUrl: './trade-book.component.html',
   host: { class: 'block' },
   styles: `
-    :host { font-variant-numeric: tabular-nums; }
+    :host { display: block; width: 100%; }
     .tb-input { font-variant-numeric: tabular-nums; }
+    .plan-blotter .col-next { width: 16%; }
+    .plan-blotter .col-qty { width: 10%; }
+    .plan-blotter .col-action { width: 12%; }
   `,
 })
 export class TradeBookComponent {
@@ -58,14 +85,30 @@ export class TradeBookComponent {
   private registrySvc = inject(RegistryStockService);
   private screener = inject(ScreenerService);
   private toast = inject(ToastService);
+  private charges = inject(ChargesService);
 
   readonly formatPrice = formatPrice;
+  readonly formatCurrency = formatCurrency;
+  readonly formatPctSigned = formatPctSigned;
+  readonly pnlClass = pnlClass;
   readonly defaultQty = DEFAULT_QTY;
   readonly targetPctLabel = '1%';
 
   private nextKey = 1;
-  cards = signal<DraftCard[]>([this.emptyCard()]);
+  cards = signal<DraftCard[]>([]);
   plans = toSignal(this.trackerSvc.watchAll(), { initialValue: [] as PriceTracker[] });
+  private planRegistryTick = signal(0);
+  private refreshedRegistry = signal<RegistryStock[]>([]);
+  planRegistry = toSignal(
+    combineLatest([
+      toObservable(this.plans).pipe(
+        map((rows) => [...new Set(rows.map((row) => row.symbol.toUpperCase()))].sort().join('\0')),
+        distinctUntilChanged()
+      ),
+      toObservable(this.planRegistryTick),
+    ]).pipe(switchMap(([key]) => from(this.registrySvc.listBySymbols(key ? key.split('\0') : [])))),
+    { initialValue: [] as RegistryStock[] }
+  );
   selectedIds = signal<Set<string>>(new Set());
   bulkOpen = signal(false);
   busy = signal(false);
@@ -73,30 +116,53 @@ export class TradeBookComponent {
   screenerDone = signal(0);
   screenerTotal = signal(0);
   searchQuery = signal('');
+  editingId = signal<string | null>(null);
+  editQty = '';
 
-  filteredPlans = computed(() => {
+  rows = computed((): BookRow[] => {
+    this.charges.rates();
+    this.refreshedRegistry();
+    this.planRegistry();
     const q = this.searchQuery().trim().toUpperCase();
-    const rows = this.plans();
-    if (!q) return rows;
-    return rows.filter(
-      (row) =>
-        row.symbol.toUpperCase().includes(q) ||
-        (row.stockName || '').toUpperCase().includes(q) ||
-        row.action.toUpperCase().includes(q)
-    );
+    const mapped = this.plans().map((plan) => {
+      const cmp = this.liveCmp(plan);
+      const exit = plan.targets?.[0]?.price;
+      return {
+        ...plan,
+        cmp,
+        diffPct: trackerDiffPct(cmp, plan.targetPrice),
+        proximity: trackerProximity(cmp, plan.targetPrice),
+        triggerHit: trackerTriggerHit(plan.action, cmp, plan.targetPrice),
+        triggerMovePct: trackerTriggerToTargetPct(plan.targetPrice, exit, plan.action),
+        moveKind: trackerMoveKind(plan.action),
+        targetProfit: this.targetProfitFor(plan),
+      };
+    });
+    const filtered = q
+      ? mapped.filter(
+          (row) =>
+            row.symbol.toUpperCase().includes(q) ||
+            (row.stockName || '').toUpperCase().includes(q) ||
+            row.action.toUpperCase().includes(q)
+        )
+      : mapped;
+    const hits = filtered.filter((row) => row.triggerHit);
+    const rest = filtered.filter((row) => !row.triggerHit);
+    return [...hits, ...rest];
   });
 
   selectedCount = computed(() => this.selectedIds().size);
   allVisibleSelected = computed(() => {
-    const rows = this.filteredPlans();
+    const rows = this.rows();
     if (!rows.length) return false;
     const selected = this.selectedIds();
     return rows.every((row) => selected.has(row.id));
   });
+  triggerCount = computed(() => this.rows().filter((row) => row.triggerHit).length);
 
-  previewCount = computed(() =>
-    this.cards().reduce((sum, card) => sum + this.parsedLines(card).length, 0)
-  );
+  cardReady(card: DraftCard): boolean {
+    return this.parsedLines(card).length > 0;
+  }
 
   onQuery(card: DraftCard, value: string): void {
     this.patchCard(card.key, { query: value.toUpperCase() });
@@ -110,11 +176,57 @@ export class TradeBookComponent {
     this.cards.update((rows) => [...rows, this.emptyCard()]);
   }
 
+  startEdit(row: PriceTracker): void {
+    this.editingId.set(row.id);
+    this.editQty = String(row.quantity && row.quantity > 0 ? row.quantity : DEFAULT_QTY);
+  }
+
+  cancelEdit(): void {
+    this.editingId.set(null);
+    this.editQty = '';
+  }
+
+  async saveQty(row: PriceTracker): Promise<void> {
+    if (this.busy()) return;
+    const qty = parseFloat(this.editQty);
+    if (!(qty > 0)) {
+      this.toast.error('Enter a quantity greater than 0');
+      return;
+    }
+    this.busy.set(true);
+    try {
+      const targets = (row.targets ?? []).map((target) => ({
+        price: target.price,
+        quantity: qty,
+      }));
+      await this.trackerSvc.save(
+        {
+          symbol: row.symbol,
+          stockName: row.stockName,
+          isin: row.isin,
+          action: row.action,
+          targetPrice: row.targetPrice,
+          nextTargets: row.nextTargets,
+          targets,
+          quantity: qty,
+          segment: row.segment,
+          entryPrice: row.entryPrice,
+          stopLoss: row.stopLoss,
+          notes: row.notes,
+        },
+        row.id
+      );
+      this.cancelEdit();
+      this.toast.success(`Updated ${row.symbol} quantity to ${qty}`);
+    } catch (e) {
+      this.toast.error(e instanceof Error ? e.message : 'Failed to update quantity');
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
   removeCard(key: number): void {
-    this.cards.update((rows) => {
-      const next = rows.filter((card) => card.key !== key);
-      return next.length ? next : [this.emptyCard()];
-    });
+    this.cards.update((rows) => rows.filter((card) => card.key !== key));
   }
 
   setSide(card: DraftCard, side: SideKey, patch: Partial<DraftSide>): void {
@@ -122,10 +234,9 @@ export class TradeBookComponent {
   }
 
   parsedLines(card: DraftCard): ParsedLine[] {
-    return [
-      this.parseSide('Short', card.short),
-      this.parseSide('Long', card.long),
-    ].filter((line): line is ParsedLine => line != null);
+    return [this.parseSide('Short', card.short), this.parseSide('Long', card.long)].filter(
+      (line): line is ParsedLine => line != null
+    );
   }
 
   shortPlan(card: DraftCard): ParsedLine | null {
@@ -149,8 +260,27 @@ export class TradeBookComponent {
     ];
   }
 
-  isLong(action: string): boolean {
-    return !trackerIsSell(action);
+  displayAction(action: string): Side {
+    return trackerIsSell(action) ? 'Short' : 'Long';
+  }
+
+  sideClass(action: string): string {
+    return this.displayAction(action) === 'Short' ? 'side-short' : 'side-long';
+  }
+
+  rowClass(row: BookRow): string {
+    const parts = ['plan-row'];
+    if (row.triggerHit) parts.push('plan-row-trigger');
+    else if (row.proximity === 'hot') parts.push('plan-row-hot');
+    else if (row.proximity === 'near') parts.push('plan-row-near');
+    return parts.join(' ');
+  }
+
+  proximityClass(row: BookRow): string {
+    if (row.triggerHit) return 'text-cyan-700';
+    if (row.proximity === 'hot') return 'text-emerald-700';
+    if (row.proximity === 'near') return 'text-amber-700';
+    return this.pnlClass(row.diffPct ?? 0);
   }
 
   defaultTarget(trigger: number, action: Side): number {
@@ -163,12 +293,8 @@ export class TradeBookComponent {
     return this.parseSide(action, side)?.target ?? 0;
   }
 
-  async createPlans(): Promise<void> {
-    await this.commitDrafts('open');
-  }
-
-  async addDraftsToHistory(): Promise<void> {
-    await this.commitDrafts('history');
+  async saveCard(card: DraftCard): Promise<void> {
+    await this.commitCard(card, 'open');
   }
 
   async addPlanToHistory(row: PriceTracker): Promise<void> {
@@ -211,7 +337,7 @@ export class TradeBookComponent {
   }
 
   toggleSelectAllVisible(): void {
-    const rows = this.filteredPlans();
+    const rows = this.rows();
     this.selectedIds.update((ids) => {
       const next = new Set(ids);
       const all = rows.every((row) => next.has(row.id));
@@ -241,7 +367,7 @@ export class TradeBookComponent {
   }
 
   async deleteAllVisible(): Promise<void> {
-    const ids = this.filteredPlans().map((row) => row.id);
+    const ids = this.rows().map((row) => row.id);
     if (!ids.length || this.busy()) return;
     if (!confirm(`Remove all ${ids.length} visible plans? This cannot be undone.`)) return;
     this.busy.set(true);
@@ -268,9 +394,7 @@ export class TradeBookComponent {
 
   async refreshSelectedScreener(): Promise<void> {
     const selected = this.selectedIds();
-    const rows = selected.size
-      ? this.filteredPlans().filter((row) => selected.has(row.id))
-      : this.filteredPlans();
+    const rows = selected.size ? this.rows().filter((row) => selected.has(row.id)) : this.rows();
     const symbols = [...new Set(rows.map((row) => row.symbol.trim().toUpperCase()).filter(Boolean))];
     if (!symbols.length) {
       this.toast.error('No stocks to refresh');
@@ -288,53 +412,44 @@ export class TradeBookComponent {
     return price && price > 0 ? formatPrice(price) : '—';
   }
 
-  private async commitDrafts(mode: 'open' | 'history'): Promise<void> {
+  private async commitCard(card: DraftCard, mode: 'open' | 'history'): Promise<void> {
     if (this.busy()) return;
-    const drafts = this.cards()
-      .map((card) => ({ card, lines: this.parsedLines(card) }))
-      .filter((item) => item.lines.length);
-    if (!drafts.length) {
-      this.toast.error('Add a stock and at least one long or short price');
+    const lines = this.parsedLines(card);
+    if (!lines.length) {
+      this.toast.error('Add at least one long or short price');
       return;
     }
-
     this.busy.set(true);
     let saved = 0;
     try {
-      for (const { card, lines } of drafts) {
-        const stock = await this.resolveStock(card);
-        if (!stock) {
-          this.toast.error('Pick a stock from the registry for each note');
-          return;
-        }
-        for (const line of lines) {
-          const payload = {
-            symbol: stock.symbol,
-            stockName: stock.name,
-            isin: stock.isin,
-            action: line.action,
-            targetPrice: line.trigger,
-            nextTargets: line.nextTargets,
-            targets: [{ price: line.target, quantity: line.quantity }],
-            quantity: line.quantity,
-            segment: line.segment,
-            entryPrice: line.trigger,
-          };
-          if (mode === 'history') {
-            const { buyLegs, sellLegs } = this.legsFor(line.action, line.quantity, line.trigger, line.target);
-            await this.trackerSvc.saveExecuted({ ...payload, buyLegs, sellLegs });
-          } else {
-            await this.trackerSvc.save(payload);
-          }
-          saved += 1;
-        }
+      const stock = await this.resolveStock(card);
+      if (!stock) {
+        this.toast.error('Pick a stock from the registry');
+        return;
       }
-      this.cards.set([this.emptyCard()]);
-      this.toast.success(
-        mode === 'history'
-          ? `Added ${saved} ${saved === 1 ? 'trade' : 'trades'} to history`
-          : `Created ${saved} ${saved === 1 ? 'trade plan' : 'trade plans'}`
-      );
+      for (const line of lines) {
+        const payload = {
+          symbol: stock.symbol,
+          stockName: stock.name,
+          isin: stock.isin,
+          action: line.action,
+          targetPrice: line.trigger,
+          nextTargets: line.nextTargets,
+          targets: [{ price: line.target, quantity: line.quantity }],
+          quantity: line.quantity,
+          segment: line.segment,
+          entryPrice: line.trigger,
+        };
+        if (mode === 'history') {
+          const { buyLegs, sellLegs } = this.legsFor(line.action, line.quantity, line.trigger, line.target);
+          await this.trackerSvc.saveExecuted({ ...payload, buyLegs, sellLegs });
+        } else {
+          await this.trackerSvc.save(payload);
+        }
+        saved += 1;
+      }
+      this.removeCard(card.key);
+      this.toast.success(`Created ${saved} ${saved === 1 ? 'trade plan' : 'trade plans'}`);
     } catch (e) {
       this.toast.error(e instanceof Error ? e.message : 'Failed to save trade book');
     } finally {
@@ -368,7 +483,9 @@ export class TradeBookComponent {
             name: existing?.name,
             pageUrl: existing?.screenerUrl,
           });
-          await this.registrySvc.save(this.applyScreener(existing, data, symbol));
+          const next = this.applyScreener(existing, data, symbol);
+          await this.registrySvc.save(next);
+          this.refreshedRegistry.update((rows) => [...rows.filter((row) => row.symbol !== next.symbol), next]);
           this.patchCardsForSymbol(symbol, data);
           updated += 1;
         } catch {
@@ -376,6 +493,7 @@ export class TradeBookComponent {
         }
       }
       this.registrySvc.reload();
+      this.planRegistryTick.update((n) => n + 1);
       const failNote = failed.length
         ? ` ${failed.length} failed: ${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}.`
         : '';
@@ -506,6 +624,29 @@ export class TradeBookComponent {
       buyLegs: [{ quantity: qty, price: trigger }],
       sellLegs: [{ quantity: qty, price: exit }],
     };
+  }
+
+  private targetProfitFor(plan: PriceTracker): number | null {
+    if (!trackerIsSized(plan)) return null;
+    const entry = trackerEntryPrice(plan);
+    const slices = allocateTrackerSlices(plan);
+    if (entry == null || !slices.length || !(plan.quantity ?? 0)) return null;
+    return this.charges.ladder({
+      segment: trackerSegment(plan),
+      direction: trackerDirection(plan.action),
+      entryPrice: entry,
+      totalQuantity: plan.quantity as number,
+      slices,
+    }).netPnL;
+  }
+
+  private liveCmp(plan: { symbol: string; isin?: string }): number | undefined {
+    const symbol = plan.symbol.trim().toUpperCase();
+    const stock =
+      this.refreshedRegistry().find((row) => row.symbol.toUpperCase() === symbol) ??
+      this.planRegistry().find((row) => row.symbol.toUpperCase() === symbol);
+    const price = stock?.currentPrice;
+    return price != null && price > 0 ? price : undefined;
   }
 
   private patchCard(key: number, patch: Partial<DraftCard>): void {
