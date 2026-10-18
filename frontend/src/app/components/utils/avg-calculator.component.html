@@ -358,7 +358,7 @@
         >
           {{ savingToBook() || savingToHistory() ? 'Adding…' : historySavedAt() ? 'Added as closed trade' : 'Add to trade book' }}
         </button>
-        <a routerLink="/trade-plans" class="text-xs font-semibold text-kairo-700 hover:underline">Open trade book</a>
+        <a routerLink="/trade-book" class="text-xs font-semibold text-kairo-700 hover:underline">Open trade book</a>
         @if (historySavedAt()) {
           <a routerLink="/trade-plans/history" class="text-xs font-semibold text-kairo-700 hover:underline">Open history</a>
         }

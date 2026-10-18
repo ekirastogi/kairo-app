@@ -108,7 +108,7 @@
       [ngModel]="searchQuery()"
       (ngModelChange)="searchQuery.set($event)"
     />
-    <a routerLink="/trade-plans" fragment="open" class="btn-secondary text-xs">View open plans →</a>
+    <a routerLink="/trade-book" class="btn-secondary text-xs">View open plans →</a>
   </div>
 
   @if (filteredStocks().length) {

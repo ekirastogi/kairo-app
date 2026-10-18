@@ -200,7 +200,7 @@
           <button type="button" class="btn-primary !px-3 !py-1.5 text-xs" [disabled]="!canAddToBook() || savingToBook()" (click)="addToTradeBook()">
             {{ savingToBook() ? 'Adding…' : 'Add to trade book' }}
           </button>
-          <a routerLink="/trade-plans" class="text-xs font-semibold text-kairo-700 hover:underline">Open trade book</a>
+          <a routerLink="/trade-book" class="text-xs font-semibold text-kairo-700 hover:underline">Open trade book</a>
           @if (notice()) {
             <span class="text-xs text-slate-500">{{ notice() }}</span>
           }

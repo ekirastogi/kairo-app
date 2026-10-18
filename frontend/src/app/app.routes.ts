@@ -104,15 +104,7 @@ export const routes: Routes = [
           planView: 'history',
         },
       },
-      {
-        path: 'trade-plans',
-        loadComponent: () =>
-          import('./components/tracking/tracking.component').then((m) => m.TrackingComponent),
-        data: {
-          title: 'Trade plans',
-          subtitle: 'Trigger, size, and exits with live CMP and net P&L',
-        },
-      },
+      { path: 'trade-plans', redirectTo: 'trade-book', pathMatch: 'full' },
       {
         path: 'trade-book',
         loadComponent: () =>
@@ -122,7 +114,7 @@ export const routes: Routes = [
           subtitle: 'Quick notebook-style trade plans with 1% targets',
         },
       },
-      { path: 'tracking', redirectTo: 'trade-plans', pathMatch: 'full' },
+      { path: 'tracking', redirectTo: 'trade-book', pathMatch: 'full' },
       {
         path: 'momentum',
         loadComponent: () =>

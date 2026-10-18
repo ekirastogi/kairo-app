@@ -303,7 +303,7 @@ export class MomentumStocksComponent implements OnInit {
         notes: [this.catalystLabel(stock.catalyst), stock.notes].filter(Boolean).join(' · '),
       });
       this.success.set(`Added ${stock.symbol} to open trade plans`);
-      void this.router.navigate(['/trade-plans'], { fragment: 'open' });
+      void this.router.navigate(['/trade-book']);
     } catch (e) {
       this.error.set(e instanceof Error ? e.message : 'Failed to create trade plan');
     } finally {

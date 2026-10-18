@@ -16,6 +16,7 @@ import { formatDataAge } from '../../utils/data-age.utils';
 import { formatCurrency, formatPctSigned, formatPrice, pnlClass } from '../../utils/format.utils';
 import {
   allocateTrackerSlices,
+  trackerAbsDiffPct,
   trackerDiffPct,
   trackerDirection,
   trackerEntryPrice,
@@ -76,6 +77,7 @@ interface ParsedLine {
 interface BookRow extends PriceTracker {
   cmp?: number;
   diffPct: number | null;
+  absDiffPct: number | null;
   proximity: ReturnType<typeof trackerProximity>;
   triggerHit: boolean;
   triggerMovePct: number | null;
@@ -155,6 +157,7 @@ export class TradeBookComponent {
         ...plan,
         cmp,
         diffPct: trackerDiffPct(cmp, plan.targetPrice),
+        absDiffPct: trackerAbsDiffPct(cmp, plan.targetPrice),
         proximity: trackerProximity(cmp, plan.targetPrice),
         triggerHit: trackerTriggerHit(plan.action, cmp, plan.targetPrice),
         triggerMovePct: trackerTriggerToTargetPct(plan.targetPrice, exit, plan.action),
@@ -170,9 +173,10 @@ export class TradeBookComponent {
             row.action.toUpperCase().includes(q)
         )
       : mapped;
-    const hits = filtered.filter((row) => row.triggerHit);
-    const rest = filtered.filter((row) => !row.triggerHit);
-    return [...hits, ...rest];
+    return [...filtered].sort((a, b) => {
+      if (a.triggerHit !== b.triggerHit) return a.triggerHit ? -1 : 1;
+      return (a.absDiffPct ?? Number.POSITIVE_INFINITY) - (b.absDiffPct ?? Number.POSITIVE_INFINITY);
+    });
   });
 
   selectedCount = computed(() => this.selectedIds().size);
@@ -335,6 +339,12 @@ export class TradeBookComponent {
 
   isLong(action: string): boolean {
     return this.displayAction(action) === 'Long';
+  }
+
+  sideBookLabel(row: Pick<PriceTracker, 'action' | 'segment'>): string {
+    const side = this.isLong(row.action) ? 'Buy' : 'Sell';
+    const book = row.segment === 'delivery' ? 'Delivery' : 'Intraday';
+    return `${side} ${book}`;
   }
 
   proximityClass(row: BookRow): string {
