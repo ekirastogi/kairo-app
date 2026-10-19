@@ -100,13 +100,17 @@ interface BookRow extends PriceTracker {
   templateUrl: './trade-book.component.html',
   host: { class: 'block' },
   styles: `
-    :host { display: block; width: 100%; }
-    .tb-input { font-variant-numeric: tabular-nums; }
+    :host { display: block; width: 100%; font-family: Inter, system-ui, -apple-system, sans-serif; }
+    .tb-input {
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      font-variant-numeric: tabular-nums;
+    }
     .tb-drawer { position: fixed; inset: 0; z-index: 50; display: flex; justify-content: flex-end; }
     .tb-drawer-scrim { position: absolute; inset: 0; background: rgb(15 23 42 / 0.4); }
     .tb-drawer-panel {
       position: relative; height: 100%; width: min(28rem, 100%); overflow-y: auto;
       background: #fff; box-shadow: -12px 0 40px rgb(15 23 42 / 0.18);
+      font-family: Inter, system-ui, -apple-system, sans-serif;
     }
   `,
 })

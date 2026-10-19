@@ -132,7 +132,7 @@
             @if (card.stock?.currentPrice) {
               <div class="text-right">
                 <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">CMP</p>
-                <p class="font-mono text-sm font-semibold text-slate-900">{{ formatPrice(card.stock!.currentPrice) }}</p>
+                <p class="tabular-nums text-sm font-semibold text-slate-900">{{ formatPrice(card.stock!.currentPrice) }}</p>
               </div>
             }
             <button
@@ -165,7 +165,7 @@
               <label class="block">
                 <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Levels</span>
                 <input
-                  class="tb-input mt-1 w-full rounded-lg border border-rose-200 bg-rose-50/40 px-2.5 py-2 font-mono text-sm text-slate-900 outline-none ring-rose-500/30 placeholder:text-slate-400 focus:ring-2"
+                  class="tb-input mt-1 w-full rounded-lg border border-rose-200 bg-rose-50/40 px-2.5 py-2 tabular-nums text-sm text-slate-900 outline-none ring-rose-500/30 placeholder:text-slate-400 focus:ring-2"
                   [ngModel]="card.short.prices"
                   (ngModelChange)="setSide(card, 'short', { prices: $event })"
                   placeholder="331, 343, 356"
@@ -175,7 +175,7 @@
                 <div class="mt-2 flex flex-wrap gap-1">
                   @for (chip of levelChips(card.short, 'Short'); track chip.label) {
                     <span
-                      class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px]"
+                      class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 tabular-nums text-[11px]"
                       [class.bg-rose-600]="chip.kind === 'trigger'"
                       [class.text-white]="chip.kind === 'trigger'"
                       [class.bg-rose-100]="chip.kind === 'next'"
@@ -191,7 +191,7 @@
                 <label class="block">
                   <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Qty</span>
                   <input
-                    class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 font-mono text-sm"
+                    class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 tabular-nums text-sm"
                     type="number"
                     min="1"
                     [ngModel]="card.short.quantity"
@@ -201,7 +201,7 @@
                 <label class="block">
                   <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Target</span>
                   <input
-                    class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 font-mono text-sm"
+                    class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 tabular-nums text-sm"
                     type="number"
                     step="0.01"
                     [ngModel]="card.short.target"
@@ -231,7 +231,7 @@
               <label class="block">
                 <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Levels</span>
                 <input
-                  class="tb-input mt-1 w-full rounded-lg border border-emerald-200 bg-emerald-50/40 px-2.5 py-2 font-mono text-sm text-slate-900 outline-none ring-emerald-500/30 placeholder:text-slate-400 focus:ring-2"
+                  class="tb-input mt-1 w-full rounded-lg border border-emerald-200 bg-emerald-50/40 px-2.5 py-2 tabular-nums text-sm text-slate-900 outline-none ring-emerald-500/30 placeholder:text-slate-400 focus:ring-2"
                   [ngModel]="card.long.prices"
                   (ngModelChange)="setSide(card, 'long', { prices: $event })"
                   placeholder="800"
@@ -241,7 +241,7 @@
                 <div class="mt-2 flex flex-wrap gap-1">
                   @for (chip of levelChips(card.long, 'Long'); track chip.label) {
                     <span
-                      class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px]"
+                      class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 tabular-nums text-[11px]"
                       [class.bg-emerald-600]="chip.kind === 'trigger'"
                       [class.text-white]="chip.kind === 'trigger'"
                       [class.bg-emerald-100]="chip.kind === 'next'"
@@ -257,7 +257,7 @@
                 <label class="block">
                   <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Qty</span>
                   <input
-                    class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 font-mono text-sm"
+                    class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 tabular-nums text-sm"
                     type="number"
                     min="1"
                     [ngModel]="card.long.quantity"
@@ -267,7 +267,7 @@
                 <label class="block">
                   <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Target</span>
                   <input
-                    class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 font-mono text-sm"
+                    class="tb-input mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 tabular-nums text-sm"
                     type="number"
                     step="0.01"
                     [ngModel]="card.long.target"
@@ -327,7 +327,7 @@
                 }
                 <td class="px-3 py-2">
                   <a [routerLink]="['/stock', row.symbol]" class="block font-semibold text-slate-900 hover:text-kairo-700">{{ row.stockName || row.symbol }}</a>
-                  <div class="font-mono text-[11px] text-slate-400">{{ row.symbol }}</div>
+                  <div class="tabular-nums text-[11px] text-slate-400">{{ row.symbol }}</div>
                 </td>
                 <td class="px-3 py-2">
                   <span
@@ -338,21 +338,21 @@
                     {{ sideBookLabel(row) }}
                   </span>
                 </td>
-                <td class="px-3 py-2 text-right font-mono text-xs font-semibold" [class.text-cyan-800]="row.triggerHit">
+                <td class="px-3 py-2 text-right tabular-nums text-xs font-semibold" [class.text-cyan-800]="row.triggerHit">
                   {{ row.cmp ? formatPrice(row.cmp) : '—' }}
                 </td>
-                <td class="px-3 py-2 text-right font-mono text-xs font-semibold">{{ formatPrice(row.targetPrice) }}</td>
-                <td class="px-3 py-2 text-right font-mono text-xs">
+                <td class="px-3 py-2 text-right tabular-nums text-xs font-semibold">{{ formatPrice(row.targetPrice) }}</td>
+                <td class="px-3 py-2 text-right tabular-nums text-xs">
                   @if (row.diffPct != null) {
                     <span [class]="proximityClass(row)">{{ formatPctSigned(row.diffPct) }}</span>
                   } @else {
                     <span class="text-slate-400">—</span>
                   }
                 </td>
-                <td class="px-3 py-2 font-mono text-[11px] text-slate-500">{{ nextLevelsLabel(row.nextTargets) }}</td>
-                <td class="px-3 py-2 text-right font-mono text-xs">{{ exitLabel(row) }}</td>
-                <td class="px-3 py-2 text-right font-mono text-xs">{{ row.quantity || defaultQty }}</td>
-                <td class="px-3 py-2 text-right font-mono text-xs">
+                <td class="px-3 py-2 tabular-nums text-[11px] text-slate-500">{{ nextLevelsLabel(row.nextTargets) }}</td>
+                <td class="px-3 py-2 text-right tabular-nums text-xs">{{ exitLabel(row) }}</td>
+                <td class="px-3 py-2 text-right tabular-nums text-xs">{{ row.quantity || defaultQty }}</td>
+                <td class="px-3 py-2 text-right tabular-nums text-xs">
                   @if (row.targetProfit != null) {
                     <span class="font-semibold" [class]="pnlClass(row.targetProfit)">{{ formatCurrency(row.targetProfit) }}</span>
                   } @else {
@@ -396,15 +396,15 @@
                       </div>
                       <label class="block text-xs sm:col-span-4">
                         <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Prices · first trigger</span>
-                        <input class="tb-input input-field mt-1 !py-1.5 font-mono" [(ngModel)]="editForm.prices" placeholder="331, 343, 356" />
+                        <input class="tb-input input-field mt-1 !py-1.5 tabular-nums" [(ngModel)]="editForm.prices" placeholder="331, 343, 356" />
                       </label>
                       <label class="block text-xs sm:col-span-2">
                         <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Qty</span>
-                        <input class="tb-input input-field mt-1 !py-1.5 font-mono" type="number" min="1" [(ngModel)]="editForm.quantity" />
+                        <input class="tb-input input-field mt-1 !py-1.5 tabular-nums" type="number" min="1" [(ngModel)]="editForm.quantity" />
                       </label>
                       <label class="block text-xs sm:col-span-2">
                         <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Target</span>
-                        <input class="tb-input input-field mt-1 !py-1.5 font-mono" type="number" step="0.01" [(ngModel)]="editForm.target" />
+                        <input class="tb-input input-field mt-1 !py-1.5 tabular-nums" type="number" step="0.01" [(ngModel)]="editForm.target" />
                       </label>
                       <label class="block text-xs sm:col-span-2">
                         <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Book</span>
@@ -438,7 +438,7 @@
 
         <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
           <p class="text-sm font-semibold text-slate-900">{{ closeRow.stockName || closeRow.symbol }}</p>
-          <p class="mt-0.5 font-mono text-[11px] text-slate-500">
+          <p class="mt-0.5 tabular-nums text-[11px] text-slate-500">
             {{ closeRow.symbol }}
             · {{ displayAction(closeRow.action) }} {{ closeRow.segment === 'delivery' ? 'Delivery' : 'Intraday' }}
             @if (closeRow.cmp) {
@@ -458,11 +458,11 @@
             <div class="mb-2 grid grid-cols-12 items-end gap-2">
               <label class="col-span-4 block text-xs">
                 <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{{ leg.label }}</span>
-                <input class="tb-input input-field mt-1 !py-1.5 font-mono" type="number" min="1" placeholder="Qty" [(ngModel)]="leg.quantity" />
+                <input class="tb-input input-field mt-1 !py-1.5 tabular-nums" type="number" min="1" placeholder="Qty" [(ngModel)]="leg.quantity" />
               </label>
               <label class="col-span-6 block text-xs">
                 <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Price</span>
-                <input class="tb-input input-field mt-1 !py-1.5 font-mono" type="number" step="0.01" placeholder="Price" [(ngModel)]="leg.price" />
+                <input class="tb-input input-field mt-1 !py-1.5 tabular-nums" type="number" step="0.01" placeholder="Price" [(ngModel)]="leg.price" />
               </label>
               <button type="button" class="col-span-2 mb-1 text-[11px] font-semibold text-slate-400 hover:text-rose-600" [disabled]="closeEntries.length <= 1" (click)="removeCloseLeg('entry', $index)">✕</button>
             </div>
@@ -481,11 +481,11 @@
             <div class="mb-2 grid grid-cols-12 items-end gap-2">
               <label class="col-span-4 block text-xs">
                 <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{{ leg.label }}</span>
-                <input class="tb-input input-field mt-1 !py-1.5 font-mono" type="number" min="1" placeholder="Qty" [(ngModel)]="leg.quantity" />
+                <input class="tb-input input-field mt-1 !py-1.5 tabular-nums" type="number" min="1" placeholder="Qty" [(ngModel)]="leg.quantity" />
               </label>
               <label class="col-span-6 block text-xs">
                 <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Price</span>
-                <input class="tb-input input-field mt-1 !py-1.5 font-mono" type="number" step="0.01" placeholder="Price" [(ngModel)]="leg.price" />
+                <input class="tb-input input-field mt-1 !py-1.5 tabular-nums" type="number" step="0.01" placeholder="Price" [(ngModel)]="leg.price" />
               </label>
               <button type="button" class="col-span-2 mb-1 text-[11px] font-semibold text-slate-400 hover:text-rose-600" [disabled]="closeExits.length <= 1" (click)="removeCloseLeg('exit', $index)">✕</button>
             </div>
