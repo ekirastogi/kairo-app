@@ -2167,6 +2167,19 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     };
   });
 
+  costBreakdownRows = computed(() => {
+    const charges = this.analysis()?.charges;
+    const items = (charges?.items ?? []).filter((item) => item.label !== 'Total');
+    const total = charges?.total || items.reduce((sum, item) => sum + item.amount, 0);
+    return [...items]
+      .sort((a, b) => b.amount - a.amount)
+      .map((item) => ({
+        label: item.label,
+        amount: item.amount,
+        pct: total > 0 ? (item.amount / total) * 100 : 0,
+      }));
+  });
+
   chargesChartConfig = computed(() => {
     this.chartVersion();
     const items = (this.analysis()?.charges.items ?? []).filter(
