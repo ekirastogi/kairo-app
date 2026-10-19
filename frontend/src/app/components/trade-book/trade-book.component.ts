@@ -9,6 +9,7 @@ import { ChargesService } from '../../services/charges.service';
 import { MarketQuoteService } from '../../services/market-quote.service';
 import { PriceTracker, PriceTrackerService } from '../../services/price-tracker.service';
 import { RegistryStockService } from '../../services/registry-stock.service';
+import { TradePlanService } from '../../services/trade-plan.service';
 import { ScreenerService, ScreenerSnapshot } from '../../services/screener.service';
 import { ToastService } from '../../services/toast.service';
 import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
@@ -74,6 +75,13 @@ interface ParsedLine {
   segment: TradeSegment;
 }
 
+interface CloseLeg {
+  key: number;
+  label: string;
+  quantity: string;
+  price: string;
+}
+
 interface BookRow extends PriceTracker {
   cmp?: number;
   diffPct: number | null;
@@ -94,6 +102,12 @@ interface BookRow extends PriceTracker {
   styles: `
     :host { display: block; width: 100%; }
     .tb-input { font-variant-numeric: tabular-nums; }
+    .tb-drawer { position: fixed; inset: 0; z-index: 50; display: flex; justify-content: flex-end; }
+    .tb-drawer-scrim { position: absolute; inset: 0; background: rgb(15 23 42 / 0.4); }
+    .tb-drawer-panel {
+      position: relative; height: 100%; width: min(28rem, 100%); overflow-y: auto;
+      background: #fff; box-shadow: -12px 0 40px rgb(15 23 42 / 0.18);
+    }
   `,
 })
 export class TradeBookComponent {
@@ -137,6 +151,10 @@ export class TradeBookComponent {
   readonly refreshWindows = REFRESH_WINDOWS;
   searchQuery = signal('');
   editingId = signal<string | null>(null);
+  closingRow = signal<BookRow | null>(null);
+  closeEntries: CloseLeg[] = [];
+  closeExits: CloseLeg[] = [];
+  private closeLegKey = 1;
   editForm = {
     action: 'Long' as Side,
     prices: '',
@@ -368,15 +386,93 @@ export class TradeBookComponent {
     await this.commitCard(card, 'open');
   }
 
-  async addPlanToHistory(row: PriceTracker): Promise<void> {
-    if (this.busy()) return;
+  openClose(row: BookRow): void {
+    this.cancelEdit();
+    this.refreshPickerOpen.set(false);
+    this.closingRow.set(row);
     const qty = row.quantity && row.quantity > 0 ? row.quantity : DEFAULT_QTY;
-    const trigger = row.entryPrice && row.entryPrice > 0 ? row.entryPrice : row.targetPrice;
-    const exit =
-      row.targets?.[0]?.price && row.targets[0].price > 0
-        ? row.targets[0].price
-        : this.defaultTarget(trigger, trackerIsSell(row.action) ? 'Short' : 'Long');
-    const { buyLegs, sellLegs } = this.legsFor(row.action, qty, trigger, exit);
+    const trigger = trackerEntryPrice(row) ?? row.targetPrice;
+    const followUps = (row.nextTargets ?? []).filter((price) => price > 0);
+    this.closeEntries = [
+      this.newCloseLeg('First entry', String(qty), this.priceField(trigger)),
+      ...followUps.map((price, index) => this.newCloseLeg(`Follow-up ${index + 1}`, '', this.priceField(price))),
+    ];
+    const slices = allocateTrackerSlices(row);
+    if (slices.length) {
+      this.closeExits = slices.map((slice, index) =>
+        this.newCloseLeg(
+          slices.length === 1 ? 'Exit' : `Exit ${index + 1}`,
+          String(slice.quantity),
+          this.priceField(slice.price)
+        )
+      );
+    } else {
+      const exit = this.defaultTarget(trigger, trackerIsSell(row.action) ? 'Short' : 'Long');
+      this.closeExits = [this.newCloseLeg('Exit', String(qty), this.priceField(exit))];
+    }
+  }
+
+  cancelClose(): void {
+    this.closingRow.set(null);
+    this.closeEntries = [];
+    this.closeExits = [];
+  }
+
+  addCloseLeg(kind: 'entry' | 'exit'): void {
+    const blank = this.newCloseLeg(kind === 'entry' ? 'Follow-up' : 'Exit', '', '');
+    if (kind === 'entry') this.closeEntries = [...this.closeEntries, blank];
+    else this.closeExits = [...this.closeExits, blank];
+  }
+
+  removeCloseLeg(kind: 'entry' | 'exit', index: number): void {
+    if (kind === 'entry') {
+      if (this.closeEntries.length <= 1) return;
+      this.closeEntries = this.closeEntries.filter((_, i) => i !== index);
+    } else if (this.closeExits.length > 1) {
+      this.closeExits = this.closeExits.filter((_, i) => i !== index);
+    }
+  }
+
+  closePreview(): { qty: number; gross: number; charges: number; net: number } | null {
+    const row = this.closingRow();
+    if (!row) return null;
+    const { buyLegs, sellLegs } = this.closeLegsFor(row);
+    if (TradePlanService.validateExecutionLegs(buyLegs, sellLegs)) return null;
+    const qty = TradePlanService.legTotalQty(buyLegs);
+    const avgBuy = TradePlanService.weightedAvgPrice(buyLegs);
+    const avgSell = TradePlanService.weightedAvgPrice(sellLegs);
+    const short = trackerIsSell(row.action);
+    const trip = this.charges.roundTrip({
+      segment: trackerSegment(row),
+      direction: trackerDirection(row.action),
+      quantity: qty,
+      entryPrice: short ? avgSell : avgBuy,
+      exitPrice: short ? avgBuy : avgSell,
+    });
+    return { qty, gross: trip.grossPnL, charges: trip.charges, net: trip.netPnL };
+  }
+
+  closeEntryQty(): number {
+    return TradePlanService.legTotalQty(this.parseCloseLegs(this.closeEntries));
+  }
+
+  closeExitQty(): number {
+    return TradePlanService.legTotalQty(this.parseCloseLegs(this.closeExits));
+  }
+
+  async confirmClose(): Promise<void> {
+    const row = this.closingRow();
+    if (!row || this.busy()) return;
+    const { buyLegs, sellLegs } = this.closeLegsFor(row);
+    if (!buyLegs.length || !sellLegs.length) {
+      this.toast.error('Enter quantity and price for at least one entry and one exit');
+      return;
+    }
+    const invalid = TradePlanService.validateExecutionLegs(buyLegs, sellLegs);
+    if (invalid) {
+      this.toast.error(invalid);
+      return;
+    }
     this.busy.set(true);
     try {
       await this.trackerSvc.execute(row.id, buyLegs, sellLegs);
@@ -385,9 +481,10 @@ export class TradeBookComponent {
         next.delete(row.id);
         return next;
       });
+      this.cancelClose();
       this.toast.success(`Moved ${row.symbol} to trade history`);
     } catch (e) {
-      this.toast.error(e instanceof Error ? e.message : 'Failed to add to history');
+      this.toast.error(e instanceof Error ? e.message : 'Failed to close trade');
     } finally {
       this.busy.set(false);
     }
@@ -752,6 +849,27 @@ export class TradeBookComponent {
       out.push(rounded);
     }
     return out;
+  }
+
+  private newCloseLeg(label: string, quantity: string, price: string): CloseLeg {
+    return { key: this.closeLegKey++, label, quantity, price };
+  }
+
+  private priceField(value: number): string {
+    return value > 0 ? String(value) : '';
+  }
+
+  private parseCloseLegs(legs: CloseLeg[]): ExecutionLeg[] {
+    return legs
+      .map((leg) => ({ quantity: parseFloat(leg.quantity), price: parseFloat(leg.price) }))
+      .filter((leg) => leg.quantity > 0 && leg.price > 0);
+  }
+
+  private closeLegsFor(row: PriceTracker): { buyLegs: ExecutionLeg[]; sellLegs: ExecutionLeg[] } {
+    const entries = this.parseCloseLegs(this.closeEntries);
+    const exits = this.parseCloseLegs(this.closeExits);
+    if (trackerIsSell(row.action)) return { buyLegs: exits, sellLegs: entries };
+    return { buyLegs: entries, sellLegs: exits };
   }
 
   private legsFor(
