@@ -150,14 +150,14 @@ export function stockSummariesForPnlTier(
     .sort((a, b) => b.netPnL - a.netPnL);
 }
 
-/** Histogram ceilings for the Analyse tab: 0–1k, 1–5k, 5–10k, … 200k+. */
-const ANALYSE_PNL_CEILINGS = [1_000, 5_000, 10_000, 25_000, 50_000, 100_000, 200_000];
+/** Histogram ceilings for the Analyse tab: 0–1k, 1–5k, … 1L–2L, 2L–5L, 5L+. */
+const ANALYSE_PNL_CEILINGS = [1_000, 5_000, 10_000, 25_000, 50_000, 100_000, 200_000, 500_000];
 
 const ANALYSE_PROFIT_COLORS = [
-  '#bbf7d0', '#86efac', '#4ade80', '#22c55e', '#16a34a', '#15803d', '#166534', '#14532d',
+  '#bbf7d0', '#86efac', '#4ade80', '#22c55e', '#16a34a', '#15803d', '#166534', '#14532d', '#052e16',
 ];
 const ANALYSE_LOSS_COLORS = [
-  '#fecaca', '#fca5a5', '#f87171', '#ef4444', '#dc2626', '#b91c1c', '#991b1b', '#7f1d1d',
+  '#fecaca', '#fca5a5', '#f87171', '#ef4444', '#dc2626', '#b91c1c', '#991b1b', '#7f1d1d', '#450a0a',
 ];
 
 export interface PnlAnalyseBucket {
