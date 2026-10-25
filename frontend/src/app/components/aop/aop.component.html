@@ -1,13 +1,51 @@
 <app-error-banner [message]="state.error() ?? filteredStocks.error()" />
 
 <div class="space-y-4">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div class="pill-tabs">
+      <button type="button" class="pill-tab" [class.pill-tab-active]="viewKind() === 'week'" (click)="setViewKind('week')">
+        Weeks
+      </button>
+      <button type="button" class="pill-tab" [class.pill-tab-active]="viewKind() === 'month'" (click)="setViewKind('month')">
+        Months
+      </button>
+    </div>
+    <div class="period-track" role="tablist" [attr.aria-label]="viewKind() === 'week' ? 'AOP weeks' : 'AOP months'">
+      @for (tab of periodTabs(); track tab.key) {
+        <button
+          type="button"
+          role="tab"
+          class="period-seg"
+          [class.period-seg-active]="viewKey() === tab.key"
+          [attr.aria-selected]="viewKey() === tab.key"
+          [title]="tab.hint"
+          (click)="selectPeriod(tab.key)"
+        >
+          {{ tab.label }}
+        </button>
+      }
+    </div>
+  </div>
+
   <div class="card p-4 sm:p-5">
     <div class="mb-3">
       <h2 class="text-sm font-semibold text-slate-900">Add stock</h2>
       <p class="mt-0.5 text-xs text-slate-500">
-        Set a profit target. Current net P&amp;L and tier come from your book; after-target P&amp;L and the new
-        tier update as soon as the target is entered.
+        Add to this week, next week, or this month. Current net P&amp;L and tier come from your book.
       </p>
+    </div>
+    <div class="period-track mb-3" role="group" aria-label="Add AOP to">
+      @for (dest of addDestinations; track dest.key) {
+        <button
+          type="button"
+          class="period-seg"
+          [class.period-seg-active]="addKey() === dest.key"
+          (click)="setAddKey(dest.key)"
+          [title]="dest.hint"
+        >
+          {{ dest.label }}
+        </button>
+      }
     </div>
     <div class="grid gap-3 sm:grid-cols-12 sm:items-end">
       <label class="block sm:col-span-6">
@@ -41,12 +79,19 @@
 
   <div class="card overflow-hidden">
     <div class="border-b border-slate-100 px-4 py-3">
-      <h2 class="text-sm font-semibold text-slate-900">Profit targets</h2>
-      <p class="mt-0.5 text-xs text-slate-500">
-        {{ rows().length }} stock{{ rows().length === 1 ? '' : 's' }}
-        · Next tier is the adjacent band from today’s P&amp;L
-        · New tier is after the target is booked
-      </p>
+      <div class="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-900">{{ viewLabel() }}</h2>
+          <p class="mt-0.5 text-xs text-slate-500">
+            {{ viewHint() }}
+            · {{ rows().length }} stock{{ rows().length === 1 ? '' : 's' }}
+            · Target {{ formatCurrency(periodTotal()) }}
+            @if (!viewWritable()) {
+              · History
+            }
+          </p>
+        </div>
+      </div>
     </div>
 
     <div class="divide-y divide-slate-100 lg:hidden">
@@ -104,7 +149,7 @@
           </dl>
         </article>
       } @empty {
-        <p class="px-4 py-10 text-center text-sm text-slate-400">Add a stock and target profit to start the AOP list.</p>
+        <p class="px-4 py-10 text-center text-sm text-slate-400">No AOP stocks for {{ viewLabel().toLowerCase() }} yet.</p>
       }
     </div>
 
@@ -154,7 +199,7 @@
             </tr>
           } @empty {
             <tr>
-              <td colspan="9" class="py-10 text-center text-slate-400">Add a stock and target profit to start the AOP list.</td>
+              <td colspan="9" class="py-10 text-center text-slate-400">No AOP stocks for {{ viewLabel().toLowerCase() }} yet.</td>
             </tr>
           }
         </tbody>

@@ -10,13 +10,27 @@ import { FilteredStockService } from '../../services/filtered-stock.service';
 import { RegistryStockService } from '../../services/registry-stock.service';
 import { ReportStateService } from '../../services/report-state.service';
 import { ToastService } from '../../services/toast.service';
+import {
+  AopKind,
+  aopAddDestinations,
+  aopKindOf,
+  aopMonthKeyFromIso,
+  aopMonthOptions,
+  aopPeriodHint,
+  aopPeriodLabel,
+  aopTodayIso,
+  aopWeekKeyFromIso,
+  aopWeekOptions,
+  aopWritableKeys,
+} from '../../utils/aop-period.utils';
 import { analysePnlTierInfo } from '../../utils/pnl-watchlist.utils';
 import { formatCurrency, formatPrice, pnlClass } from '../../utils/format.utils';
 import { readJson, writeJson } from '../../utils/local-store.utils';
 import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
 
-const AOP_STORE_KEY = 'kairo-aop-targets-v1';
+const AOP_STORE_V1 = 'kairo-aop-targets-v1';
+const AOP_STORE_V2 = 'kairo-aop-targets-v2';
 
 interface AopTarget {
   id: string;
@@ -25,6 +39,7 @@ interface AopTarget {
   isin?: string;
   targetProfit: number;
   createdAt: number;
+  periodKey: string;
 }
 
 interface AopRow extends AopTarget {
@@ -37,8 +52,14 @@ interface AopRow extends AopTarget {
 }
 
 function loadTargets(): AopTarget[] {
-  const rows = readJson<AopTarget[]>(AOP_STORE_KEY, []);
-  return Array.isArray(rows) ? rows : [];
+  const v2 = readJson<AopTarget[] | null>(AOP_STORE_V2, null);
+  if (Array.isArray(v2)) return v2;
+  const v1 = readJson<Array<Omit<AopTarget, 'periodKey'>>>(AOP_STORE_V1, []);
+  if (!Array.isArray(v1) || !v1.length) return [];
+  const week = aopWeekKeyFromIso(aopTodayIso());
+  const migrated = v1.map((row) => ({ ...row, periodKey: week }));
+  writeJson(AOP_STORE_V2, migrated);
+  return migrated;
 }
 
 @Component({
@@ -58,17 +79,43 @@ export class AopComponent implements OnInit {
   readonly formatPrice = formatPrice;
   readonly pnlClass = pnlClass;
 
+  private todayIso = aopTodayIso();
+  readonly addDestinations = aopAddDestinations(this.todayIso);
+  readonly writableKeys = new Set(aopWritableKeys(this.todayIso));
+
   query = '';
   targetProfit = '';
   picked: RegistryStock | null = null;
   targets = signal<AopTarget[]>(loadTargets());
+  viewKind = signal<AopKind>('week');
+  viewKey = signal(aopWeekKeyFromIso(this.todayIso));
+  addKey = signal(aopWeekKeyFromIso(this.todayIso));
 
   async ngOnInit(): Promise<void> {
     await this.state.ensureLoadedFromFirebase();
   }
 
+  periodTabs = computed(() => {
+    const keys = [...new Set(this.targets().map((row) => row.periodKey))];
+    return this.viewKind() === 'month'
+      ? aopMonthOptions(keys, this.todayIso)
+      : aopWeekOptions(keys, this.todayIso);
+  });
+
+  viewLabel = computed(() => aopPeriodLabel(this.viewKey(), this.todayIso));
+  viewHint = computed(() => aopPeriodHint(this.viewKey()));
+  viewWritable = computed(() => this.writableKeys.has(this.viewKey()));
+
+  periodTargets = computed(() =>
+    this.targets().filter((row) => row.periodKey === this.viewKey())
+  );
+
+  periodTotal = computed(() =>
+    this.periodTargets().reduce((sum, row) => sum + (row.targetProfit > 0 ? row.targetProfit : 0), 0)
+  );
+
   private symbolKey = computed(() =>
-    [...new Set(this.targets().map((row) => row.symbol.trim().toUpperCase()).filter(Boolean))]
+    [...new Set(this.periodTargets().map((row) => row.symbol.trim().toUpperCase()).filter(Boolean))]
       .sort()
       .join('\0')
   );
@@ -86,7 +133,7 @@ export class AopComponent implements OnInit {
     const prices = new Map(
       this.registry().map((stock) => [stock.symbol.toUpperCase(), stock.currentPrice])
     );
-    return this.targets().map((row) => {
+    return this.periodTargets().map((row) => {
       const summary = this.matchSummary(stocks, row);
       const netPnL = summary?.netPnL ?? 0;
       const target = row.targetProfit > 0 ? row.targetProfit : 0;
@@ -108,6 +155,29 @@ export class AopComponent implements OnInit {
 
   extraStocks(): RegistryStock[] {
     return this.picked ? [this.picked] : [];
+  }
+
+  setViewKind(kind: AopKind): void {
+    this.viewKind.set(kind);
+    const tabs = kind === 'month'
+      ? aopMonthOptions(this.storedKeys(), this.todayIso)
+      : aopWeekOptions(this.storedKeys(), this.todayIso);
+    const preferred = kind === 'month' ? aopMonthKeyFromIso(this.todayIso) : aopWeekKeyFromIso(this.todayIso);
+    const next =
+      tabs.find((tab) => tab.key === this.viewKey()) ??
+      tabs.find((tab) => tab.key === preferred) ??
+      tabs[0];
+    if (next) this.selectPeriod(next.key);
+  }
+
+  selectPeriod(key: string): void {
+    this.viewKey.set(key);
+    this.viewKind.set(aopKindOf(key));
+    if (this.writableKeys.has(key)) this.addKey.set(key);
+  }
+
+  setAddKey(key: string): void {
+    this.addKey.set(key);
   }
 
   onQuery(value: string): void {
@@ -133,9 +203,14 @@ export class AopComponent implements OnInit {
       this.toast.error('Enter a target profit');
       return;
     }
+    const periodKey = this.addKey();
+    if (!this.writableKeys.has(periodKey)) {
+      this.toast.error('You can only add AOP for this week, next week, or this month');
+      return;
+    }
     const symbol = stock.symbol.trim().toUpperCase();
-    if (this.targets().some((row) => row.symbol.toUpperCase() === symbol)) {
-      this.toast.error(`${symbol} is already on AOP`);
+    if (this.targets().some((row) => row.periodKey === periodKey && row.symbol.toUpperCase() === symbol)) {
+      this.toast.error(`${symbol} is already on ${aopPeriodLabel(periodKey, this.todayIso)}`);
       return;
     }
     this.targets.update((rows) => [
@@ -146,6 +221,7 @@ export class AopComponent implements OnInit {
         isin: stock.isin,
         targetProfit: profit,
         createdAt: Date.now(),
+        periodKey,
       },
       ...rows,
     ]);
@@ -153,15 +229,14 @@ export class AopComponent implements OnInit {
     this.query = '';
     this.targetProfit = '';
     this.picked = null;
-    this.toast.success(`Added ${symbol}`);
+    this.selectPeriod(periodKey);
+    this.toast.success(`Added ${symbol} to ${aopPeriodLabel(periodKey, this.todayIso)}`);
   }
 
   setTargetProfit(id: string, value: string | number): void {
     const profit = typeof value === 'number' ? value : parseFloat(value);
     this.targets.update((rows) =>
-      rows.map((row) =>
-        row.id === id ? { ...row, targetProfit: profit > 0 ? profit : 0 } : row
-      )
+      rows.map((row) => (row.id === id ? { ...row, targetProfit: profit > 0 ? profit : 0 } : row))
     );
     this.persist();
   }
@@ -171,8 +246,12 @@ export class AopComponent implements OnInit {
     this.persist();
   }
 
+  private storedKeys(): string[] {
+    return [...new Set(this.targets().map((row) => row.periodKey))];
+  }
+
   private persist(): void {
-    writeJson(AOP_STORE_KEY, this.targets());
+    writeJson(AOP_STORE_V2, this.targets());
   }
 
   private matchSummary(stocks: StockSummary[], row: AopTarget): StockSummary | undefined {
