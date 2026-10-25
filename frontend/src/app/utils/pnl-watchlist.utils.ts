@@ -198,6 +198,70 @@ function analyseBucketIndex(magnitude: number): number {
   return ANALYSE_PNL_CEILINGS.length;
 }
 
+function analyseBandLabels(): string[] {
+  return emptyAnalyseBuckets('profit').map((bucket) => bucket.label);
+}
+
+export const ANALYSE_NEAR_TIER_PCT = 0.1;
+
+export interface AnalyseNearTierRow {
+  stock: StockSummary;
+  side: 'profit' | 'loss';
+  tierLabel: string;
+  nextTierLabel: string;
+  required: number;
+  netPnL: number;
+}
+
+/**
+ * Winners within `withinPct` of the next higher band, and losers within
+ * `withinPct` of dropping into the lighter-loss band. `required` is extra
+ * profit needed to cross that boundary.
+ */
+export function analyseNearTierMoves(
+  summaries: StockSummary[],
+  withinPct = ANALYSE_NEAR_TIER_PCT
+): AnalyseNearTierRow[] {
+  const labels = analyseBandLabels();
+  const rows: AnalyseNearTierRow[] = [];
+  for (const stock of summaries) {
+    const pnl = stock.netPnL;
+    if (pnl > 0) {
+      const index = analyseBucketIndex(pnl);
+      if (index >= ANALYSE_PNL_CEILINGS.length) continue;
+      const target = ANALYSE_PNL_CEILINGS[index];
+      const required = target - pnl;
+      if (required > 0 && required <= target * withinPct) {
+        rows.push({
+          stock,
+          side: 'profit',
+          tierLabel: labels[index],
+          nextTierLabel: labels[index + 1],
+          required,
+          netPnL: pnl,
+        });
+      }
+    } else if (pnl < 0) {
+      const mag = Math.abs(pnl);
+      const index = analyseBucketIndex(mag);
+      const floor = index === 0 ? 0 : ANALYSE_PNL_CEILINGS[index - 1];
+      const required = mag - floor;
+      const window = (floor > 0 ? floor : ANALYSE_PNL_CEILINGS[0]) * withinPct;
+      if (required > 0 && required <= window) {
+        rows.push({
+          stock,
+          side: 'loss',
+          tierLabel: labels[index],
+          nextTierLabel: index === 0 ? 'Break even' : labels[index - 1],
+          required,
+          netPnL: pnl,
+        });
+      }
+    }
+  }
+  return rows.sort((a, b) => a.required - b.required || Math.abs(b.netPnL) - Math.abs(a.netPnL));
+}
+
 /** Stocks in one Analyse histogram band (same index as the bar chart). */
 export function stocksForAnalyseBand(
   summaries: StockSummary[],

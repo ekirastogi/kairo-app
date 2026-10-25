@@ -1,17 +1,22 @@
 import { Component, computed, inject, input, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { ChartConfiguration } from 'chart.js';
-import { filter, Subscription } from 'rxjs';
+import { distinctUntilChanged, filter, from, Subscription, switchMap } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { ReportStateService } from '../../services/report-state.service';
 import { LazyTradeLoaderService } from '../../services/lazy-trade-loader.service';
 import { FilteredStockService } from '../../services/filtered-stock.service';
 import { FilterUrlService } from '../../services/filter-url.service';
+import { RegistryStockService } from '../../services/registry-stock.service';
+import { RegistryStock } from '../../models/trading-journal.models';
 import { Watchlist } from '../../models/watchlist.models';
 import { StockSummary } from '../../models/trade.models';
 import {
+  ANALYSE_NEAR_TIER_PCT,
+  analyseNearTierMoves,
   analysePieSlices,
   analysePnlTierSplit,
   getPnlWatchlistTier,
@@ -24,6 +29,7 @@ import {
 } from '../../utils/pnl-watchlist.utils';
 import { normalizeSymbol } from '../../utils/upload-merge.utils';
 import { FILTER_QUERY_KEYS, readWatchlistFilters } from '../../utils/filter-url.utils';
+import { formatCurrency, formatPrice, pnlClass } from '../../utils/format.utils';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
 import { ExpandableStocksTableComponent } from '../shared/expandable-stocks-table/expandable-stocks-table.component';
 import { StockScenarioPanelComponent } from '../shared/stock-scenario-panel/stock-scenario-panel.component';
@@ -91,6 +97,12 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   readonly state = inject(ReportStateService);
   readonly lazyTrades = inject(LazyTradeLoaderService);
   readonly filteredStocks = inject(FilteredStockService);
+  private registrySvc = inject(RegistryStockService);
+
+  readonly formatCurrency = formatCurrency;
+  readonly formatPrice = formatPrice;
+  readonly pnlClass = pnlClass;
+  readonly nearTierPctLabel = `${Math.round(ANALYSE_NEAR_TIER_PCT * 100)}%`;
 
   async ngOnInit(): Promise<void> {
     this.syncWatchlistFromUrl();
@@ -312,6 +324,37 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     const index = this.selectedAnalyseBand();
     if (index == null || this.activeTab() !== 'analyse') return null;
     return stocksForAnalyseBand(this.bookStocks(), index);
+  });
+
+  nearTierMoves = computed(() =>
+    this.activeTab() === 'analyse' ? analyseNearTierMoves(this.bookStocks()) : []
+  );
+
+  private nearTierSymbolKey = computed(() =>
+    [...new Set(
+      this.nearTierMoves()
+        .map((row) => (row.stock.symbol || '').trim().toUpperCase())
+        .filter(Boolean)
+    )].sort().join('\0')
+  );
+
+  private nearTierRegistry = toSignal(
+    toObservable(this.nearTierSymbolKey).pipe(
+      distinctUntilChanged(),
+      switchMap((key) => from(this.registrySvc.listBySymbols(key ? key.split('\0') : [])))
+    ),
+    { initialValue: [] as RegistryStock[] }
+  );
+
+  nearTierRows = computed(() => {
+    const prices = new Map(
+      this.nearTierRegistry().map((stock) => [stock.symbol.toUpperCase(), stock.currentPrice])
+    );
+    return this.nearTierMoves().map((row) => {
+      const symbol = (row.stock.symbol || '').trim().toUpperCase();
+      const cmp = prices.get(symbol);
+      return { ...row, cmp: cmp && cmp > 0 ? cmp : null };
+    });
   });
 
   analyseSplitTitle = computed(() => {

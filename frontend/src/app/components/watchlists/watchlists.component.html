@@ -140,6 +140,101 @@
           </div>
         }
 
+        <div class="card overflow-hidden">
+          <div class="border-b border-slate-100 px-4 py-3">
+            <h3 class="text-sm font-semibold text-slate-900">Close to the next tier</h3>
+            <p class="mt-0.5 text-xs text-slate-500">
+              Winners within {{ nearTierPctLabel }} of the next higher band, and losers within
+              {{ nearTierPctLabel }} of dropping to a lighter-loss band. Profit required is the extra
+              net P&amp;L needed to cross that line.
+            </p>
+          </div>
+
+          <div class="divide-y divide-slate-100 lg:hidden">
+            @for (row of nearTierRows(); track stockSymbol(row.stock) + row.side) {
+              <div class="px-4 py-3">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <a
+                      class="block truncate text-sm font-semibold text-kairo-700 hover:underline"
+                      [routerLink]="['/stock', stockSymbol(row.stock)]"
+                    >{{ row.stock.stockName }}</a>
+                    <p class="mt-0.5 text-[11px] text-slate-400">
+                      {{ stockSymbol(row.stock) }}
+                      · {{ row.tierLabel }} → {{ row.nextTierLabel }}
+                    </p>
+                  </div>
+                  <span
+                    class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
+                    [class.bg-emerald-600]="row.side === 'profit'"
+                    [class.bg-rose-600]="row.side === 'loss'"
+                  >{{ row.side === 'profit' ? 'Win' : 'Loss' }}</span>
+                </div>
+                <dl class="mt-2 grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">CMP</dt>
+                    <dd class="mt-0.5 tabular-nums text-slate-800">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net P&amp;L</dt>
+                    <dd class="mt-0.5 tabular-nums font-semibold" [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Needed</dt>
+                    <dd class="mt-0.5 tabular-nums font-semibold text-slate-900">{{ formatCurrency(row.required) }}</dd>
+                  </div>
+                </dl>
+              </div>
+            } @empty {
+              <p class="px-4 py-8 text-center text-sm text-slate-400">No stocks within {{ nearTierPctLabel }} of the next tier.</p>
+            }
+          </div>
+
+          <div class="hidden overflow-x-auto lg:block">
+            <table class="data-table min-w-0">
+              <thead>
+                <tr>
+                  <th>Stock</th>
+                  <th class="text-right">CMP</th>
+                  <th class="text-right">Current net P&amp;L</th>
+                  <th>Tier</th>
+                  <th>Next tier</th>
+                  <th class="text-right">Profit required</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of nearTierRows(); track stockSymbol(row.stock) + row.side) {
+                  <tr>
+                    <td>
+                      <a
+                        class="font-semibold text-kairo-700 hover:underline"
+                        [routerLink]="['/stock', stockSymbol(row.stock)]"
+                      >{{ row.stock.stockName }}</a>
+                      <div class="text-xs text-slate-400">{{ stockSymbol(row.stock) }}</div>
+                    </td>
+                    <td class="text-right tabular-nums">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</td>
+                    <td class="text-right tabular-nums font-semibold" [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</td>
+                    <td class="whitespace-nowrap">
+                      <span
+                        class="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
+                        [class.bg-emerald-600]="row.side === 'profit'"
+                        [class.bg-rose-600]="row.side === 'loss'"
+                      >{{ row.side === 'profit' ? 'Win' : 'Loss' }}</span>
+                      <span class="ml-1.5 tabular-nums text-slate-700">{{ row.tierLabel }}</span>
+                    </td>
+                    <td class="tabular-nums text-slate-700">{{ row.nextTierLabel }}</td>
+                    <td class="text-right tabular-nums font-semibold text-slate-900">{{ formatCurrency(row.required) }}</td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="6" class="py-8 text-center text-slate-400">No stocks within {{ nearTierPctLabel }} of the next tier.</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="h-[260px] min-h-0 min-w-0 sm:h-[300px]">
           <app-chart-card
             class="h-full"
