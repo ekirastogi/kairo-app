@@ -77,8 +77,8 @@
     </div>
   </div>
 
-  <div class="card overflow-hidden">
-    <div class="border-b border-slate-100 px-4 py-3">
+  <div class="card overflow-visible">
+    <div class="relative z-10 border-b border-slate-100 px-4 py-3">
       <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 class="text-sm font-semibold text-slate-900">{{ viewLabel() }}</h2>
@@ -95,6 +95,10 @@
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+          <app-cmp-refresh-button
+            [stocks]="cmpStocks()"
+            (refreshed)="onCmpRefreshed($event)"
+          />
           <button
             type="button"
             class="btn-secondary !py-1.5 !text-xs"
@@ -136,7 +140,10 @@
             </div>
             <div>
               <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Tier</dt>
-              <dd class="mt-0.5">{{ row.currentTier }}</dd>
+              <dd class="mt-0.5 flex flex-wrap items-center gap-1.5">
+                <span>{{ row.currentTier }}</span>
+                <span [class]="tierSideClass(row.currentSide)">{{ tierSideLabel(row.currentSide) }}</span>
+              </dd>
             </div>
             <div>
               <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Next tier</dt>
@@ -148,7 +155,10 @@
             </div>
             <div>
               <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">New tier</dt>
-              <dd class="mt-0.5 font-semibold text-slate-900">{{ row.newTier }}</dd>
+              <dd class="mt-0.5 flex flex-wrap items-center gap-1.5 font-semibold text-slate-900">
+                <span>{{ row.newTier }}</span>
+                <span [class]="tierSideClass(row.newSide)">{{ tierSideLabel(row.newSide) }}</span>
+              </dd>
             </div>
             <div>
               <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Target</dt>
@@ -181,6 +191,20 @@
       } @empty {
         <p class="px-4 py-10 text-center text-sm text-slate-400">No AOP stocks for {{ viewLabel().toLowerCase() }} yet.</p>
       }
+      @if (rows().length) {
+        <div class="bg-slate-50 px-4 py-3">
+          <div class="flex items-baseline justify-between gap-3 text-sm">
+            <span class="font-semibold text-slate-900">Total AOP</span>
+            <span class="font-semibold tabular-nums text-slate-900">{{ formatCurrency(periodTotal()) }}</span>
+          </div>
+          <div class="mt-1.5 flex items-baseline justify-between gap-3 text-sm">
+            <span class="font-semibold text-slate-900">Achieved</span>
+            <span class="font-semibold tabular-nums" [class]="achievedLoaded() ? pnlClass(achievedTotal()) : 'text-slate-400'">
+              {{ achievedLoaded() ? formatCurrency(achievedTotal()) : '—' }}
+            </span>
+          </div>
+        </div>
+      }
     </div>
 
     <div class="hidden overflow-x-auto lg:block">
@@ -208,10 +232,20 @@
               </td>
               <td class="text-right tabular-nums">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</td>
               <td class="text-right font-semibold tabular-nums" [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</td>
-              <td class="whitespace-nowrap tabular-nums">{{ row.currentTier }}</td>
+              <td class="whitespace-nowrap tabular-nums">
+                <div class="flex items-center gap-1.5">
+                  <span>{{ row.currentTier }}</span>
+                  <span [class]="tierSideClass(row.currentSide)">{{ tierSideLabel(row.currentSide) }}</span>
+                </div>
+              </td>
               <td class="whitespace-nowrap tabular-nums">{{ row.nextTier }}</td>
               <td class="text-right font-semibold tabular-nums" [class]="pnlClass(row.afterPnL)">{{ formatCurrency(row.afterPnL) }}</td>
-              <td class="whitespace-nowrap font-semibold tabular-nums">{{ row.newTier }}</td>
+              <td class="whitespace-nowrap font-semibold tabular-nums">
+                <div class="flex items-center gap-1.5">
+                  <span>{{ row.newTier }}</span>
+                  <span [class]="tierSideClass(row.newSide)">{{ tierSideLabel(row.newSide) }}</span>
+                </div>
+              </td>
               <td class="w-40">
                 <input
                   class="input-field !py-1.5 text-right tabular-nums"
@@ -244,6 +278,18 @@
             </tr>
           }
         </tbody>
+        @if (rows().length) {
+          <tfoot>
+            <tr>
+              <td colspan="7" class="font-semibold text-slate-900">Total AOP</td>
+              <td class="text-right font-semibold tabular-nums text-slate-900">{{ formatCurrency(periodTotal()) }}</td>
+              <td class="text-right font-semibold tabular-nums" [class]="achievedLoaded() ? pnlClass(achievedTotal()) : 'text-slate-400'">
+                {{ achievedLoaded() ? formatCurrency(achievedTotal()) : '—' }}
+              </td>
+              <td></td>
+            </tr>
+          </tfoot>
+        }
       </table>
     </div>
   </div>

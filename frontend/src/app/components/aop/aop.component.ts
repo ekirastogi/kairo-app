@@ -34,6 +34,7 @@ import { tradeNetPnL } from '../../utils/trade-charges.utils';
 import { storedTradeToTrade } from '../../utils/trade.utils';
 import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
+import { CmpRefreshButtonComponent, CmpRefreshStock } from '../shared/cmp-refresh-button/cmp-refresh-button.component';
 
 const AOP_STORE_V1 = 'kairo-aop-targets-v1';
 const AOP_STORE_V2 = 'kairo-aop-targets-v2';
@@ -52,9 +53,11 @@ interface AopRow extends AopTarget {
   cmp: number | null;
   netPnL: number;
   currentTier: string;
+  currentSide: 'profit' | 'loss' | 'flat';
   nextTier: string;
   afterPnL: number;
   newTier: string;
+  newSide: 'profit' | 'loss' | 'flat';
   achieved: number | null;
   achievedPct: number | null;
 }
@@ -73,7 +76,7 @@ function loadTargets(): AopTarget[] {
 @Component({
   selector: 'app-aop',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, StockSearchInputComponent, ErrorBannerComponent],
+  imports: [CommonModule, FormsModule, RouterLink, StockSearchInputComponent, ErrorBannerComponent, CmpRefreshButtonComponent],
   templateUrl: './aop.component.html',
   host: { class: 'block' },
 })
@@ -104,6 +107,7 @@ export class AopComponent implements OnInit {
   fetching = signal(false);
   uploading = signal(false);
   private fetchSeq = 0;
+  private cmpOverlay = signal<RegistryStock[]>([]);
 
   async ngOnInit(): Promise<void> {
     await this.state.ensureLoadedFromFirebase();
@@ -149,11 +153,25 @@ export class AopComponent implements OnInit {
     { initialValue: [] as RegistryStock[] }
   );
 
+  cmpStocks = computed((): CmpRefreshStock[] => {
+    const overlay = new Map(this.cmpOverlay().map((stock) => [stock.symbol.toUpperCase(), stock]));
+    const listed = new Map(this.registry().map((stock) => [stock.symbol.toUpperCase(), stock]));
+    return this.periodTargets().map((row) => {
+      const symbol = row.symbol.toUpperCase();
+      const reg = overlay.get(symbol) ?? listed.get(symbol);
+      return {
+        symbol,
+        name: row.name,
+        isin: row.isin ?? reg?.isin,
+        updatedAt: reg?.updatedAt,
+      };
+    });
+  });
+
   rows = computed((): AopRow[] => {
     const stocks = this.filteredStocks.stocks();
-    const prices = new Map(
-      this.registry().map((stock) => [stock.symbol.toUpperCase(), stock.currentPrice])
-    );
+    const overlay = new Map(this.cmpOverlay().map((stock) => [stock.symbol.toUpperCase(), stock.currentPrice]));
+    const listed = new Map(this.registry().map((stock) => [stock.symbol.toUpperCase(), stock.currentPrice]));
     const achievedByKey = this.achievedByStock();
     const loaded = this.periodTrades() != null;
     return this.periodTargets().map((row) => {
@@ -163,7 +181,7 @@ export class AopComponent implements OnInit {
       const afterPnL = netPnL + target;
       const current = analysePnlTierInfo(netPnL);
       const next = analysePnlTierInfo(afterPnL);
-      const cmp = prices.get(row.symbol.toUpperCase());
+      const cmp = overlay.get(row.symbol.toUpperCase()) ?? listed.get(row.symbol.toUpperCase());
       const found = achievedByKey.get(row.symbol.toUpperCase())
         ?? (row.isin ? achievedByKey.get(row.isin.toUpperCase()) : undefined)
         ?? achievedByKey.get(row.name.toUpperCase());
@@ -173,14 +191,34 @@ export class AopComponent implements OnInit {
         cmp: cmp && cmp > 0 ? cmp : null,
         netPnL,
         currentTier: current.label,
+        currentSide: current.side,
         nextTier: current.nextLabel ?? '—',
         afterPnL,
         newTier: next.label,
+        newSide: next.side,
         achieved,
         achievedPct: achieved != null && target > 0 ? (achieved / target) * 100 : null,
       };
     });
   });
+
+  tierSideClass(side: 'profit' | 'loss' | 'flat'): string {
+    if (side === 'profit') return 'side side-long';
+    if (side === 'loss') return 'side side-short';
+    return 'side bg-slate-400 text-white';
+  }
+
+  tierSideLabel(side: 'profit' | 'loss' | 'flat'): string {
+    if (side === 'profit') return 'Profit';
+    if (side === 'loss') return 'Loss';
+    return 'Flat';
+  }
+
+  onCmpRefreshed(updated: RegistryStock[]): void {
+    const next = new Map(this.cmpOverlay().map((stock) => [stock.symbol.toUpperCase(), stock]));
+    for (const stock of updated) next.set(stock.symbol.toUpperCase(), stock);
+    this.cmpOverlay.set([...next.values()]);
+  }
 
   extraStocks(): RegistryStock[] {
     return this.picked ? [this.picked] : [];
