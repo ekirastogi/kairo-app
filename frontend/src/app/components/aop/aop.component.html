@@ -1,0 +1,164 @@
+<app-error-banner [message]="state.error() ?? filteredStocks.error()" />
+
+<div class="space-y-4">
+  <div class="card p-4 sm:p-5">
+    <div class="mb-3">
+      <h2 class="text-sm font-semibold text-slate-900">Add stock</h2>
+      <p class="mt-0.5 text-xs text-slate-500">
+        Set a profit target. Current net P&amp;L and tier come from your book; after-target P&amp;L and the new
+        tier update as soon as the target is entered.
+      </p>
+    </div>
+    <div class="grid gap-3 sm:grid-cols-12 sm:items-end">
+      <label class="block sm:col-span-6">
+        <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">Stock</span>
+        <app-stock-search-input
+          [query]="query"
+          [extraStocks]="extraStocks()"
+          [selectedName]="picked?.name || ''"
+          [selectedExchange]="picked?.exchange || ''"
+          placeholder="Search symbol…"
+          (queryChange)="onQuery($event)"
+          (picked)="onPicked($event)"
+        />
+      </label>
+      <label class="block sm:col-span-4">
+        <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">Target profit</span>
+        <input
+          class="input-field !py-2 tabular-nums"
+          type="number"
+          min="1"
+          step="1000"
+          [(ngModel)]="targetProfit"
+          placeholder="e.g. 50000"
+        />
+      </label>
+      <div class="sm:col-span-2">
+        <button type="button" class="btn-primary w-full" (click)="addTarget()">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="border-b border-slate-100 px-4 py-3">
+      <h2 class="text-sm font-semibold text-slate-900">Profit targets</h2>
+      <p class="mt-0.5 text-xs text-slate-500">
+        {{ rows().length }} stock{{ rows().length === 1 ? '' : 's' }}
+        · Next tier is the adjacent band from today’s P&amp;L
+        · New tier is after the target is booked
+      </p>
+    </div>
+
+    <div class="divide-y divide-slate-100 lg:hidden">
+      @for (row of rows(); track row.id) {
+        <article class="px-4 py-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <a class="block truncate text-sm font-semibold text-kairo-700 hover:underline" [routerLink]="['/stock', row.symbol]">
+                {{ row.name }}
+              </a>
+              <p class="mt-0.5 text-[11px] text-slate-400">{{ row.symbol }}</p>
+            </div>
+            <button type="button" class="text-[11px] font-semibold text-rose-600 hover:underline" (click)="removeTarget(row.id)">
+              Remove
+            </button>
+          </div>
+          <dl class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">CMP</dt>
+              <dd class="mt-0.5 tabular-nums">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</dd>
+            </div>
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net P&amp;L</dt>
+              <dd class="mt-0.5 font-semibold tabular-nums" [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</dd>
+            </div>
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Tier</dt>
+              <dd class="mt-0.5">{{ row.currentTier }}</dd>
+            </div>
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Next tier</dt>
+              <dd class="mt-0.5">{{ row.nextTier }}</dd>
+            </div>
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Target</dt>
+              <dd class="mt-0.5">
+                <input
+                  class="input-field !py-1.5 tabular-nums"
+                  type="number"
+                  min="0"
+                  step="1000"
+                  [ngModel]="row.targetProfit"
+                  (ngModelChange)="setTargetProfit(row.id, $event)"
+                />
+              </dd>
+            </div>
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">After target</dt>
+              <dd class="mt-0.5 font-semibold tabular-nums" [class]="pnlClass(row.afterPnL)">{{ formatCurrency(row.afterPnL) }}</dd>
+            </div>
+            <div class="col-span-2">
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">New tier</dt>
+              <dd class="mt-0.5 font-semibold text-slate-900">{{ row.newTier }}</dd>
+            </div>
+          </dl>
+        </article>
+      } @empty {
+        <p class="px-4 py-10 text-center text-sm text-slate-400">Add a stock and target profit to start the AOP list.</p>
+      }
+    </div>
+
+    <div class="hidden overflow-x-auto lg:block">
+      <table class="data-table min-w-0">
+        <thead>
+          <tr>
+            <th>Stock</th>
+            <th class="text-right">CMP</th>
+            <th class="text-right">Net P&amp;L</th>
+            <th>Tier</th>
+            <th>Next tier</th>
+            <th class="text-right">Target profit</th>
+            <th class="text-right">After target</th>
+            <th>New tier</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.id) {
+            <tr>
+              <td>
+                <a class="font-semibold text-kairo-700 hover:underline" [routerLink]="['/stock', row.symbol]">{{ row.name }}</a>
+                <div class="text-xs text-slate-400">{{ row.symbol }}</div>
+              </td>
+              <td class="text-right tabular-nums">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</td>
+              <td class="text-right font-semibold tabular-nums" [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</td>
+              <td class="whitespace-nowrap tabular-nums">{{ row.currentTier }}</td>
+              <td class="whitespace-nowrap tabular-nums">{{ row.nextTier }}</td>
+              <td class="w-40">
+                <input
+                  class="input-field !py-1.5 text-right tabular-nums"
+                  type="number"
+                  min="0"
+                  step="1000"
+                  [ngModel]="row.targetProfit"
+                  (ngModelChange)="setTargetProfit(row.id, $event)"
+                />
+              </td>
+              <td class="text-right font-semibold tabular-nums" [class]="pnlClass(row.afterPnL)">{{ formatCurrency(row.afterPnL) }}</td>
+              <td class="whitespace-nowrap font-semibold tabular-nums">{{ row.newTier }}</td>
+              <td class="text-right">
+                <button type="button" class="text-[11px] font-semibold text-rose-600 hover:underline" (click)="removeTarget(row.id)">
+                  Remove
+                </button>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="9" class="py-10 text-center text-slate-400">Add a stock and target profit to start the AOP list.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

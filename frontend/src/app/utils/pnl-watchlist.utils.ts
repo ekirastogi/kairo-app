@@ -202,6 +202,33 @@ function analyseBandLabels(): string[] {
   return emptyAnalyseBuckets('profit').map((bucket) => bucket.label);
 }
 
+export interface AnalysePnlTierInfo {
+  side: 'profit' | 'loss' | 'flat';
+  label: string;
+  nextLabel: string | null;
+}
+
+export function analysePnlTierInfo(netPnL: number): AnalysePnlTierInfo {
+  const labels = analyseBandLabels();
+  if (!(netPnL > 0) && !(netPnL < 0)) {
+    return { side: 'flat', label: 'Flat', nextLabel: labels[0] ?? null };
+  }
+  if (netPnL > 0) {
+    const index = analyseBucketIndex(netPnL);
+    return {
+      side: 'profit',
+      label: labels[index] ?? `${formatTierAmountShort(ANALYSE_PNL_CEILINGS[ANALYSE_PNL_CEILINGS.length - 1])}+`,
+      nextLabel: index < labels.length - 1 ? labels[index + 1] : null,
+    };
+  }
+  const index = analyseBucketIndex(Math.abs(netPnL));
+  return {
+    side: 'loss',
+    label: labels[index] ?? `${formatTierAmountShort(ANALYSE_PNL_CEILINGS[ANALYSE_PNL_CEILINGS.length - 1])}+`,
+    nextLabel: index === 0 ? 'Break even' : labels[index - 1] ?? null,
+  };
+}
+
 export const ANALYSE_NEAR_TIER_PCT = 0.1;
 
 export interface AnalyseNearTierRow {

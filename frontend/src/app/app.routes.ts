@@ -66,10 +66,20 @@ export const routes: Routes = [
         data: { title: 'Performance', subtitle: 'P&L overview, stocks, tiers, and charts' },
       },
       {
-        path: 'utils',
+        path: 'live-trades',
         loadComponent: () =>
           import('./components/utils/utils.component').then((m) => m.UtilsComponent),
-        data: { title: 'Utility', subtitle: 'Buy/sell lots and charge-aware exit prices' },
+        data: { title: 'Live trades', subtitle: 'Buy/sell lots and charge-aware exit prices' },
+      },
+      { path: 'utils', redirectTo: 'live-trades', pathMatch: 'full' },
+      {
+        path: 'aop',
+        loadComponent: () =>
+          import('./components/aop/aop.component').then((m) => m.AopComponent),
+        data: {
+          title: 'AOP',
+          subtitle: 'Stock profit targets with current and after-target P&L tiers',
+        },
       },
       {
         path: 'charges',
