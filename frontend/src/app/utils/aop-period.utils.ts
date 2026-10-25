@@ -43,6 +43,24 @@ export function aopKindOf(key: string): AopKind {
   return key.startsWith('M:') ? 'month' : 'week';
 }
 
+export function aopPeriodDateRange(key: string): { start: string; end: string } {
+  if (key.startsWith('M:')) {
+    const month = key.slice(2);
+    const [year, monthNum] = month.split('-').map(Number);
+    const lastDay = new Date(year, monthNum, 0).getDate();
+    return { start: `${month}-01`, end: `${month}-${String(lastDay).padStart(2, '0')}` };
+  }
+  const match = key.slice(2).match(/^(\d{4})-W(\d{2})$/i);
+  if (!match) return { start: key, end: key };
+  const monday = isoWeekMondayUtc(Number(match[1]), Number(match[2]));
+  const sunday = monday + 6 * MS_DAY;
+  return { start: isoFromUtc(monday), end: isoFromUtc(sunday) };
+}
+
+function isoFromUtc(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
 export function aopWritableKeys(todayIso = aopTodayIso()): string[] {
   return [
     aopWeekKeyFromIso(todayIso),

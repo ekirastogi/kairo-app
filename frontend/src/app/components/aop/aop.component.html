@@ -79,17 +79,34 @@
 
   <div class="card overflow-hidden">
     <div class="border-b border-slate-100 px-4 py-3">
-      <div class="flex flex-wrap items-end justify-between gap-2">
+      <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 class="text-sm font-semibold text-slate-900">{{ viewLabel() }}</h2>
           <p class="mt-0.5 text-xs text-slate-500">
             {{ viewHint() }}
             · {{ rows().length }} stock{{ rows().length === 1 ? '' : 's' }}
             · Target {{ formatCurrency(periodTotal()) }}
+            @if (achievedLoaded()) {
+              · Achieved {{ formatCurrency(achievedTotal()) }}
+            }
             @if (!viewWritable()) {
               · History
             }
           </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            class="btn-secondary !py-1.5 !text-xs"
+            [disabled]="fetching() || uploading()"
+            (click)="loadAchieved()"
+          >
+            {{ fetching() ? 'Loading…' : 'From Performance' }}
+          </button>
+          <label class="btn-primary !py-1.5 !text-xs cursor-pointer" [class.opacity-60]="uploading()">
+            {{ uploading() ? 'Uploading…' : 'Upload P&amp;L' }}
+            <input type="file" accept=".xlsx,.xls,.csv" class="hidden" [disabled]="uploading()" (change)="onFileSelected($event)" />
+          </label>
         </div>
       </div>
     </div>
@@ -126,6 +143,14 @@
               <dd class="mt-0.5">{{ row.nextTier }}</dd>
             </div>
             <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">After target</dt>
+              <dd class="mt-0.5 font-semibold tabular-nums" [class]="pnlClass(row.afterPnL)">{{ formatCurrency(row.afterPnL) }}</dd>
+            </div>
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">New tier</dt>
+              <dd class="mt-0.5 font-semibold text-slate-900">{{ row.newTier }}</dd>
+            </div>
+            <div>
               <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Target</dt>
               <dd class="mt-0.5">
                 <input
@@ -139,12 +164,17 @@
               </dd>
             </div>
             <div>
-              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">After target</dt>
-              <dd class="mt-0.5 font-semibold tabular-nums" [class]="pnlClass(row.afterPnL)">{{ formatCurrency(row.afterPnL) }}</dd>
-            </div>
-            <div class="col-span-2">
-              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">New tier</dt>
-              <dd class="mt-0.5 font-semibold text-slate-900">{{ row.newTier }}</dd>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Achieved</dt>
+              <dd class="mt-0.5 font-semibold tabular-nums" [class]="row.achieved == null ? 'text-slate-400' : pnlClass(row.achieved)">
+                @if (row.achieved == null) {
+                  —
+                } @else {
+                  {{ formatCurrency(row.achieved) }}
+                  @if (row.achievedPct != null) {
+                    <span class="ml-1 text-[10px] font-medium text-slate-400">{{ row.achievedPct | number:'1.0-0' }}%</span>
+                  }
+                }
+              </dd>
             </div>
           </dl>
         </article>
@@ -162,9 +192,10 @@
             <th class="text-right">Net P&amp;L</th>
             <th>Tier</th>
             <th>Next tier</th>
-            <th class="text-right">Target profit</th>
             <th class="text-right">After target</th>
             <th>New tier</th>
+            <th class="text-right">Target profit</th>
+            <th class="text-right">Achieved</th>
             <th></th>
           </tr>
         </thead>
@@ -179,6 +210,8 @@
               <td class="text-right font-semibold tabular-nums" [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</td>
               <td class="whitespace-nowrap tabular-nums">{{ row.currentTier }}</td>
               <td class="whitespace-nowrap tabular-nums">{{ row.nextTier }}</td>
+              <td class="text-right font-semibold tabular-nums" [class]="pnlClass(row.afterPnL)">{{ formatCurrency(row.afterPnL) }}</td>
+              <td class="whitespace-nowrap font-semibold tabular-nums">{{ row.newTier }}</td>
               <td class="w-40">
                 <input
                   class="input-field !py-1.5 text-right tabular-nums"
@@ -189,8 +222,16 @@
                   (ngModelChange)="setTargetProfit(row.id, $event)"
                 />
               </td>
-              <td class="text-right font-semibold tabular-nums" [class]="pnlClass(row.afterPnL)">{{ formatCurrency(row.afterPnL) }}</td>
-              <td class="whitespace-nowrap font-semibold tabular-nums">{{ row.newTier }}</td>
+              <td class="text-right font-semibold tabular-nums" [class]="row.achieved == null ? 'text-slate-400' : pnlClass(row.achieved)">
+                @if (row.achieved == null) {
+                  —
+                } @else {
+                  {{ formatCurrency(row.achieved) }}
+                  @if (row.achievedPct != null) {
+                    <div class="text-[10px] font-medium text-slate-400">{{ row.achievedPct | number:'1.0-0' }}%</div>
+                  }
+                }
+              </td>
               <td class="text-right">
                 <button type="button" class="text-[11px] font-semibold text-rose-600 hover:underline" (click)="removeTarget(row.id)">
                   Remove
@@ -199,7 +240,7 @@
             </tr>
           } @empty {
             <tr>
-              <td colspan="9" class="py-10 text-center text-slate-400">No AOP stocks for {{ viewLabel().toLowerCase() }} yet.</td>
+              <td colspan="10" class="py-10 text-center text-slate-400">No AOP stocks for {{ viewLabel().toLowerCase() }} yet.</td>
             </tr>
           }
         </tbody>

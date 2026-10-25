@@ -5,10 +5,12 @@ import { RouterLink } from '@angular/router';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { distinctUntilChanged, from, switchMap } from 'rxjs';
 import { RegistryStock } from '../../models/trading-journal.models';
-import { StockSummary } from '../../models/trade.models';
+import { StockSummary, Trade } from '../../models/trade.models';
+import { AuthService } from '../../services/auth.service';
 import { FilteredStockService } from '../../services/filtered-stock.service';
 import { RegistryStockService } from '../../services/registry-stock.service';
 import { ReportStateService } from '../../services/report-state.service';
+import { TradeLedgerService } from '../../services/trade-ledger.service';
 import { ToastService } from '../../services/toast.service';
 import {
   AopKind,
@@ -16,6 +18,7 @@ import {
   aopKindOf,
   aopMonthKeyFromIso,
   aopMonthOptions,
+  aopPeriodDateRange,
   aopPeriodHint,
   aopPeriodLabel,
   aopTodayIso,
@@ -26,6 +29,9 @@ import {
 import { analysePnlTierInfo } from '../../utils/pnl-watchlist.utils';
 import { formatCurrency, formatPrice, pnlClass } from '../../utils/format.utils';
 import { readJson, writeJson } from '../../utils/local-store.utils';
+import { tradeDateKey } from '../../utils/trade-date.utils';
+import { tradeNetPnL } from '../../utils/trade-charges.utils';
+import { storedTradeToTrade } from '../../utils/trade.utils';
 import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
 
@@ -49,6 +55,8 @@ interface AopRow extends AopTarget {
   nextTier: string;
   afterPnL: number;
   newTier: string;
+  achieved: number | null;
+  achievedPct: number | null;
 }
 
 function loadTargets(): AopTarget[] {
@@ -72,7 +80,9 @@ function loadTargets(): AopTarget[] {
 export class AopComponent implements OnInit {
   readonly state = inject(ReportStateService);
   readonly filteredStocks = inject(FilteredStockService);
+  readonly auth = inject(AuthService);
   private registrySvc = inject(RegistryStockService);
+  private ledger = inject(TradeLedgerService);
   private toast = inject(ToastService);
 
   readonly formatCurrency = formatCurrency;
@@ -90,9 +100,14 @@ export class AopComponent implements OnInit {
   viewKind = signal<AopKind>('week');
   viewKey = signal(aopWeekKeyFromIso(this.todayIso));
   addKey = signal(aopWeekKeyFromIso(this.todayIso));
+  periodTrades = signal<Trade[] | null>(null);
+  fetching = signal(false);
+  uploading = signal(false);
+  private fetchSeq = 0;
 
   async ngOnInit(): Promise<void> {
     await this.state.ensureLoadedFromFirebase();
+    await this.loadAchieved();
   }
 
   periodTabs = computed(() => {
@@ -114,6 +129,12 @@ export class AopComponent implements OnInit {
     this.periodTargets().reduce((sum, row) => sum + (row.targetProfit > 0 ? row.targetProfit : 0), 0)
   );
 
+  achievedTotal = computed(() =>
+    this.rows().reduce((sum, row) => sum + (row.achieved ?? 0), 0)
+  );
+
+  achievedLoaded = computed(() => this.periodTrades() != null);
+
   private symbolKey = computed(() =>
     [...new Set(this.periodTargets().map((row) => row.symbol.trim().toUpperCase()).filter(Boolean))]
       .sort()
@@ -133,6 +154,8 @@ export class AopComponent implements OnInit {
     const prices = new Map(
       this.registry().map((stock) => [stock.symbol.toUpperCase(), stock.currentPrice])
     );
+    const achievedByKey = this.achievedByStock();
+    const loaded = this.periodTrades() != null;
     return this.periodTargets().map((row) => {
       const summary = this.matchSummary(stocks, row);
       const netPnL = summary?.netPnL ?? 0;
@@ -141,6 +164,10 @@ export class AopComponent implements OnInit {
       const current = analysePnlTierInfo(netPnL);
       const next = analysePnlTierInfo(afterPnL);
       const cmp = prices.get(row.symbol.toUpperCase());
+      const found = achievedByKey.get(row.symbol.toUpperCase())
+        ?? (row.isin ? achievedByKey.get(row.isin.toUpperCase()) : undefined)
+        ?? achievedByKey.get(row.name.toUpperCase());
+      const achieved = loaded ? found ?? 0 : null;
       return {
         ...row,
         cmp: cmp && cmp > 0 ? cmp : null,
@@ -149,6 +176,8 @@ export class AopComponent implements OnInit {
         nextTier: current.nextLabel ?? '—',
         afterPnL,
         newTier: next.label,
+        achieved,
+        achievedPct: achieved != null && target > 0 ? (achieved / target) * 100 : null,
       };
     });
   });
@@ -174,6 +203,7 @@ export class AopComponent implements OnInit {
     this.viewKey.set(key);
     this.viewKind.set(aopKindOf(key));
     if (this.writableKeys.has(key)) this.addKey.set(key);
+    void this.loadAchieved();
   }
 
   setAddKey(key: string): void {
@@ -244,6 +274,82 @@ export class AopComponent implements OnInit {
   removeTarget(id: string): void {
     this.targets.update((rows) => rows.filter((row) => row.id !== id));
     this.persist();
+  }
+
+  onFileSelected(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    (event.target as HTMLInputElement).value = '';
+    if (file) void this.importFile(file);
+  }
+
+  async loadAchieved(): Promise<void> {
+    const seq = ++this.fetchSeq;
+    const viewKey = this.viewKey();
+    const { start, end } = aopPeriodDateRange(viewKey);
+    this.fetching.set(true);
+    try {
+      const trades = await this.tradesForRange(start, end);
+      if (seq !== this.fetchSeq || this.viewKey() !== viewKey) return;
+      this.periodTrades.set(trades);
+    } catch (e) {
+      if (seq !== this.fetchSeq) return;
+      this.periodTrades.set([]);
+      this.toast.error(e instanceof Error ? e.message : 'Failed to load period trades');
+    } finally {
+      if (seq === this.fetchSeq) this.fetching.set(false);
+    }
+  }
+
+  private async importFile(file: File): Promise<void> {
+    this.uploading.set(true);
+    try {
+      await this.auth.whenReady();
+      if (this.auth.currentUser) {
+        const result = await this.ledger.uploadReport(file);
+        this.state.applyUploadResult(result);
+        const extra = result.tradesReplaced > 0 ? ` Replaced ${result.tradesReplaced} earlier rows.` : '';
+        this.toast.success(`Imported ${result.newTradesAdded} trades.${extra}`);
+      } else {
+        await this.state.loadFile(file);
+        this.toast.success('Imported P&L file');
+      }
+      await this.loadAchieved();
+    } catch (e) {
+      this.toast.error(e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      this.uploading.set(false);
+    }
+  }
+
+  private achievedByStock(): Map<string, number> {
+    const trades = this.periodTrades();
+    const map = new Map<string, number>();
+    if (!trades) return map;
+    const chargeRatio = this.state.analysis()?.summary.chargeRatio ?? 0;
+    for (const trade of trades) {
+      const net = tradeNetPnL(trade, chargeRatio);
+      const keys = [
+        (trade.symbol || '').toUpperCase(),
+        (trade.isin || '').toUpperCase(),
+        (trade.stockName || '').toUpperCase(),
+      ].filter(Boolean);
+      for (const key of keys) map.set(key, (map.get(key) ?? 0) + net);
+    }
+    return map;
+  }
+
+  private async tradesForRange(start: string, end: string): Promise<Trade[]> {
+    const report = this.state.report();
+    if (report?.trades?.length) {
+      return report.trades.filter((trade) => {
+        const sell = tradeDateKey(trade.sellDate);
+        return sell >= start && sell <= end;
+      });
+    }
+    const client = this.state.activeClientCode() ?? report?.summary.clientCode;
+    if (!client) return [];
+    const stored = await this.ledger.getTradesForDateRange(client, start, end);
+    return stored.map(storedTradeToTrade);
   }
 
   private storedKeys(): string[] {
