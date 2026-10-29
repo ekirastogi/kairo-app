@@ -82,6 +82,15 @@ export const routes: Routes = [
         },
       },
       {
+        path: 'delivery',
+        loadComponent: () =>
+          import('./components/delivery/delivery.component').then((m) => m.DeliveryComponent),
+        data: {
+          title: 'Delivery',
+          subtitle: 'Stocks to buy in delivery with quantity, target price, and fill progress',
+        },
+      },
+      {
         path: 'charges',
         loadComponent: () =>
           import('./components/charges/charges.component').then((m) => m.ChargesComponent),

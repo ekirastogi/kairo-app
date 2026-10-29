@@ -1,0 +1,269 @@
+<div class="space-y-4">
+  <div class="card p-4 sm:p-5">
+    <div class="mb-3">
+      <h2 class="text-sm font-semibold text-slate-900">Add delivery buy</h2>
+      <p class="mt-0.5 text-xs text-slate-500">
+        Track stocks you want to buy for delivery. Set quantity and the price you want to buy at, then log shares you already bought.
+      </p>
+    </div>
+    <div class="grid gap-3 sm:grid-cols-12 sm:items-end">
+      <label class="block sm:col-span-5">
+        <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">Stock</span>
+        <app-stock-search-input
+          [query]="query"
+          [extraStocks]="extraStocks()"
+          [selectedName]="picked?.name || ''"
+          [selectedExchange]="picked?.exchange || ''"
+          placeholder="Search symbol…"
+          (queryChange)="onQuery($event)"
+          (picked)="onPicked($event)"
+        />
+      </label>
+      <label class="block sm:col-span-2">
+        <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">Quantity</span>
+        <input
+          class="input-field !py-2 tabular-nums"
+          type="number"
+          min="1"
+          step="1"
+          [(ngModel)]="quantity"
+          placeholder="Qty"
+        />
+      </label>
+      <label class="block sm:col-span-3">
+        <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">Target buy price</span>
+        <input
+          class="input-field !py-2 tabular-nums"
+          type="number"
+          min="0.01"
+          step="0.05"
+          [(ngModel)]="targetPrice"
+          placeholder="e.g. 245.50"
+        />
+      </label>
+      <div class="sm:col-span-2">
+        <button type="button" class="btn-primary w-full" (click)="addPlan()">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card overflow-visible">
+    <div class="relative z-10 border-b border-slate-100 px-4 py-3">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-900">Delivery list</h2>
+          <p class="mt-0.5 text-xs text-slate-500">
+            {{ rows().length }} stock{{ rows().length === 1 ? '' : 's' }}
+            · Required {{ formatCurrency(totalRequired()) }}
+            · Remaining {{ formatCurrency(totalRemaining()) }}
+            @if (totalPct() != null) {
+              · {{ totalPct() | number:'1.0-0' }}% bought
+            }
+          </p>
+        </div>
+        <app-cmp-refresh-button
+          [stocks]="cmpStocks()"
+          (refreshed)="onCmpRefreshed($event)"
+        />
+      </div>
+    </div>
+
+    <div class="divide-y divide-slate-100 lg:hidden">
+      @for (row of rows(); track row.id) {
+        <article class="px-4 py-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <a class="block truncate text-sm font-semibold text-kairo-700 hover:underline" [routerLink]="['/stock', row.symbol]">
+                {{ row.name }}
+              </a>
+              <p class="mt-0.5 text-[11px] text-slate-400">{{ row.symbol }}</p>
+            </div>
+            <button type="button" class="text-[11px] font-semibold text-rose-600 hover:underline" (click)="removePlan(row.id)">
+              Remove
+            </button>
+          </div>
+          <dl class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">CMP</dt>
+              <dd class="mt-0.5 tabular-nums">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</dd>
+            </div>
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Target price</dt>
+              <dd class="mt-0.5">
+                <input
+                  class="input-field !py-1.5 tabular-nums"
+                  type="number"
+                  min="0.01"
+                  step="0.05"
+                  [ngModel]="row.targetPrice"
+                  (ngModelChange)="setTargetPrice(row.id, $event)"
+                />
+              </dd>
+            </div>
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Quantity</dt>
+              <dd class="mt-0.5">
+                <input
+                  class="input-field !py-1.5 tabular-nums"
+                  type="number"
+                  min="1"
+                  step="1"
+                  [ngModel]="row.quantity"
+                  (ngModelChange)="setQuantity(row.id, $event)"
+                />
+              </dd>
+            </div>
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Bought</dt>
+              <dd class="mt-0.5">
+                <input
+                  class="input-field !py-1.5 tabular-nums"
+                  type="number"
+                  min="0"
+                  step="1"
+                  [ngModel]="row.boughtQty"
+                  (ngModelChange)="setBoughtQty(row.id, $event)"
+                />
+              </dd>
+            </div>
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">% achieved</dt>
+              <dd class="mt-0.5 font-semibold tabular-nums">
+                {{ row.pctAchieved == null ? '—' : (row.pctAchieved | number:'1.0-0') + '%' }}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Amount required</dt>
+              <dd class="mt-0.5 font-semibold tabular-nums">{{ formatCurrency(row.amountRequired) }}</dd>
+            </div>
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Remaining</dt>
+              <dd class="mt-0.5 tabular-nums">{{ formatCurrency(row.remainingAmount) }}</dd>
+            </div>
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Current amount</dt>
+              <dd class="mt-0.5 font-semibold tabular-nums">
+                {{ row.currentAmount == null ? '—' : formatCurrency(row.currentAmount) }}
+              </dd>
+            </div>
+          </dl>
+        </article>
+      } @empty {
+        <p class="px-4 py-10 text-center text-sm text-slate-400">No delivery buys yet.</p>
+      }
+      @if (rows().length) {
+        <div class="bg-slate-50 px-4 py-3 text-sm">
+          <div class="flex items-baseline justify-between gap-3">
+            <span class="font-semibold text-slate-900">Amount required</span>
+            <span class="font-semibold tabular-nums">{{ formatCurrency(totalRequired()) }}</span>
+          </div>
+          <div class="mt-1.5 flex items-baseline justify-between gap-3">
+            <span class="text-slate-600">Remaining</span>
+            <span class="tabular-nums">{{ formatCurrency(totalRemaining()) }}</span>
+          </div>
+          <div class="mt-1.5 flex items-baseline justify-between gap-3">
+            <span class="font-semibold text-slate-900">Current amount</span>
+            <span class="font-semibold tabular-nums">{{ formatCurrency(totalCurrent()) }}</span>
+          </div>
+          @if (totalPct() != null) {
+            <div class="mt-1.5 flex items-baseline justify-between gap-3">
+              <span class="text-slate-600">% achieved</span>
+              <span class="tabular-nums">{{ totalPct() | number:'1.0-0' }}%</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="hidden overflow-x-auto lg:block">
+      <table class="data-table min-w-0">
+        <thead>
+          <tr>
+            <th>Stock</th>
+            <th class="text-right">CMP</th>
+            <th class="text-right">Target price</th>
+            <th class="text-right">Qty</th>
+            <th class="text-right">Bought</th>
+            <th class="text-right">% achieved</th>
+            <th class="text-right">Amount required</th>
+            <th class="text-right">Remaining</th>
+            <th class="text-right">Current amount</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.id) {
+            <tr>
+              <td>
+                <a class="font-semibold text-kairo-700 hover:underline" [routerLink]="['/stock', row.symbol]">{{ row.name }}</a>
+                <div class="text-xs text-slate-400">{{ row.symbol }}</div>
+              </td>
+              <td class="text-right tabular-nums">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</td>
+              <td class="w-36">
+                <input
+                  class="input-field !py-1.5 text-right tabular-nums"
+                  type="number"
+                  min="0.01"
+                  step="0.05"
+                  [ngModel]="row.targetPrice"
+                  (ngModelChange)="setTargetPrice(row.id, $event)"
+                />
+              </td>
+              <td class="w-24">
+                <input
+                  class="input-field !py-1.5 text-right tabular-nums"
+                  type="number"
+                  min="1"
+                  step="1"
+                  [ngModel]="row.quantity"
+                  (ngModelChange)="setQuantity(row.id, $event)"
+                />
+              </td>
+              <td class="w-24">
+                <input
+                  class="input-field !py-1.5 text-right tabular-nums"
+                  type="number"
+                  min="0"
+                  step="1"
+                  [ngModel]="row.boughtQty"
+                  (ngModelChange)="setBoughtQty(row.id, $event)"
+                />
+              </td>
+              <td class="text-right font-semibold tabular-nums">
+                {{ row.pctAchieved == null ? '—' : (row.pctAchieved | number:'1.0-0') + '%' }}
+              </td>
+              <td class="text-right font-semibold tabular-nums">{{ formatCurrency(row.amountRequired) }}</td>
+              <td class="text-right tabular-nums">{{ formatCurrency(row.remainingAmount) }}</td>
+              <td class="text-right font-semibold tabular-nums">
+                {{ row.currentAmount == null ? '—' : formatCurrency(row.currentAmount) }}
+              </td>
+              <td class="text-right">
+                <button type="button" class="text-[11px] font-semibold text-rose-600 hover:underline" (click)="removePlan(row.id)">
+                  Remove
+                </button>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="10" class="py-10 text-center text-slate-400">No delivery buys yet.</td>
+            </tr>
+          }
+        </tbody>
+        @if (rows().length) {
+          <tfoot>
+            <tr>
+              <td colspan="5" class="font-semibold text-slate-900">Total</td>
+              <td class="text-right font-semibold tabular-nums">
+                {{ totalPct() == null ? '—' : (totalPct() | number:'1.0-0') + '%' }}
+              </td>
+              <td class="text-right font-semibold tabular-nums">{{ formatCurrency(totalRequired()) }}</td>
+              <td class="text-right font-semibold tabular-nums">{{ formatCurrency(totalRemaining()) }}</td>
+              <td class="text-right font-semibold tabular-nums">{{ formatCurrency(totalCurrent()) }}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        }
+      </table>
+    </div>
+  </div>
+</div>
