@@ -7,7 +7,8 @@ import { distinctUntilChanged, from, switchMap } from 'rxjs';
 import { RegistryStock } from '../../models/trading-journal.models';
 import { RegistryStockService } from '../../services/registry-stock.service';
 import { ToastService } from '../../services/toast.service';
-import { formatCurrency, formatPrice } from '../../utils/format.utils';
+import { formatCurrency, formatDate, formatPrice } from '../../utils/format.utils';
+import { istTodayIso } from '../../utils/market-calendar.utils';
 import { readJson, writeJson } from '../../utils/local-store.utils';
 import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
 import { CmpRefreshButtonComponent, CmpRefreshStock } from '../shared/cmp-refresh-button/cmp-refresh-button.component';
@@ -17,6 +18,7 @@ const DELIVERY_STORE = 'kairo-delivery-buys-v1';
 interface DeliveryFill {
   id: string;
   quantity: number;
+  boughtOn: string;
   createdAt: number;
 }
 
@@ -33,16 +35,31 @@ interface DeliveryPlan {
 }
 
 interface DeliveryRow extends DeliveryPlan {
+  sno: number;
   cmp: number | null;
   remainingQty: number;
   pctAchieved: number | null;
   amountRequired: number;
   remainingAmount: number;
   currentAmount: number | null;
+  boughtDates: string[];
 }
 
 function fillTotal(fills: DeliveryFill[]): number {
   return fills.reduce((sum, fill) => sum + (fill.quantity > 0 ? fill.quantity : 0), 0);
+}
+
+function isoFromMs(ms: number): string {
+  return new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+
+function normalizeFill(fill: Partial<DeliveryFill> & { quantity: number; createdAt: number }): DeliveryFill {
+  return {
+    id: fill.id || crypto.randomUUID(),
+    quantity: fill.quantity,
+    boughtOn: fill.boughtOn || isoFromMs(fill.createdAt),
+    createdAt: fill.createdAt,
+  };
 }
 
 function loadPlans(): DeliveryPlan[] {
@@ -53,12 +70,13 @@ function loadPlans(): DeliveryPlan[] {
   if (!Array.isArray(rows)) return [];
   let changed = false;
   const next = rows.map((row) => {
-    const fills = Array.isArray(row.fills)
+    const rawFills = Array.isArray(row.fills)
       ? row.fills
       : row.boughtQty && row.boughtQty > 0
-        ? [{ id: crypto.randomUUID(), quantity: row.boughtQty, createdAt: row.createdAt }]
+        ? [{ id: crypto.randomUUID(), quantity: row.boughtQty, createdAt: row.createdAt, boughtOn: isoFromMs(row.createdAt) }]
         : [];
-    if (!Array.isArray(row.fills)) changed = true;
+    const fills = rawFills.map((fill) => normalizeFill(fill));
+    if (!Array.isArray(row.fills) || fills.some((fill, i) => fill.boughtOn !== rawFills[i]?.boughtOn)) changed = true;
     const boughtQty = fillTotal(fills);
     if (boughtQty !== (row.boughtQty ?? 0)) changed = true;
     return {
@@ -110,6 +128,7 @@ export class DeliveryComponent {
 
   readonly formatCurrency = formatCurrency;
   readonly formatPrice = formatPrice;
+  readonly formatDate = formatDate;
 
   query = '';
   quantity = '';
@@ -118,6 +137,7 @@ export class DeliveryComponent {
   plans = signal<DeliveryPlan[]>(loadPlans());
   drawerId = signal<string | null>(null);
   addQty = '';
+  addDate = istTodayIso();
   private cmpOverlay = signal<RegistryStock[]>([]);
 
   drawerRow = computed(() => this.rows().find((row) => row.id === this.drawerId()) ?? null);
@@ -154,21 +174,24 @@ export class DeliveryComponent {
   rows = computed((): DeliveryRow[] => {
     const overlay = new Map(this.cmpOverlay().map((stock) => [stock.symbol.toUpperCase(), stock.currentPrice]));
     const listed = new Map(this.registry().map((stock) => [stock.symbol.toUpperCase(), stock.currentPrice]));
-    return this.plans().map((row) => {
+    return this.plans().map((row, index) => {
       const qty = row.quantity > 0 ? row.quantity : 0;
       const bought = Math.min(row.boughtQty > 0 ? row.boughtQty : 0, qty || Infinity);
       const remainingQty = Math.max(0, qty - bought);
       const target = row.targetPrice > 0 ? row.targetPrice : 0;
       const cmp = overlay.get(row.symbol.toUpperCase()) ?? listed.get(row.symbol.toUpperCase());
       const live = cmp && cmp > 0 ? cmp : null;
+      const boughtDates = [...new Set(row.fills.map((fill) => fill.boughtOn).filter(Boolean))].sort();
       return {
         ...row,
+        sno: index + 1,
         cmp: live,
         remainingQty,
         pctAchieved: qty > 0 ? (bought / qty) * 100 : null,
         amountRequired: qty * target,
         remainingAmount: remainingQty * target,
         currentAmount: live != null && bought > 0 ? bought * live : bought > 0 && target > 0 ? bought * target : null,
+        boughtDates,
       };
     });
   });
@@ -276,11 +299,13 @@ export class DeliveryComponent {
   openAddQty(id: string): void {
     this.drawerId.set(id);
     this.addQty = '';
+    this.addDate = istTodayIso();
   }
 
   closeDrawer(): void {
     this.drawerId.set(null);
     this.addQty = '';
+    this.addDate = istTodayIso();
   }
 
   addBoughtQty(): void {
@@ -300,10 +325,15 @@ export class DeliveryComponent {
       this.toast.error(`Only ${remaining} remaining`);
       return;
     }
+    const boughtOn = this.addDate.trim() || istTodayIso();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(boughtOn)) {
+      this.toast.error('Enter a valid buy date');
+      return;
+    }
     this.plans.update((rows) =>
       rows.map((plan) => {
         if (plan.id !== row.id) return plan;
-        const fills = [...plan.fills, { id: crypto.randomUUID(), quantity: added, createdAt: Date.now() }];
+        const fills = [...plan.fills, { id: crypto.randomUUID(), quantity: added, boughtOn, createdAt: Date.now() }];
         return { ...plan, fills, boughtQty: fillTotal(fills) };
       })
     );

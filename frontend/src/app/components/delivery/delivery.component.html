@@ -73,7 +73,8 @@
         <article class="px-4 py-3">
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <a class="block truncate text-sm font-semibold text-kairo-700 hover:underline" [routerLink]="['/stock', row.symbol]">
+              <p class="text-[11px] font-semibold tabular-nums text-slate-400">{{ row.sno }}.</p>
+              <a class="mt-0.5 block truncate text-sm font-semibold text-kairo-700 hover:underline" [routerLink]="['/stock', row.symbol]">
                 {{ row.name }}
               </a>
               <p class="mt-0.5 text-[11px] text-slate-400">{{ row.symbol }}</p>
@@ -121,6 +122,18 @@
             <div>
               <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Bought</dt>
               <dd class="mt-0.5 font-semibold tabular-nums">{{ row.boughtQty | number }}</dd>
+            </div>
+            <div>
+              <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Buy dates</dt>
+              <dd class="mt-0.5 text-slate-700">
+                @if (row.boughtDates.length) {
+                  @for (day of row.boughtDates; track day) {
+                    <div>{{ formatDate(day) }}</div>
+                  }
+                } @else {
+                  —
+                }
+              </dd>
             </div>
             <div>
               <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">% achieved</dt>
@@ -175,11 +188,13 @@
       <table class="data-table min-w-0">
         <thead>
           <tr>
+            <th class="w-12">S.No</th>
             <th>Stock</th>
             <th class="text-right">CMP</th>
             <th class="text-right">Target price</th>
             <th class="text-right">Qty</th>
             <th class="text-right">Bought</th>
+            <th>Buy dates</th>
             <th class="text-right">% achieved</th>
             <th class="text-right">Amount required</th>
             <th class="text-right">Remaining</th>
@@ -190,6 +205,7 @@
         <tbody>
           @for (row of rows(); track row.id) {
             <tr>
+              <td class="tabular-nums text-slate-500">{{ row.sno }}</td>
               <td>
                 <a class="font-semibold text-kairo-700 hover:underline" [routerLink]="['/stock', row.symbol]">{{ row.name }}</a>
                 <div class="text-xs text-slate-400">{{ row.symbol }}</div>
@@ -216,6 +232,15 @@
                 />
               </td>
               <td class="text-right font-semibold tabular-nums">{{ row.boughtQty | number }}</td>
+              <td class="whitespace-nowrap text-xs text-slate-600">
+                @if (row.boughtDates.length) {
+                  @for (day of row.boughtDates; track day) {
+                    <div>{{ formatDate(day) }}</div>
+                  }
+                } @else {
+                  —
+                }
+              </td>
               <td class="text-right font-semibold tabular-nums">
                 {{ row.pctAchieved == null ? '—' : (row.pctAchieved | number:'1.0-0') + '%' }}
               </td>
@@ -237,14 +262,14 @@
             </tr>
           } @empty {
             <tr>
-              <td colspan="10" class="py-10 text-center text-slate-400">No delivery buys yet.</td>
+              <td colspan="12" class="py-10 text-center text-slate-400">No delivery buys yet.</td>
             </tr>
           }
         </tbody>
         @if (rows().length) {
           <tfoot>
             <tr>
-              <td colspan="5" class="font-semibold text-slate-900">Total</td>
+              <td colspan="7" class="font-semibold text-slate-900">Total</td>
               <td class="text-right font-semibold tabular-nums">
                 {{ totalPct() == null ? '—' : (totalPct() | number:'1.0-0') + '%' }}
               </td>
@@ -283,7 +308,7 @@
       </div>
 
       <div class="mb-5 grid grid-cols-12 items-end gap-2">
-        <label class="col-span-8 block">
+        <label class="col-span-4 block">
           <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">Quantity added</span>
           <input
             class="input-field !py-2 tabular-nums"
@@ -295,7 +320,16 @@
             [disabled]="row.remainingQty <= 0"
           />
         </label>
-        <div class="col-span-4">
+        <label class="col-span-5 block">
+          <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">Buy date</span>
+          <input
+            class="input-field !py-2"
+            type="date"
+            [(ngModel)]="addDate"
+            [disabled]="row.remainingQty <= 0"
+          />
+        </label>
+        <div class="col-span-3">
           <button
             type="button"
             class="btn-primary w-full"
@@ -311,7 +345,10 @@
       <ul class="divide-y divide-slate-100 rounded-xl border border-slate-200">
         @for (fill of row.fills; track fill.id) {
           <li class="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-            <span class="tabular-nums text-slate-900">{{ fill.quantity | number }} shares</span>
+            <span class="min-w-0">
+              <span class="tabular-nums text-slate-900">{{ fill.quantity | number }} shares</span>
+              <span class="ml-2 text-xs text-slate-500">{{ formatDate(fill.boughtOn) }}</span>
+            </span>
             <button type="button" class="text-[11px] font-semibold text-rose-600 hover:underline" (click)="removeFill(fill.id)">
               Undo
             </button>
