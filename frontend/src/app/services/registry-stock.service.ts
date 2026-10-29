@@ -88,7 +88,7 @@ export class RegistryStockService {
   async search(query: string, limit = 25): Promise<RegistryStock[]> {
     await this.auth.whenReady();
     const uid = await this.auth.getDataUserId();
-    const safe = query.trim().replace(/[%_\\,().]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+    const safe = query.trim().replace(/[%_\\,().]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
     if (!uid || !safe) return [];
     const pattern = `"%${safe}%"`;
     const { data, error } = await this.supabase.client

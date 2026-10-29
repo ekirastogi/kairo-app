@@ -3,26 +3,46 @@
     class="input-field min-w-0 flex-1 !py-2"
     type="text"
     autocomplete="off"
-    [attr.list]="listId"
+    role="combobox"
+    [attr.aria-expanded]="showResults()"
+    [attr.aria-controls]="listId"
     [ngModel]="query()"
     (ngModelChange)="onQuery($event)"
+    (focus)="open.set(true)"
+    (keydown)="onKey($event)"
     [disabled]="disabled()"
     [placeholder]="placeholder()"
   />
   <ng-content />
 </div>
-<datalist [id]="listId">
-  @for (opt of options(); track opt.symbol) {
-    <option [value]="opt.symbol">{{ opt.name }} · {{ opt.exchange || 'NSE' }}</option>
-  }
-</datalist>
+@if (showResults()) {
+  <ul
+    [id]="listId"
+    role="listbox"
+    class="absolute z-30 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-elevated"
+  >
+    @for (opt of options(); track opt.symbol; let i = $index) {
+      <li role="option" [attr.aria-selected]="i === activeIndex()">
+        <button
+          type="button"
+          class="flex w-full items-baseline gap-2 px-3 py-1.5 text-left hover:bg-slate-50"
+          [class.bg-kairo-50]="i === activeIndex()"
+          (mousedown)="pick(opt, $event)"
+        >
+          <span class="shrink-0 text-sm font-semibold text-slate-900">{{ opt.symbol }}</span>
+          <span class="min-w-0 truncate text-xs text-slate-500">{{ opt.name }} · {{ opt.exchange || 'NSE' }}</span>
+        </button>
+      </li>
+    }
+  </ul>
+}
 @if (selectedName() && query()) {
   <em class="stock-search-hint">{{ selectedName() }}{{ selectedExchange() ? ' · ' + selectedExchange() : '' }}</em>
 } @else if (busy()) {
   <em class="stock-search-hint">Searching…</em>
 } @else if (query().trim().length > 0 && query().trim().length < minChars) {
   <em class="stock-search-hint">Type at least {{ minChars }} characters</em>
-} @else if (query().trim().length >= minChars && !options().length) {
+} @else if (query().trim().length >= minChars && !options().length && !busy()) {
   <em class="stock-search-hint">
     No matching stocks.
     <a routerLink="/registry" class="underline">Open registry</a>
