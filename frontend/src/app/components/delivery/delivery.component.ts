@@ -14,6 +14,12 @@ import { CmpRefreshButtonComponent, CmpRefreshStock } from '../shared/cmp-refres
 
 const DELIVERY_STORE = 'kairo-delivery-buys-v1';
 
+interface DeliveryFill {
+  id: string;
+  quantity: number;
+  createdAt: number;
+}
+
 interface DeliveryPlan {
   id: string;
   symbol: string;
@@ -22,6 +28,7 @@ interface DeliveryPlan {
   quantity: number;
   targetPrice: number;
   boughtQty: number;
+  fills: DeliveryFill[];
   createdAt: number;
 }
 
@@ -34,19 +41,45 @@ interface DeliveryRow extends DeliveryPlan {
   currentAmount: number | null;
 }
 
+function fillTotal(fills: DeliveryFill[]): number {
+  return fills.reduce((sum, fill) => sum + (fill.quantity > 0 ? fill.quantity : 0), 0);
+}
+
 function loadPlans(): DeliveryPlan[] {
-  const rows = readJson<DeliveryPlan[] | null>(DELIVERY_STORE, null);
-  return Array.isArray(rows) ? rows : [];
+  const rows = readJson<Array<Partial<DeliveryPlan> & { id: string; symbol: string; name: string; quantity: number; targetPrice: number; createdAt: number }> | null>(
+    DELIVERY_STORE,
+    null
+  );
+  if (!Array.isArray(rows)) return [];
+  let changed = false;
+  const next = rows.map((row) => {
+    const fills = Array.isArray(row.fills)
+      ? row.fills
+      : row.boughtQty && row.boughtQty > 0
+        ? [{ id: crypto.randomUUID(), quantity: row.boughtQty, createdAt: row.createdAt }]
+        : [];
+    if (!Array.isArray(row.fills)) changed = true;
+    const boughtQty = fillTotal(fills);
+    if (boughtQty !== (row.boughtQty ?? 0)) changed = true;
+    return {
+      id: row.id,
+      symbol: row.symbol,
+      name: row.name,
+      isin: row.isin,
+      quantity: row.quantity,
+      targetPrice: row.targetPrice,
+      boughtQty,
+      fills,
+      createdAt: row.createdAt,
+    } satisfies DeliveryPlan;
+  });
+  if (changed) writeJson(DELIVERY_STORE, next);
+  return next;
 }
 
 function parsePositive(value: string | number): number {
   const n = typeof value === 'number' ? value : parseFloat(value);
   return Number.isFinite(n) && n > 0 ? n : 0;
-}
-
-function parseNonNegative(value: string | number): number {
-  const n = typeof value === 'number' ? value : parseFloat(value);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
 @Component({
@@ -55,6 +88,21 @@ function parseNonNegative(value: string | number): number {
   imports: [CommonModule, FormsModule, RouterLink, StockSearchInputComponent, CmpRefreshButtonComponent],
   templateUrl: './delivery.component.html',
   host: { class: 'block' },
+  styles: `
+    .dl-drawer { position: fixed; inset: 0; z-index: 50; display: flex; justify-content: flex-end; }
+    .dl-drawer-scrim { position: absolute; inset: 0; background: rgb(15 23 42 / 0.4); }
+    .dl-drawer-panel {
+      position: relative;
+      height: 100%;
+      width: min(50vw, 100%);
+      overflow-y: auto;
+      background: #fff;
+      box-shadow: -12px 0 40px rgb(15 23 42 / 0.18);
+    }
+    @media (max-width: 640px) {
+      .dl-drawer-panel { width: 100%; }
+    }
+  `,
 })
 export class DeliveryComponent {
   private registrySvc = inject(RegistryStockService);
@@ -68,7 +116,11 @@ export class DeliveryComponent {
   targetPrice = '';
   picked: RegistryStock | null = null;
   plans = signal<DeliveryPlan[]>(loadPlans());
+  drawerId = signal<string | null>(null);
+  addQty = '';
   private cmpOverlay = signal<RegistryStock[]>([]);
+
+  drawerRow = computed(() => this.rows().find((row) => row.id === this.drawerId()) ?? null);
 
   private symbolKey = computed(() =>
     [...new Set(this.plans().map((row) => row.symbol.trim().toUpperCase()).filter(Boolean))]
@@ -181,6 +233,7 @@ export class DeliveryComponent {
         quantity,
         targetPrice,
         boughtQty: 0,
+        fills: [],
         createdAt: Date.now(),
       },
       ...rows,
@@ -198,8 +251,15 @@ export class DeliveryComponent {
     this.plans.update((rows) =>
       rows.map((row) => {
         if (row.id !== id) return row;
-        const boughtQty = Math.min(row.boughtQty, quantity);
-        return { ...row, quantity, boughtQty };
+        let remaining = quantity;
+        const fills: DeliveryFill[] = [];
+        for (const fill of row.fills) {
+          if (!(remaining > 0)) break;
+          const qty = Math.min(fill.quantity, remaining);
+          fills.push({ ...fill, quantity: qty });
+          remaining -= qty;
+        }
+        return { ...row, quantity, fills, boughtQty: fillTotal(fills) };
       })
     );
     this.persist();
@@ -213,18 +273,60 @@ export class DeliveryComponent {
     this.persist();
   }
 
-  setBoughtQty(id: string, value: string | number): void {
-    const boughtQty = parseNonNegative(value);
+  openAddQty(id: string): void {
+    this.drawerId.set(id);
+    this.addQty = '';
+  }
+
+  closeDrawer(): void {
+    this.drawerId.set(null);
+    this.addQty = '';
+  }
+
+  addBoughtQty(): void {
+    const row = this.drawerRow();
+    if (!row) return;
+    const added = parsePositive(this.addQty);
+    if (!(added > 0)) {
+      this.toast.error('Enter quantity added');
+      return;
+    }
+    const remaining = row.remainingQty;
+    if (!(remaining > 0)) {
+      this.toast.error('Target quantity is already filled');
+      return;
+    }
+    if (added > remaining) {
+      this.toast.error(`Only ${remaining} remaining`);
+      return;
+    }
     this.plans.update((rows) =>
-      rows.map((row) => {
-        if (row.id !== id) return row;
-        return { ...row, boughtQty: row.quantity > 0 ? Math.min(boughtQty, row.quantity) : boughtQty };
+      rows.map((plan) => {
+        if (plan.id !== row.id) return plan;
+        const fills = [...plan.fills, { id: crypto.randomUUID(), quantity: added, createdAt: Date.now() }];
+        return { ...plan, fills, boughtQty: fillTotal(fills) };
+      })
+    );
+    this.persist();
+    this.addQty = '';
+    this.toast.success(`Added ${added} to ${row.symbol}`);
+  }
+
+  removeFill(fillId: string): void {
+    const row = this.drawerRow();
+    if (!row) return;
+    this.plans.update((rows) =>
+      rows.map((plan) => {
+        if (plan.id !== row.id) return plan;
+        const fills = plan.fills.filter((fill) => fill.id !== fillId);
+        return { ...plan, fills, boughtQty: fillTotal(fills) };
       })
     );
     this.persist();
   }
 
   removePlan(id: string): void {
+    if (this.drawerId() === id) this.closeDrawer();
     this.plans.update((rows) => rows.filter((row) => row.id !== id));
     this.persist();
   }

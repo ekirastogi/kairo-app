@@ -78,9 +78,14 @@
               </a>
               <p class="mt-0.5 text-[11px] text-slate-400">{{ row.symbol }}</p>
             </div>
-            <button type="button" class="text-[11px] font-semibold text-rose-600 hover:underline" (click)="removePlan(row.id)">
-              Remove
-            </button>
+            <div class="flex shrink-0 items-center gap-3">
+              <button type="button" class="text-[11px] font-semibold text-kairo-700 hover:underline" (click)="openAddQty(row.id)">
+                Add qty
+              </button>
+              <button type="button" class="text-[11px] font-semibold text-rose-600 hover:underline" (click)="removePlan(row.id)">
+                Remove
+              </button>
+            </div>
           </div>
           <dl class="mt-3 grid grid-cols-2 gap-2 text-xs">
             <div>
@@ -115,16 +120,7 @@
             </div>
             <div>
               <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Bought</dt>
-              <dd class="mt-0.5">
-                <input
-                  class="input-field !py-1.5 tabular-nums"
-                  type="number"
-                  min="0"
-                  step="1"
-                  [ngModel]="row.boughtQty"
-                  (ngModelChange)="setBoughtQty(row.id, $event)"
-                />
-              </dd>
+              <dd class="mt-0.5 font-semibold tabular-nums">{{ row.boughtQty | number }}</dd>
             </div>
             <div>
               <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">% achieved</dt>
@@ -219,16 +215,7 @@
                   (ngModelChange)="setQuantity(row.id, $event)"
                 />
               </td>
-              <td class="w-24">
-                <input
-                  class="input-field !py-1.5 text-right tabular-nums"
-                  type="number"
-                  min="0"
-                  step="1"
-                  [ngModel]="row.boughtQty"
-                  (ngModelChange)="setBoughtQty(row.id, $event)"
-                />
-              </td>
+              <td class="text-right font-semibold tabular-nums">{{ row.boughtQty | number }}</td>
               <td class="text-right font-semibold tabular-nums">
                 {{ row.pctAchieved == null ? '—' : (row.pctAchieved | number:'1.0-0') + '%' }}
               </td>
@@ -238,9 +225,14 @@
                 {{ row.currentAmount == null ? '—' : formatCurrency(row.currentAmount) }}
               </td>
               <td class="text-right">
-                <button type="button" class="text-[11px] font-semibold text-rose-600 hover:underline" (click)="removePlan(row.id)">
-                  Remove
-                </button>
+                <div class="flex items-center justify-end gap-3">
+                  <button type="button" class="text-[11px] font-semibold text-kairo-700 hover:underline" (click)="openAddQty(row.id)">
+                    Add qty
+                  </button>
+                  <button type="button" class="text-[11px] font-semibold text-rose-600 hover:underline" (click)="removePlan(row.id)">
+                    Remove
+                  </button>
+                </div>
               </td>
             </tr>
           } @empty {
@@ -267,3 +259,67 @@
     </div>
   </div>
 </div>
+
+@if (drawerRow(); as row) {
+  <div class="dl-drawer" role="dialog" aria-modal="true" aria-labelledby="dl-add-title">
+    <button type="button" class="dl-drawer-scrim" aria-label="Dismiss" (click)="closeDrawer()"></button>
+    <aside class="dl-drawer-panel p-5">
+      <div class="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <p id="dl-add-title" class="text-sm font-semibold text-slate-900">Add quantity</p>
+          <p class="mt-0.5 text-xs text-slate-500">Log shares you bought toward this delivery target.</p>
+        </div>
+        <button type="button" class="text-xs font-semibold text-slate-500 hover:underline" (click)="closeDrawer()">Close</button>
+      </div>
+
+      <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+        <p class="text-sm font-semibold text-slate-900">{{ row.name }}</p>
+        <p class="mt-0.5 tabular-nums text-[11px] text-slate-500">
+          {{ row.symbol }}
+          · Target {{ row.quantity | number }}
+          · Bought {{ row.boughtQty | number }}
+          · Remaining {{ row.remainingQty | number }}
+        </p>
+      </div>
+
+      <div class="mb-5 grid grid-cols-12 items-end gap-2">
+        <label class="col-span-8 block">
+          <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">Quantity added</span>
+          <input
+            class="input-field !py-2 tabular-nums"
+            type="number"
+            min="1"
+            step="1"
+            [(ngModel)]="addQty"
+            placeholder="e.g. 25"
+            [disabled]="row.remainingQty <= 0"
+          />
+        </label>
+        <div class="col-span-4">
+          <button
+            type="button"
+            class="btn-primary w-full"
+            (click)="addBoughtQty()"
+            [disabled]="row.remainingQty <= 0"
+          >
+            Add
+          </button>
+        </div>
+      </div>
+
+      <p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Added lots</p>
+      <ul class="divide-y divide-slate-100 rounded-xl border border-slate-200">
+        @for (fill of row.fills; track fill.id) {
+          <li class="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+            <span class="tabular-nums text-slate-900">{{ fill.quantity | number }} shares</span>
+            <button type="button" class="text-[11px] font-semibold text-rose-600 hover:underline" (click)="removeFill(fill.id)">
+              Undo
+            </button>
+          </li>
+        } @empty {
+          <li class="px-3 py-6 text-center text-xs text-slate-400">No quantity added yet.</li>
+        }
+      </ul>
+    </aside>
+  </div>
+}
