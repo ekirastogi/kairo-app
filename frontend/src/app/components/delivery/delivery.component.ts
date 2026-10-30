@@ -7,32 +7,11 @@ import { distinctUntilChanged, from, switchMap } from 'rxjs';
 import { RegistryStock } from '../../models/trading-journal.models';
 import { RegistryStockService } from '../../services/registry-stock.service';
 import { ToastService } from '../../services/toast.service';
+import { DeliveryFill, DeliveryPlan, DeliveryService } from '../../services/delivery.service';
 import { formatCurrency, formatDate, formatPrice } from '../../utils/format.utils';
 import { istTodayIso } from '../../utils/market-calendar.utils';
-import { readJson, writeJson } from '../../utils/local-store.utils';
 import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
 import { CmpRefreshButtonComponent, CmpRefreshStock } from '../shared/cmp-refresh-button/cmp-refresh-button.component';
-
-const DELIVERY_STORE = 'kairo-delivery-buys-v1';
-
-interface DeliveryFill {
-  id: string;
-  quantity: number;
-  boughtOn: string;
-  createdAt: number;
-}
-
-interface DeliveryPlan {
-  id: string;
-  symbol: string;
-  name: string;
-  isin?: string;
-  quantity: number;
-  targetPrice: number;
-  boughtQty: number;
-  fills: DeliveryFill[];
-  createdAt: number;
-}
 
 interface DeliveryRow extends DeliveryPlan {
   sno: number;
@@ -47,52 +26,6 @@ interface DeliveryRow extends DeliveryPlan {
 
 function fillTotal(fills: DeliveryFill[]): number {
   return fills.reduce((sum, fill) => sum + (fill.quantity > 0 ? fill.quantity : 0), 0);
-}
-
-function isoFromMs(ms: number): string {
-  return new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-}
-
-function normalizeFill(fill: Partial<DeliveryFill> & { quantity: number; createdAt: number }): DeliveryFill {
-  return {
-    id: fill.id || crypto.randomUUID(),
-    quantity: fill.quantity,
-    boughtOn: fill.boughtOn || isoFromMs(fill.createdAt),
-    createdAt: fill.createdAt,
-  };
-}
-
-function loadPlans(): DeliveryPlan[] {
-  const rows = readJson<Array<Partial<DeliveryPlan> & { id: string; symbol: string; name: string; quantity: number; targetPrice: number; createdAt: number }> | null>(
-    DELIVERY_STORE,
-    null
-  );
-  if (!Array.isArray(rows)) return [];
-  let changed = false;
-  const next = rows.map((row) => {
-    const rawFills = Array.isArray(row.fills)
-      ? row.fills
-      : row.boughtQty && row.boughtQty > 0
-        ? [{ id: crypto.randomUUID(), quantity: row.boughtQty, createdAt: row.createdAt, boughtOn: isoFromMs(row.createdAt) }]
-        : [];
-    const fills = rawFills.map((fill) => normalizeFill(fill));
-    if (!Array.isArray(row.fills) || fills.some((fill, i) => fill.boughtOn !== rawFills[i]?.boughtOn)) changed = true;
-    const boughtQty = fillTotal(fills);
-    if (boughtQty !== (row.boughtQty ?? 0)) changed = true;
-    return {
-      id: row.id,
-      symbol: row.symbol,
-      name: row.name,
-      isin: row.isin,
-      quantity: row.quantity,
-      targetPrice: row.targetPrice,
-      boughtQty,
-      fills,
-      createdAt: row.createdAt,
-    } satisfies DeliveryPlan;
-  });
-  if (changed) writeJson(DELIVERY_STORE, next);
-  return next;
 }
 
 function parsePositive(value: string | number): number {
@@ -124,7 +57,10 @@ function parsePositive(value: string | number): number {
 })
 export class DeliveryComponent {
   private registrySvc = inject(RegistryStockService);
+  private deliverySvc = inject(DeliveryService);
   private toast = inject(ToastService);
+  private pending = signal<Record<string, Partial<DeliveryPlan>>>({});
+  private saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   readonly formatCurrency = formatCurrency;
   readonly formatPrice = formatPrice;
@@ -134,11 +70,17 @@ export class DeliveryComponent {
   quantity = '';
   targetPrice = '';
   picked: RegistryStock | null = null;
-  plans = signal<DeliveryPlan[]>(loadPlans());
+  private dbPlans = toSignal(this.deliverySvc.watchAll(), { initialValue: [] as DeliveryPlan[] });
   drawerId = signal<string | null>(null);
   addQty = '';
   addDate = istTodayIso();
+  busy = signal(false);
   private cmpOverlay = signal<RegistryStock[]>([]);
+
+  plans = computed(() => {
+    const pending = this.pending();
+    return this.dbPlans().map((row) => (pending[row.id] ? { ...row, ...pending[row.id] } : row));
+  });
 
   drawerRow = computed(() => this.rows().find((row) => row.id === this.drawerId()) ?? null);
 
@@ -226,7 +168,7 @@ export class DeliveryComponent {
     }
   }
 
-  addPlan(): void {
+  async addPlan(): Promise<void> {
     const stock = this.picked;
     if (!stock) {
       this.toast.error('Pick a registry stock');
@@ -247,53 +189,47 @@ export class DeliveryComponent {
       this.toast.error(`${symbol} is already on the delivery list`);
       return;
     }
-    this.plans.update((rows) => [
-      {
-        id: crypto.randomUUID(),
+    this.busy.set(true);
+    try {
+      await this.deliverySvc.create({
         symbol,
         name: stock.name || symbol,
         isin: stock.isin,
         quantity,
         targetPrice,
-        boughtQty: 0,
-        fills: [],
-        createdAt: Date.now(),
-      },
-      ...rows,
-    ]);
-    this.persist();
-    this.query = '';
-    this.quantity = '';
-    this.targetPrice = '';
-    this.picked = null;
-    this.toast.success(`Added ${symbol}`);
+      });
+      this.query = '';
+      this.quantity = '';
+      this.targetPrice = '';
+      this.picked = null;
+      this.toast.success(`Added ${symbol}`);
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'Could not add delivery buy');
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   setQuantity(id: string, value: string | number): void {
     const quantity = parsePositive(value);
-    this.plans.update((rows) =>
-      rows.map((row) => {
-        if (row.id !== id) return row;
-        let remaining = quantity;
-        const fills: DeliveryFill[] = [];
-        for (const fill of row.fills) {
-          if (!(remaining > 0)) break;
-          const qty = Math.min(fill.quantity, remaining);
-          fills.push({ ...fill, quantity: qty });
-          remaining -= qty;
-        }
-        return { ...row, quantity, fills, boughtQty: fillTotal(fills) };
-      })
-    );
-    this.persist();
+    const current = this.plans().find((row) => row.id === id);
+    if (!current) return;
+    let remaining = quantity;
+    const fills: DeliveryFill[] = [];
+    for (const fill of current.fills) {
+      if (!(remaining > 0)) break;
+      const qty = Math.min(fill.quantity, remaining);
+      fills.push({ ...fill, quantity: qty });
+      remaining -= qty;
+    }
+    this.patchLocal(id, { quantity, fills, boughtQty: fillTotal(fills) });
+    this.queueSave(id);
   }
 
   setTargetPrice(id: string, value: string | number): void {
     const targetPrice = parsePositive(value);
-    this.plans.update((rows) =>
-      rows.map((row) => (row.id === id ? { ...row, targetPrice } : row))
-    );
-    this.persist();
+    this.patchLocal(id, { targetPrice });
+    this.queueSave(id);
   }
 
   openAddQty(id: string): void {
@@ -308,7 +244,7 @@ export class DeliveryComponent {
     this.addDate = istTodayIso();
   }
 
-  addBoughtQty(): void {
+  async addBoughtQty(): Promise<void> {
     const row = this.drawerRow();
     if (!row) return;
     const added = parsePositive(this.addQty);
@@ -330,35 +266,42 @@ export class DeliveryComponent {
       this.toast.error('Enter a valid buy date');
       return;
     }
-    this.plans.update((rows) =>
-      rows.map((plan) => {
-        if (plan.id !== row.id) return plan;
-        const fills = [...plan.fills, { id: crypto.randomUUID(), quantity: added, boughtOn, createdAt: Date.now() }];
-        return { ...plan, fills, boughtQty: fillTotal(fills) };
-      })
-    );
-    this.persist();
-    this.addQty = '';
-    this.toast.success(`Added ${added} to ${row.symbol}`);
+    const fills = [...row.fills, { id: crypto.randomUUID(), quantity: added, boughtOn, createdAt: Date.now() }];
+    this.patchLocal(row.id, { fills, boughtQty: fillTotal(fills) });
+    try {
+      await this.deliverySvc.update(row.id, { fills });
+      this.clearPending(row.id);
+      this.addQty = '';
+      this.toast.success(`Added ${added} to ${row.symbol}`);
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'Could not save quantity');
+    }
   }
 
-  removeFill(fillId: string): void {
+  async removeFill(fillId: string): Promise<void> {
     const row = this.drawerRow();
     if (!row) return;
-    this.plans.update((rows) =>
-      rows.map((plan) => {
-        if (plan.id !== row.id) return plan;
-        const fills = plan.fills.filter((fill) => fill.id !== fillId);
-        return { ...plan, fills, boughtQty: fillTotal(fills) };
-      })
-    );
-    this.persist();
+    const fills = row.fills.filter((fill) => fill.id !== fillId);
+    this.patchLocal(row.id, { fills, boughtQty: fillTotal(fills) });
+    try {
+      await this.deliverySvc.update(row.id, { fills });
+      this.clearPending(row.id);
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'Could not update lots');
+    }
   }
 
-  removePlan(id: string): void {
+  async removePlan(id: string): Promise<void> {
     if (this.drawerId() === id) this.closeDrawer();
-    this.plans.update((rows) => rows.filter((row) => row.id !== id));
-    this.persist();
+    this.busy.set(true);
+    try {
+      await this.deliverySvc.remove(id);
+      this.clearPending(id);
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'Could not remove stock');
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   onCmpRefreshed(updated: RegistryStock[]): void {
@@ -367,7 +310,43 @@ export class DeliveryComponent {
     this.cmpOverlay.set([...next.values()]);
   }
 
-  private persist(): void {
-    writeJson(DELIVERY_STORE, this.plans());
+  private patchLocal(id: string, patch: Partial<DeliveryPlan>): void {
+    this.pending.update((rows) => ({ ...rows, [id]: { ...rows[id], ...patch } }));
+  }
+
+  private clearPending(id: string): void {
+    this.pending.update((rows) => {
+      if (!(id in rows)) return rows;
+      const next = { ...rows };
+      delete next[id];
+      return next;
+    });
+  }
+
+  private queueSave(id: string): void {
+    const prev = this.saveTimers.get(id);
+    if (prev) clearTimeout(prev);
+    this.saveTimers.set(
+      id,
+      setTimeout(() => {
+        this.saveTimers.delete(id);
+        void this.flushSave(id);
+      }, 400)
+    );
+  }
+
+  private async flushSave(id: string): Promise<void> {
+    const pending = this.pending()[id];
+    if (!pending) return;
+    try {
+      await this.deliverySvc.update(id, {
+        quantity: pending.quantity,
+        targetPrice: pending.targetPrice,
+        fills: pending.fills,
+      });
+      this.clearPending(id);
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'Could not save delivery buy');
+    }
   }
 }
