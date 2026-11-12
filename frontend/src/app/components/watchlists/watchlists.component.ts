@@ -152,6 +152,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   analysePieLevel = signal<'all' | 'profit' | 'loss'>('all');
   selectedAnalyseBand = signal<number | null>(null);
   selectedLetter = signal<string | null>(null);
+  letterSide = signal<'losing' | 'profitable'>('losing');
   readonly letterSort = new TableSortState('letter');
   readonly letterColumns = [
     { key: 'letter', label: 'Letter' },
@@ -447,11 +448,18 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     return this.letterRows().find((row) => row.letter === letter) ?? null;
   });
 
-  letterStocks = computed(() => this.activeLetterRow()?.stocks ?? []);
+  letterStocks = computed(() => {
+    const stocks = this.activeLetterRow()?.stocks ?? [];
+    const profitable = this.letterSide() === 'profitable';
+    return stocks
+      .filter((stock) => (profitable ? stock.netPnL > 0 : stock.netPnL < 0))
+      .sort((a, b) => (profitable ? b.netPnL - a.netPnL : a.netPnL - b.netPnL));
+  });
 
   letterEmptyMessage = computed(() => {
     const letter = this.selectedLetter();
-    if (letter) return `No stocks starting with ${letter}.`;
+    const side = this.letterSide() === 'profitable' ? 'profitable' : 'loss-making';
+    if (letter) return `No ${side} stocks starting with ${letter}.`;
     return 'No stocks in this view.';
   });
 
@@ -464,6 +472,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     this.activeTab.set(tab);
     this.selectedAutoTierId.set(null);
     this.selectedLetter.set(null);
+    this.letterSide.set('losing');
     this.analysePieLevel.set('all');
     this.selectedAnalyseBand.set(null);
     this.lazyTrades.clear();
@@ -475,10 +484,16 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   selectLetter(letter: string | null): void {
     this.selectedLetter.set(letter);
+    this.letterSide.set('losing');
     this.lazyTrades.clear();
     this.filterUrl.patchWatchlistQuery({
       [FILTER_QUERY_KEYS.tier]: letter,
     });
+  }
+
+  setLetterSide(side: 'losing' | 'profitable'): void {
+    this.letterSide.set(side);
+    this.lazyTrades.clear();
   }
 
   toggleMobileFilters(): void {

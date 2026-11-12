@@ -126,6 +126,30 @@
               </div>
             </div>
             <div class="card overflow-hidden">
+              <div class="border-b border-slate-100 px-3 py-2 sm:px-4">
+                <div class="period-track" role="tablist" aria-label="Letter side">
+                  <button
+                    type="button"
+                    role="tab"
+                    class="period-seg"
+                    [class.period-seg-active]="letterSide() === 'losing'"
+                    [attr.aria-selected]="letterSide() === 'losing'"
+                    (click)="setLetterSide('losing')"
+                  >
+                    Losing ({{ row.losingCount }})
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    class="period-seg"
+                    [class.period-seg-active]="letterSide() === 'profitable'"
+                    [attr.aria-selected]="letterSide() === 'profitable'"
+                    (click)="setLetterSide('profitable')"
+                  >
+                    Profitable ({{ row.profitableCount }})
+                  </button>
+                </div>
+              </div>
               <app-expandable-stocks-table
                 [stocks]="letterStocks()"
                 [expandable]="true"
