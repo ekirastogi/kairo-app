@@ -132,6 +132,16 @@
                     type="button"
                     role="tab"
                     class="period-seg"
+                    [class.period-seg-active]="letterSide() === 'all'"
+                    [attr.aria-selected]="letterSide() === 'all'"
+                    (click)="setLetterSide('all')"
+                  >
+                    All ({{ row.stockCount }})
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    class="period-seg"
                     [class.period-seg-active]="letterSide() === 'losing'"
                     [attr.aria-selected]="letterSide() === 'losing'"
                     (click)="setLetterSide('losing')"

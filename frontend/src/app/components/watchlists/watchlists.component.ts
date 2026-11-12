@@ -152,7 +152,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   analysePieLevel = signal<'all' | 'profit' | 'loss'>('all');
   selectedAnalyseBand = signal<number | null>(null);
   selectedLetter = signal<string | null>(null);
-  letterSide = signal<'losing' | 'profitable'>('losing');
+  letterSide = signal<'all' | 'losing' | 'profitable'>('all');
   readonly letterSort = new TableSortState('letter');
   readonly letterColumns = [
     { key: 'letter', label: 'Letter' },
@@ -450,17 +450,22 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   letterStocks = computed(() => {
     const stocks = this.activeLetterRow()?.stocks ?? [];
-    const profitable = this.letterSide() === 'profitable';
-    return stocks
-      .filter((stock) => (profitable ? stock.netPnL > 0 : stock.netPnL < 0))
-      .sort((a, b) => (profitable ? b.netPnL - a.netPnL : a.netPnL - b.netPnL));
+    const side = this.letterSide();
+    const filtered =
+      side === 'all'
+        ? stocks
+        : stocks.filter((stock) => (side === 'profitable' ? stock.netPnL > 0 : stock.netPnL < 0));
+    return [...filtered].sort((a, b) =>
+      side === 'losing' ? a.netPnL - b.netPnL : b.netPnL - a.netPnL
+    );
   });
 
   letterEmptyMessage = computed(() => {
     const letter = this.selectedLetter();
+    if (!letter) return 'No stocks in this view.';
+    if (this.letterSide() === 'all') return `No stocks starting with ${letter}.`;
     const side = this.letterSide() === 'profitable' ? 'profitable' : 'loss-making';
-    if (letter) return `No ${side} stocks starting with ${letter}.`;
-    return 'No stocks in this view.';
+    return `No ${side} stocks starting with ${letter}.`;
   });
 
   isPnlSideTab(): boolean {
@@ -472,7 +477,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     this.activeTab.set(tab);
     this.selectedAutoTierId.set(null);
     this.selectedLetter.set(null);
-    this.letterSide.set('losing');
+    this.letterSide.set('all');
     this.analysePieLevel.set('all');
     this.selectedAnalyseBand.set(null);
     this.lazyTrades.clear();
@@ -484,14 +489,14 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   selectLetter(letter: string | null): void {
     this.selectedLetter.set(letter);
-    this.letterSide.set('losing');
+    this.letterSide.set('all');
     this.lazyTrades.clear();
     this.filterUrl.patchWatchlistQuery({
       [FILTER_QUERY_KEYS.tier]: letter,
     });
   }
 
-  setLetterSide(side: 'losing' | 'profitable'): void {
+  setLetterSide(side: 'all' | 'losing' | 'profitable'): void {
     this.letterSide.set(side);
     this.lazyTrades.clear();
   }
