@@ -1,5 +1,5 @@
 import { Component, computed, inject, input, OnInit, OnDestroy, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
@@ -75,6 +75,7 @@ interface AutoTierTab {
   standalone: true,
   imports: [
     CommonModule,
+    NgTemplateOutlet,
     FormsModule,
     RouterLink,
     ErrorBannerComponent,
@@ -487,12 +488,12 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     });
   }
 
-  selectLetter(letter: string | null): void {
-    this.selectedLetter.set(letter);
+  selectLetter(letter: string | null, opts?: { toggle?: boolean }): void {
+    const next = opts?.toggle && this.selectedLetter() === letter ? null : letter;
+    this.selectedLetter.set(next);
     this.letterSide.set('all');
-    this.lazyTrades.clear();
     this.filterUrl.patchWatchlistQuery({
-      [FILTER_QUERY_KEYS.tier]: letter,
+      [FILTER_QUERY_KEYS.tier]: next,
     });
   }
 

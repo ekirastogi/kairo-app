@@ -90,13 +90,13 @@ export class LazyTradeLoaderService {
     filters: AnalysisOptions
   ): Promise<Trade[]> {
     const key = this.cacheKeyForStock(stock);
-    const cached = this.lists().get(key);
-    if (cached) return cached;
+    if (this.lists().has(key)) return this.lists().get(key)!;
 
     const effective = this.effectiveFilters(report, filters);
+    const inMemory = completeInMemoryTrades(report);
 
-    if (report?.trades?.length) {
-      const trades = this.filterTrades(report.trades, stock, effective);
+    if (inMemory) {
+      const trades = this.filterTrades(inMemory, stock, effective);
       this.setCache(key, trades);
       return trades;
     }
