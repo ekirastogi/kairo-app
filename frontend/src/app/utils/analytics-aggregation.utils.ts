@@ -242,3 +242,31 @@ export function aggregateDayOfMonthFromDaily(rows: DailyAnalyticsRow[]): Calenda
 
   return [...buckets.values()];
 }
+
+/** Unique sell dates in `rows` that belong to a weekday / DOM / MOY / WOY bucket. */
+export function sellDatesForPeriodScope(
+  rows: DailyAnalyticsRow[],
+  tab: 'weekday' | 'dayOfMonth' | 'monthOfYear' | 'weekOfYear',
+  periodKey: string
+): string[] {
+  const dates = new Set<string>();
+  const monthOrWeek = periodKey.padStart(2, '0');
+  const dayNum = Number(periodKey);
+
+  for (const row of rows) {
+    const date = row.sellDate.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    if (tab === 'weekday') {
+      if (new Date(`${date}T12:00:00`).getDay() === dayNum) dates.add(date);
+    } else if (tab === 'dayOfMonth') {
+      if (Number(date.slice(8, 10)) === dayNum) dates.add(date);
+    } else if (tab === 'monthOfYear') {
+      if (date.slice(5, 7) === monthOrWeek) dates.add(date);
+    } else if (tab === 'weekOfYear') {
+      const { week } = getISOWeek(new Date(`${date}T00:00:00`));
+      if (String(week).padStart(2, '0') === monthOrWeek) dates.add(date);
+    }
+  }
+
+  return [...dates].sort();
+}

@@ -907,6 +907,31 @@ export class TradeLedgerService {
     return this.queryTrades(clientCode, { startDate, endDate, ...filters });
   }
 
+  /** Load trades whose sell date is one of `dates` (chunked to keep the query URL short). */
+  async getTradesForDates(
+    clientCode: string,
+    dates: string[],
+    filters: { tradeTypes?: TradeType[] } = {}
+  ): Promise<StoredTrade[]> {
+    const unique = [...new Set(dates.filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort();
+    if (!unique.length) return [];
+    if (unique.length === 1) {
+      return this.queryTrades(clientCode, {
+        startDate: unique[0],
+        endDate: unique[0],
+        ...filters,
+      });
+    }
+
+    const chunkSize = 80;
+    const all: StoredTrade[] = [];
+    for (let i = 0; i < unique.length; i += chunkSize) {
+      const chunk = unique.slice(i, i + chunkSize);
+      all.push(...(await this.queryTrades(clientCode, { sellDates: chunk, ...filters })));
+    }
+    return uniqueByKey(all, (trade) => trade.dedupeKey);
+  }
+
   private async queryTrades(
     clientCode: string,
     filters: {
@@ -914,6 +939,7 @@ export class TradeLedgerService {
       isin?: string;
       startDate?: string;
       endDate?: string;
+      sellDates?: string[];
       tradeTypes?: TradeType[];
     }
   ): Promise<StoredTrade[]> {
@@ -940,8 +966,11 @@ export class TradeLedgerService {
       if (identityFilters.length > 1) query = query.or(identityFilters.join(','));
       else if (filters.isin) query = query.eq('isin', filters.isin);
       else if (filters.symbol) query = query.eq('symbol', filters.symbol);
-      if (filters.startDate) query = query.gte('sell_date', filters.startDate);
-      if (filters.endDate) query = query.lte('sell_date', filters.endDate);
+      if (filters.sellDates?.length) query = query.in('sell_date', filters.sellDates);
+      else {
+        if (filters.startDate) query = query.gte('sell_date', filters.startDate);
+        if (filters.endDate) query = query.lte('sell_date', filters.endDate);
+      }
 
       const { data, error } = await query
         .order('sell_date', { ascending: false })

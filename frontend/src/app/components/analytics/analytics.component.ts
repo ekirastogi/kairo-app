@@ -388,7 +388,10 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
     }
     void this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { tab },
+      queryParams: {
+        tab,
+        ...(tab === 'tiers' ? {} : { side: null, tier: null }),
+      },
       queryParamsHandling: 'merge',
       replaceUrl: true,
     });
@@ -1191,7 +1194,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
       const date = this.selectedDate();
       if (date && !this.dateInFilterRange(date)) this.selectedDate.set(null);
     });
-  });
+  }, { allowSignalWrites: true });
 
   /**
    * Stock summaries for this date/type filter.

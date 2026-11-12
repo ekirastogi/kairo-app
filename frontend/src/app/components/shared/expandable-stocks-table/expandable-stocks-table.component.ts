@@ -329,7 +329,7 @@ export class ExpandableStocksTableComponent {
       this.expandedStockKey.set(null);
       this.expandedDayKey.set(null);
     });
-  });
+  }, { allowSignalWrites: true });
 
   isStockTradesLoading(stock: StockSummary): boolean {
     return this.lazyTrades.isLoading(this.tradesCacheKey(stock));

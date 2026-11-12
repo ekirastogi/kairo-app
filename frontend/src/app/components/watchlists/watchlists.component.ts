@@ -498,7 +498,6 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   setLetterSide(side: 'all' | 'losing' | 'profitable'): void {
     this.letterSide.set(side);
-    this.lazyTrades.clear();
   }
 
   toggleMobileFilters(): void {

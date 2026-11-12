@@ -1,5 +1,5 @@
 import { effect, inject, Injectable, signal, untracked } from '@angular/core';
-import { AnalysisOptions, Report, StockSummary, Trade } from '../models/trade.models';
+import { AnalysisOptions, Report, StockSummary, StoredTrade, Trade } from '../models/trade.models';
 import { TradeLedgerService } from './trade-ledger.service';
 import { ReportStateService } from './report-state.service';
 import { stockIdentityKey, tradeBelongsToStock } from '../utils/stock-identity.utils';
@@ -8,7 +8,11 @@ import { sortTradesBySellDateDesc, storedTradeToTrade } from '../utils/trade.uti
 import { tradeMatchesTypeFilter } from '../utils/trade-type-filter.utils';
 import { effectiveAnalysisDateRange } from '../utils/filter-stock-profiles.utils';
 import { tradeDateKey } from '../utils/trade-date.utils';
-import { getISOWeek } from '../utils/analytics-aggregation.utils';
+import {
+  filterDailyAnalytics,
+  getISOWeek,
+  sellDatesForPeriodScope,
+} from '../utils/analytics-aggregation.utils';
 
 @Injectable({ providedIn: 'root' })
 export class LazyTradeLoaderService {
@@ -148,11 +152,22 @@ export class LazyTradeLoaderService {
     filters: AnalysisOptions
   ): Promise<Trade[]> {
     const key = this.cacheKeyForPeriod(tab, periodKey);
-    const cached = this.lists().get(key);
-    if (cached) return cached;
+    if (this.lists().has(key)) return this.lists().get(key)!;
 
     const effective = this.effectiveFilters(report, filters);
-    const mergedFilters: AnalysisOptions = usesFullFilterRange(tab)
+    const inMemory = completeInMemoryTrades(report);
+    const scopeTab = usesFullFilterRange(tab)
+      ? (tab as 'weekday' | 'dayOfMonth' | 'monthOfYear' | 'weekOfYear')
+      : null;
+    const scopedDates = scopeTab
+      ? sellDatesForPeriodScope(
+          filterDailyAnalytics(report?.dailyAnalytics ?? [], effective),
+          scopeTab,
+          periodKey
+        )
+      : [];
+
+    const mergedFilters: AnalysisOptions = scopeTab
       ? { ...filters, startDate: effective.startDate, endDate: effective.endDate }
       : (() => {
           const periodRange = periodDateRange(periodKey, tab as 'daily' | 'weekly' | 'monthly');
@@ -163,12 +178,12 @@ export class LazyTradeLoaderService {
           };
         })();
 
-    const scopeFilter = usesFullFilterRange(tab)
+    const scopeFilter = scopeTab
       ? (trade: Trade) => matchesPeriodScope(trade, tab, periodKey)
       : null;
 
-    if (report?.trades?.length) {
-      let trades = this.filterTradesByOptions(report.trades, mergedFilters);
+    if (inMemory) {
+      let trades = this.filterTradesByOptions(inMemory, mergedFilters);
       if (scopeFilter) trades = trades.filter(scopeFilter);
       this.setCache(key, sortTradesBySellDateDesc(trades));
       return this.lists().get(key)!;
@@ -176,12 +191,26 @@ export class LazyTradeLoaderService {
 
     this.loadingKey.set(key);
     try {
-      const rows = await this.ledger.getTradesForDateRange(
-        clientCode,
-        mergedFilters.startDate!,
-        mergedFilters.endDate!,
-        mergedFilters
-      );
+      let rows: StoredTrade[] = [];
+      if (scopeTab) {
+        if (scopedDates.length) {
+          rows = await this.ledger.getTradesForDates(clientCode, scopedDates, mergedFilters);
+        } else if (!(report?.dailyAnalytics?.length)) {
+          rows = await this.ledger.getTradesForDateRange(
+            clientCode,
+            mergedFilters.startDate!,
+            mergedFilters.endDate!,
+            mergedFilters
+          );
+        }
+      } else {
+        rows = await this.ledger.getTradesForDateRange(
+          clientCode,
+          mergedFilters.startDate!,
+          mergedFilters.endDate!,
+          mergedFilters
+        );
+      }
       let trades = rows.map(storedTradeToTrade);
       if (scopeFilter) trades = trades.filter(scopeFilter);
       this.setCache(key, sortTradesBySellDateDesc(trades));
@@ -261,20 +290,30 @@ export type PeriodScopeTab =
   | 'monthOfYear'
   | 'weekOfYear';
 
+function completeInMemoryTrades(report: Report | null): Trade[] | null {
+  if (!report?.tradesLoaded || !report.trades.length) return null;
+  const total = report.totalTradeCount ?? 0;
+  if (total > 0 && report.trades.length < total) return null;
+  return report.trades;
+}
+
 function tradeWeekday(trade: Trade): number {
-  return new Date(`${trade.sellDate}T12:00:00`).getDay();
+  const date = tradeDateKey(trade.sellDate);
+  return date ? new Date(`${date}T12:00:00`).getDay() : NaN;
 }
 
 function tradeDayOfMonth(trade: Trade): number {
-  return Number(trade.sellDate.slice(8, 10));
+  return Number(tradeDateKey(trade.sellDate).slice(8, 10));
 }
 
 function tradeMonthOfYear(trade: Trade): string {
-  return trade.sellDate.slice(5, 7);
+  return tradeDateKey(trade.sellDate).slice(5, 7);
 }
 
 function tradeIsoWeekOfYear(trade: Trade): string {
-  const { week } = getISOWeek(new Date(`${trade.sellDate}T00:00:00`));
+  const date = tradeDateKey(trade.sellDate);
+  if (!date) return '';
+  const { week } = getISOWeek(new Date(`${date}T00:00:00`));
   return String(week).padStart(2, '0');
 }
 
