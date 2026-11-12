@@ -30,6 +30,8 @@ import {
 import { normalizeSymbol } from '../../utils/upload-merge.utils';
 import { FILTER_QUERY_KEYS, readWatchlistFilters } from '../../utils/filter-url.utils';
 import { formatCurrency, formatPrice, pnlClass } from '../../utils/format.utils';
+import { groupStocksByLetter, LetterPnLRow } from '../../utils/letter-pnl.utils';
+import { TableSortState } from '../../utils/table-sort.utils';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
 import { ExpandableStocksTableComponent } from '../shared/expandable-stocks-table/expandable-stocks-table.component';
 import { StockScenarioPanelComponent } from '../shared/stock-scenario-panel/stock-scenario-panel.component';
@@ -46,7 +48,7 @@ import {
 
 const ALL_SUBTAB_ID = '__all__';
 
-type WatchlistTab = 'losing' | 'profitable' | 'analyse';
+type WatchlistTab = 'losing' | 'profitable' | 'analyse' | 'letters';
 
 interface TierSummary {
   stockCount: number;
@@ -121,6 +123,13 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   private syncWatchlistFromUrl(): void {
     const wl = readWatchlistFilters(this.router.routerState.snapshot.root.queryParamMap);
     if (wl.side) this.activeTab.set(wl.side);
+    if (wl.side === 'letters') {
+      const letter = (wl.tier ?? '').toUpperCase();
+      this.selectedLetter.set(/^[A-Z#]$/.test(letter) ? letter : null);
+      this.selectedAutoTierId.set(null);
+      return;
+    }
+    this.selectedLetter.set(null);
     this.selectedAutoTierId.set(wl.tier ?? null);
   }
 
@@ -128,6 +137,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     { id: 'losing', label: 'Losses' },
     { id: 'profitable', label: 'Profits' },
     { id: 'analyse', label: 'Analyse' },
+    { id: 'letters', label: 'Letters' },
   ];
 
   readonly allSubtabId = ALL_SUBTAB_ID;
@@ -141,11 +151,22 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   scenarioPanelOpen = signal(false);
   analysePieLevel = signal<'all' | 'profit' | 'loss'>('all');
   selectedAnalyseBand = signal<number | null>(null);
+  selectedLetter = signal<string | null>(null);
+  readonly letterSort = new TableSortState('letter');
+  readonly letterColumns = [
+    { key: 'letter', label: 'Letter' },
+    { key: 'stockCount', label: 'Stocks' },
+    { key: 'losingCount', label: 'Losing' },
+    { key: 'losingPnL', label: 'Losing P&L' },
+    { key: 'profitableCount', label: 'Profitable' },
+    { key: 'profitablePnL', label: 'Profitable P&L' },
+    { key: 'netPnL', label: 'Net P&L' },
+  ] as const;
 
   bookStocks = computed((): StockSummary[] => this.filteredStocks.stocks());
 
   autoTierTabs = computed((): AutoTierTab[] => {
-    if (this.activeTab() === 'analyse') return [];
+    if (!this.isPnlSideTab()) return [];
     const summaries = this.bookStocks();
     const mode = this.tierMode;
 
@@ -173,6 +194,10 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   filterSummary = computed(() => {
     if (this.activeTab() === 'analyse') return 'Analyse';
+    if (this.activeTab() === 'letters') {
+      const letter = this.selectedLetter();
+      return letter ? `Letters · ${letter}` : 'Letters';
+    }
     const side = this.activeTab() === 'profitable' ? 'Profits' : 'Losses';
     const tier = this.activeAutoTierMeta();
     return tier ? `${side} · ${this.tierTabLabel(tier)}` : side;
@@ -187,7 +212,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   );
 
   visibleAutoTierTabs = computed((): AutoTierTab[] => {
-    if (this.activeTab() === 'analyse') return [];
+    if (!this.isPnlSideTab()) return [];
     const tiers =
       this.activeTab() === 'profitable' ? this.profitTierTabs() : this.lossTierTabs();
     const summaries = this.bookStocks();
@@ -232,7 +257,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   activeViewLabel = computed(() => this.activeAutoTierMeta()?.fullLabel ?? '');
 
   tierStocksBase = computed(() => {
-    if (this.activeTab() === 'analyse') return [] as StockSummary[];
+    if (!this.isPnlSideTab()) return [] as StockSummary[];
     const stockSummaries = this.bookStocks();
     const watchlist = this.activeAutoWatchlist();
     if (!watchlist) return [] as StockSummary[];
@@ -386,15 +411,73 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     );
   });
 
+  letterRows = computed(() =>
+    this.activeTab() === 'letters' ? groupStocksByLetter(this.bookStocks()) : []
+  );
+
+  sortedLetterRows = computed(() =>
+    this.letterSort.sort(this.letterRows(), (row, key) => this.letterSortValue(row, key))
+  );
+
+  letterTotals = computed(() => {
+    const rows = this.letterRows();
+    return rows.reduce(
+      (sum, row) => ({
+        stockCount: sum.stockCount + row.stockCount,
+        losingCount: sum.losingCount + row.losingCount,
+        profitableCount: sum.profitableCount + row.profitableCount,
+        losingPnL: sum.losingPnL + row.losingPnL,
+        profitablePnL: sum.profitablePnL + row.profitablePnL,
+        netPnL: sum.netPnL + row.netPnL,
+      }),
+      {
+        stockCount: 0,
+        losingCount: 0,
+        profitableCount: 0,
+        losingPnL: 0,
+        profitablePnL: 0,
+        netPnL: 0,
+      }
+    );
+  });
+
+  activeLetterRow = computed(() => {
+    const letter = this.selectedLetter();
+    if (!letter) return null;
+    return this.letterRows().find((row) => row.letter === letter) ?? null;
+  });
+
+  letterStocks = computed(() => this.activeLetterRow()?.stocks ?? []);
+
+  letterEmptyMessage = computed(() => {
+    const letter = this.selectedLetter();
+    if (letter) return `No stocks starting with ${letter}.`;
+    return 'No stocks in this view.';
+  });
+
+  isPnlSideTab(): boolean {
+    const tab = this.activeTab();
+    return tab === 'losing' || tab === 'profitable';
+  }
+
   setTab(tab: WatchlistTab): void {
     this.activeTab.set(tab);
     this.selectedAutoTierId.set(null);
+    this.selectedLetter.set(null);
     this.analysePieLevel.set('all');
     this.selectedAnalyseBand.set(null);
     this.lazyTrades.clear();
     this.filterUrl.patchWatchlistQuery({
       [FILTER_QUERY_KEYS.side]: tab,
       [FILTER_QUERY_KEYS.tier]: null,
+    });
+  }
+
+  selectLetter(letter: string | null): void {
+    this.selectedLetter.set(letter);
+    this.lazyTrades.clear();
+    this.filterUrl.patchWatchlistQuery({
+      [FILTER_QUERY_KEYS.tier]: letter,
     });
   }
 
@@ -439,6 +522,27 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   resetAnalysePie(): void {
     this.analysePieLevel.set('all');
+  }
+
+  private letterSortValue(row: LetterPnLRow, key: string): string | number {
+    switch (key) {
+      case 'letter':
+        return row.letter;
+      case 'stockCount':
+        return row.stockCount;
+      case 'losingCount':
+        return row.losingCount;
+      case 'losingPnL':
+        return row.losingPnL;
+      case 'profitableCount':
+        return row.profitableCount;
+      case 'profitablePnL':
+        return row.profitablePnL;
+      case 'netPnL':
+        return row.netPnL;
+      default:
+        return 0;
+    }
   }
 
   private buildAnalysePie(

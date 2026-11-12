@@ -50,7 +50,7 @@
         </div>
 
         <div class="watchlist-tier-tabs">
-          @if (activeTab() !== 'analyse') {
+          @if (isPnlSideTab()) {
             <div class="period-track" role="tablist" aria-label="P&amp;L tiers">
               @for (tab of visibleAutoTierTabs(); track tab.watchlist.id) {
                 <button
@@ -67,11 +67,162 @@
               }
             </div>
           }
+          @if (activeTab() === 'letters') {
+            <div class="period-track" role="tablist" aria-label="Stock letters">
+              <button
+                type="button"
+                role="tab"
+                class="period-seg"
+                [class.period-seg-active]="selectedLetter() == null"
+                [attr.aria-selected]="selectedLetter() == null"
+                (click)="selectLetter(null)"
+              >
+                All ({{ letterTotals().stockCount }})
+              </button>
+              @for (row of letterRows(); track row.letter) {
+                <button
+                  type="button"
+                  role="tab"
+                  class="period-seg"
+                  [class.period-seg-active]="selectedLetter() === row.letter"
+                  [attr.aria-selected]="selectedLetter() === row.letter"
+                  (click)="selectLetter(row.letter)"
+                >
+                  {{ row.letter }} ({{ row.stockCount }})
+                </button>
+              }
+            </div>
+          }
         </div>
       </div>
     </div>
 
-    @if (activeTab() === 'analyse') {
+    @if (activeTab() === 'letters') {
+      <div class="space-y-3">
+        @if (selectedLetter(); as letter) {
+          @if (activeLetterRow(); as row) {
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div class="card px-3 py-2.5">
+                <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{{ letter }} stocks</p>
+                <p class="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">{{ row.stockCount }}</p>
+              </div>
+              <div class="card px-3 py-2.5">
+                <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Losing</p>
+                <p class="mt-0.5 text-sm font-semibold tabular-nums text-rose-600">
+                  {{ row.losingCount }} · {{ formatCurrency(row.losingPnL) }}
+                </p>
+              </div>
+              <div class="card px-3 py-2.5">
+                <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Profitable</p>
+                <p class="mt-0.5 text-sm font-semibold tabular-nums text-emerald-600">
+                  {{ row.profitableCount }} · {{ formatCurrency(row.profitablePnL) }}
+                </p>
+              </div>
+              <div class="card px-3 py-2.5">
+                <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net P&amp;L</p>
+                <p class="mt-0.5 text-sm font-semibold tabular-nums" [class]="pnlClass(row.netPnL)">
+                  {{ formatCurrency(row.netPnL) }}
+                </p>
+              </div>
+            </div>
+            <div class="card overflow-hidden">
+              <app-expandable-stocks-table
+                [stocks]="letterStocks()"
+                [expandable]="true"
+                [emptyMessage]="letterEmptyMessage()"
+              />
+            </div>
+          }
+        } @else {
+          <div class="card overflow-hidden">
+            <div class="border-b border-slate-100 px-4 py-3">
+              <h3 class="text-sm font-semibold text-slate-900">Performance by letter</h3>
+              <p class="mt-0.5 text-xs text-slate-500">
+                Every stock grouped by the first letter of its name. Open a letter to see the names.
+              </p>
+            </div>
+
+            <div class="divide-y divide-slate-100 lg:hidden">
+              @for (row of sortedLetterRows(); track row.letter) {
+                <button type="button" class="flex w-full items-start justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50" (click)="selectLetter(row.letter)">
+                  <div>
+                    <p class="text-sm font-semibold text-slate-900">{{ row.letter }}</p>
+                    <p class="mt-0.5 text-[11px] text-slate-500">{{ row.stockCount }} stocks</p>
+                  </div>
+                  <dl class="grid grid-cols-3 gap-3 text-right text-xs">
+                    <div>
+                      <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Losing</dt>
+                      <dd class="mt-0.5 tabular-nums text-rose-600">{{ row.losingCount }} · {{ formatCurrency(row.losingPnL) }}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Profitable</dt>
+                      <dd class="mt-0.5 tabular-nums text-emerald-600">{{ row.profitableCount }} · {{ formatCurrency(row.profitablePnL) }}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Net</dt>
+                      <dd class="mt-0.5 font-semibold tabular-nums" [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</dd>
+                    </div>
+                  </dl>
+                </button>
+              } @empty {
+                <p class="px-4 py-8 text-center text-sm text-slate-400">No stocks in this view.</p>
+              }
+            </div>
+
+            <div class="hidden overflow-x-auto lg:block">
+              <table class="data-table min-w-0">
+                <thead>
+                  <tr>
+                    @for (col of letterColumns; track col.key) {
+                      <th [class]="col.key === 'letter' ? 'text-left' : 'text-right'">
+                        <button
+                          type="button"
+                          class="sort-btn"
+                          [class.sort-btn-active]="letterSort.isActive(col.key)"
+                          (click)="letterSort.toggle(col.key, $event)"
+                        >
+                          {{ col.label }} <span>{{ letterSort.indicator(col.key) }}</span>
+                        </button>
+                      </th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of sortedLetterRows(); track row.letter) {
+                    <tr class="cursor-pointer hover:bg-slate-50" (click)="selectLetter(row.letter)">
+                      <td class="font-semibold text-slate-900">{{ row.letter }}</td>
+                      <td class="text-right tabular-nums">{{ row.stockCount }}</td>
+                      <td class="text-right tabular-nums text-slate-700">{{ row.losingCount }}</td>
+                      <td class="text-right tabular-nums text-rose-600">{{ formatCurrency(row.losingPnL) }}</td>
+                      <td class="text-right tabular-nums text-slate-700">{{ row.profitableCount }}</td>
+                      <td class="text-right tabular-nums text-emerald-600">{{ formatCurrency(row.profitablePnL) }}</td>
+                      <td class="text-right font-semibold tabular-nums" [class]="pnlClass(row.netPnL)">{{ formatCurrency(row.netPnL) }}</td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="7" class="py-8 text-center text-slate-400">No stocks in this view.</td>
+                    </tr>
+                  }
+                </tbody>
+                @if (letterRows().length) {
+                  <tfoot>
+                    <tr>
+                      <td class="font-semibold text-slate-900">Total</td>
+                      <td class="text-right font-semibold tabular-nums">{{ letterTotals().stockCount }}</td>
+                      <td class="text-right tabular-nums">{{ letterTotals().losingCount }}</td>
+                      <td class="text-right tabular-nums text-rose-600">{{ formatCurrency(letterTotals().losingPnL) }}</td>
+                      <td class="text-right tabular-nums">{{ letterTotals().profitableCount }}</td>
+                      <td class="text-right tabular-nums text-emerald-600">{{ formatCurrency(letterTotals().profitablePnL) }}</td>
+                      <td class="text-right font-semibold tabular-nums" [class]="pnlClass(letterTotals().netPnL)">{{ formatCurrency(letterTotals().netPnL) }}</td>
+                    </tr>
+                  </tfoot>
+                }
+              </table>
+            </div>
+          </div>
+        }
+      </div>
+    } @else if (activeTab() === 'analyse') {
       <div class="flex min-w-0 max-w-full flex-col gap-3 overflow-x-clip">
         <div class="h-[280px] min-h-0 min-w-0 sm:h-[320px]">
           <app-chart-card

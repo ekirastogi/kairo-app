@@ -33,7 +33,7 @@ export interface GlobalFilterParams {
 }
 
 export interface WatchlistFilterParams {
-  side?: 'losing' | 'profitable' | 'analyse';
+  side?: 'losing' | 'profitable' | 'analyse' | 'letters';
   bands?: PnlTierMode;
   tier?: string | null;
   marketCapTiers: MarketCapTier[];
@@ -96,7 +96,9 @@ export function readGlobalFilters(params: ParamMap, defaultTypes: TradeType[]): 
 export function readWatchlistFilters(params: ParamMap): WatchlistFilterParams {
   const sideRaw = params.get(FILTER_QUERY_KEYS.side);
   const side =
-    sideRaw === 'profitable' || sideRaw === 'losing' || sideRaw === 'analyse' ? sideRaw : undefined;
+    sideRaw === 'profitable' || sideRaw === 'losing' || sideRaw === 'analyse' || sideRaw === 'letters'
+      ? sideRaw
+      : undefined;
   const bandsRaw = params.get(FILTER_QUERY_KEYS.bands);
   const bands = bandsRaw === 'band' || bandsRaw === 'cumulative' ? bandsRaw : undefined;
   const tier = params.get(FILTER_QUERY_KEYS.tier);

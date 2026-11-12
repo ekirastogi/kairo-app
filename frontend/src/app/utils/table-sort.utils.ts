@@ -13,6 +13,7 @@ const ASC_DEFAULT_COLUMNS = new Set([
   'tradeType',
   'createdAt',
   'buyDate',
+  'letter',
 ]);
 
 export function defaultSortDirection(column: string): SortDir {
