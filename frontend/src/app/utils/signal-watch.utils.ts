@@ -8,9 +8,11 @@ export interface SignalLadderPoint {
   label: string;
   price: number;
   pctFromCmp: number | null;
-  kind: 'level' | 'cmp';
+  kind: 'level' | 'cmp' | 'both';
   position: number;
 }
+
+const LADDER_MIN_GAP = 16;
 
 /** Comma / space / semicolon price list, kept in typed order (P1, P2, …). */
 export function parsePriceListText(raw: string | null | undefined): number[] {
@@ -60,6 +62,54 @@ export function pctFromCmp(cmp: number | null | undefined, price: number): numbe
   return ((price - cmp) / cmp) * 100;
 }
 
+export interface SignalBracket {
+  label: string;
+  price: number;
+  pctFromCmp: number | null;
+}
+
+/** Price 1 = nearest user level strictly below CMP; Price 2 = nearest strictly above. */
+export function levelsAroundCmp(prices: number[], cmp: number | null | undefined): {
+  below: SignalBracket | null;
+  above: SignalBracket | null;
+} {
+  const levels = prices
+    .map((price, i) => ({ label: `P${i + 1}`, price }))
+    .filter((p) => Number.isFinite(p.price) && p.price > 0);
+  if (cmp == null || cmp <= 0) return { below: null, above: null };
+  const below = levels.filter((p) => p.price < cmp).sort((a, b) => b.price - a.price)[0] ?? null;
+  const above = levels.filter((p) => p.price > cmp).sort((a, b) => a.price - b.price)[0] ?? null;
+  return {
+    below: below ? { ...below, pctFromCmp: pctFromCmp(cmp, below.price) } : null,
+    above: above ? { ...above, pctFromCmp: pctFromCmp(cmp, above.price) } : null,
+  };
+}
+
+function rawPosition(price: number, min: number, span: number): number {
+  return span <= 0 ? 50 : ((price - min) / span) * 100;
+}
+
+/** Push clustered markers apart so labels do not sit on top of each other. */
+export function spreadLadderPositions(positions: number[], minGap = LADDER_MIN_GAP): number[] {
+  const n = positions.length;
+  if (n <= 1) return positions;
+  const gap = Math.min(minGap, 100 / Math.max(1, n - 1));
+  const out = [...positions];
+  for (let i = 1; i < n; i++) {
+    if (out[i] < out[i - 1] + gap) out[i] = out[i - 1] + gap;
+  }
+  if (out[n - 1] > 100) {
+    out[n - 1] = 100;
+    for (let i = n - 2; i >= 0; i--) {
+      if (out[i] > out[i + 1] - gap) out[i] = out[i + 1] - gap;
+    }
+  }
+  if (out[0] < 0) {
+    return out.map((_, i) => (i * 100) / (n - 1));
+  }
+  return out;
+}
+
 export function buildPriceLadder(prices: number[], cmp: number | null | undefined): SignalLadderPoint[] {
   const levels = prices
     .filter((n) => Number.isFinite(n) && n > 0)
@@ -71,28 +121,42 @@ export function buildPriceLadder(prices: number[], cmp: number | null | undefine
       kind: 'level' as const,
     }));
 
-  const cmpPoint =
-    cmp != null && cmp > 0
-      ? {
-          id: 'cmp',
-          label: 'CMP',
-          price: cmp,
-          pctFromCmp: 0,
-          kind: 'cmp' as const,
-        }
-      : null;
+  const hasCmp = cmp != null && cmp > 0;
+  const anchors = hasCmp ? [...levels.map((p) => p.price), cmp as number] : levels.map((p) => p.price);
+  if (!anchors.length) return [];
 
-  const points = cmpPoint ? [...levels, cmpPoint] : levels;
-  if (!points.length) return [];
-
-  const min = Math.min(...points.map((p) => p.price));
-  const max = Math.max(...points.map((p) => p.price));
+  const min = Math.min(...anchors);
+  const max = Math.max(...anchors);
   const span = max - min;
 
-  return points
-    .map((p) => ({
-      ...p,
-      position: span <= 0 ? 50 : ((p.price - min) / span) * 100,
-    }))
-    .sort((a, b) => a.price - b.price || (a.kind === 'cmp' ? 1 : -1));
+  let points: SignalLadderPoint[] = levels.map((p) => ({
+    ...p,
+    position: rawPosition(p.price, min, span),
+  }));
+
+  if (hasCmp) {
+    const cmpPos = rawPosition(cmp as number, min, span);
+    const nearest = points.reduce(
+      (best, p) => (Math.abs(p.position - cmpPos) < Math.abs(best.position - cmpPos) ? p : best),
+      points[0]
+    );
+    if (nearest && Math.abs(nearest.position - cmpPos) < LADDER_MIN_GAP) {
+      points = points.map((p) =>
+        p.id === nearest.id ? { ...p, kind: 'both', label: `${p.label} · CMP` } : p
+      );
+    } else {
+      points.push({
+        id: 'cmp',
+        label: 'CMP',
+        price: cmp as number,
+        pctFromCmp: 0,
+        kind: 'cmp',
+        position: cmpPos,
+      });
+    }
+  }
+
+  points.sort((a, b) => a.position - b.position || a.price - b.price);
+  const spaced = spreadLadderPositions(points.map((p) => p.position));
+  return points.map((p, i) => ({ ...p, position: spaced[i] }));
 }

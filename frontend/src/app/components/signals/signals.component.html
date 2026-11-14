@@ -56,7 +56,8 @@
       <div>
         <h2 class="text-sm font-semibold text-slate-900">Watchlist</h2>
         <p class="mt-0.5 text-xs text-slate-500">
-          {{ rows().length }} stock{{ rows().length === 1 ? '' : 's' }} · click a row for financials, ladder, and targets
+          {{ rows().length }} stock{{ rows().length === 1 ? '' : 's' }}
+          · Below = level just under CMP · Above = level just over CMP
         </p>
       </div>
     </div>
@@ -73,24 +74,19 @@
                   Symbol {{ tableSort.indicator('symbol') }}
                 </button>
               </th>
-              <th class="px-3 py-2 text-left">
-                <button type="button" (click)="tableSort.toggle('name')">
-                  Name {{ tableSort.indicator('name') }}
+              <th class="px-3 py-2 text-right">
+                <button type="button" (click)="tableSort.toggle('below')">
+                  Below {{ tableSort.indicator('below') }}
                 </button>
               </th>
-              <th class="px-3 py-2 text-right">
+              <th class="px-3 py-2 text-center">
                 <button type="button" (click)="tableSort.toggle('cmp')">
                   CMP {{ tableSort.indicator('cmp') }}
                 </button>
               </th>
-              <th class="px-3 py-2 text-right">
-                <button type="button" (click)="tableSort.toggle('avgTarget')">
-                  Avg target {{ tableSort.indicator('avgTarget') }}
-                </button>
-              </th>
-              <th class="px-3 py-2 text-right">
-                <button type="button" (click)="tableSort.toggle('avgDiff')">
-                  % vs CMP {{ tableSort.indicator('avgDiff') }}
+              <th class="px-3 py-2 text-left">
+                <button type="button" (click)="tableSort.toggle('above')">
+                  Above {{ tableSort.indicator('above') }}
                 </button>
               </th>
               <th class="px-3 py-2 text-left">
@@ -108,15 +104,45 @@
                 [class.bg-kairo-50]="expandedId() === row.id"
                 (click)="toggle(row.id)"
               >
-                <td class="px-4 py-2.5 font-semibold text-slate-900">{{ row.symbol }}</td>
-                <td class="px-3 py-2.5 text-slate-600">{{ row.name }}</td>
-                <td class="px-3 py-2.5 text-right tabular-nums">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</td>
-                <td class="px-3 py-2.5 text-right tabular-nums">{{ row.avgTarget ? formatPrice(row.avgTarget) : '—' }}</td>
-                <td class="px-3 py-2.5 text-right tabular-nums" [class]="metricTone(row.avgDiff)">
-                  {{ formatPctSigned(row.avgDiff, 1) }}
+                <td class="px-4 py-3">
+                  <p class="font-semibold tracking-wide text-slate-900">{{ row.symbol }}</p>
+                  <p class="mt-0.5 truncate text-[11px] text-slate-500">{{ row.name }}</p>
                 </td>
-                <td class="px-3 py-2.5 text-slate-600">{{ capLabelFor(row.capTier) }}</td>
-                <td class="px-4 py-2.5 text-right">
+                <td class="px-3 py-3 text-right">
+                  @if (row.below) {
+                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{{ row.below.label }}</p>
+                    <p class="mt-0.5 tabular-nums text-sm font-medium text-slate-900">{{ formatPrice(row.below.price) }}</p>
+                    <p class="mt-0.5 tabular-nums text-[11px]" [class]="metricTone(row.below.pctFromCmp)">
+                      {{ formatPctSigned(row.below.pctFromCmp, 1) }}
+                      @if (isNearLevel(row.below.pctFromCmp)) {
+                        <span class="ml-1 rounded bg-amber-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-800">Near</span>
+                      }
+                    </p>
+                  } @else {
+                    <p class="text-sm text-slate-300">—</p>
+                  }
+                </td>
+                <td class="px-3 py-3 text-center">
+                  <p class="text-[10px] font-semibold uppercase tracking-wide text-kairo-600">Last</p>
+                  <p class="mt-0.5 tabular-nums text-sm font-semibold text-slate-900">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</p>
+                  <p class="mt-0.5 text-[11px] text-slate-400">CMP</p>
+                </td>
+                <td class="px-3 py-3 text-left">
+                  @if (row.above) {
+                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{{ row.above.label }}</p>
+                    <p class="mt-0.5 tabular-nums text-sm font-medium text-slate-900">{{ formatPrice(row.above.price) }}</p>
+                    <p class="mt-0.5 tabular-nums text-[11px]" [class]="metricTone(row.above.pctFromCmp)">
+                      {{ formatPctSigned(row.above.pctFromCmp, 1) }}
+                      @if (isNearLevel(row.above.pctFromCmp)) {
+                        <span class="ml-1 rounded bg-amber-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-800">Near</span>
+                      }
+                    </p>
+                  } @else {
+                    <p class="text-sm text-slate-300">—</p>
+                  }
+                </td>
+                <td class="px-3 py-3 text-slate-600">{{ capLabelFor(row.capTier) }}</td>
+                <td class="px-4 py-3 text-right">
                   <button type="button" class="text-[11px] font-semibold text-rose-600 hover:underline" (click)="removeWatch(row, $event)">
                     Remove
                   </button>
@@ -124,7 +150,7 @@
               </tr>
               @if (expandedId() === row.id) {
                 <tr class="border-t border-slate-100 bg-slate-50/70">
-                  <td colspan="7" class="px-4 py-4" (click)="$event.stopPropagation()">
+                  <td colspan="6" class="px-4 py-4" (click)="$event.stopPropagation()">
                     <ng-container *ngTemplateOutlet="detail; context: { $implicit: row }" />
                   </td>
                 </tr>
@@ -137,14 +163,30 @@
       <div class="divide-y divide-slate-100 md:hidden">
         @for (row of rows(); track row.id) {
           <article>
-            <button type="button" class="flex w-full items-start justify-between gap-3 px-4 py-3 text-left" (click)="toggle(row.id)">
-              <div class="min-w-0">
-                <p class="text-sm font-semibold text-slate-900">{{ row.symbol }}</p>
-                <p class="truncate text-[11px] text-slate-500">{{ row.name }}</p>
+            <button type="button" class="w-full px-4 py-3 text-left" (click)="toggle(row.id)">
+              <div class="mb-2 flex items-baseline justify-between gap-2">
+                <p class="text-sm font-semibold tracking-wide text-slate-900">{{ row.symbol }}</p>
+                <p class="truncate text-[11px] text-slate-500">{{ capLabelFor(row.capTier) }}</p>
               </div>
-              <div class="text-right">
-                <p class="tabular-nums text-sm">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</p>
-                <p class="text-[11px] tabular-nums" [class]="metricTone(row.avgDiff)">{{ formatPctSigned(row.avgDiff, 1) }}</p>
+              <div class="sig-quote">
+                <div class="sig-quote-leg text-left">
+                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{{ row.below?.label || 'Below' }}</p>
+                  <p class="tabular-nums text-sm font-medium">{{ row.below ? formatPrice(row.below.price) : '—' }}</p>
+                  <p class="tabular-nums text-[11px]" [class]="metricTone(row.below?.pctFromCmp ?? null)">
+                    {{ formatPctSigned(row.below?.pctFromCmp ?? null, 1) }}
+                  </p>
+                </div>
+                <div class="sig-quote-mid">
+                  <p class="text-[10px] font-semibold uppercase tracking-wide text-kairo-600">CMP</p>
+                  <p class="tabular-nums text-sm font-semibold">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</p>
+                </div>
+                <div class="sig-quote-leg text-right">
+                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{{ row.above?.label || 'Above' }}</p>
+                  <p class="tabular-nums text-sm font-medium">{{ row.above ? formatPrice(row.above.price) : '—' }}</p>
+                  <p class="tabular-nums text-[11px]" [class]="metricTone(row.above?.pctFromCmp ?? null)">
+                    {{ formatPctSigned(row.above?.pctFromCmp ?? null, 1) }}
+                  </p>
+                </div>
               </div>
             </button>
             @if (expandedId() === row.id) {
@@ -183,19 +225,31 @@
     @if (row.ladder.length) {
       <div class="sig-ladder">
         <div class="sig-ladder-track">
-        <div class="sig-ladder-line"></div>
-        @for (pt of row.ladder; track pt.id) {
-          <div class="sig-ladder-pt" [style.left.%]="pt.position">
-            <p class="text-[10px] font-semibold uppercase tracking-wide" [class.text-kairo-700]="pt.kind === 'cmp'" [class.text-slate-500]="pt.kind !== 'cmp'">
-              {{ pt.label }}
-            </p>
-            <div class="sig-dot" [class.bg-kairo-600]="pt.kind === 'cmp'" [class.bg-slate-400]="pt.kind !== 'cmp'"></div>
-            <p class="mt-1 text-[10px] tabular-nums text-slate-600">{{ formatPrice(pt.price) }}</p>
-            <p class="text-[10px] tabular-nums" [class]="metricTone(pt.pctFromCmp)">
-              {{ pt.kind === 'cmp' ? 'CMP' : formatPctSigned(pt.pctFromCmp, 1) }}
-            </p>
-          </div>
-        }
+          <div
+            class="sig-ladder-line"
+            [style.left.%]="row.ladder[0].position"
+            [style.right.%]="100 - row.ladder[row.ladder.length - 1].position"
+          ></div>
+          @for (pt of row.ladder; track pt.id) {
+            <div class="sig-ladder-pt" [style.left.%]="pt.position">
+              <p
+                class="text-[10px] font-semibold uppercase tracking-wide"
+                [class.text-kairo-700]="pt.kind !== 'level'"
+                [class.text-slate-500]="pt.kind === 'level'"
+              >
+                {{ pt.label }}
+              </p>
+              <div
+                class="sig-dot"
+                [class.bg-kairo-600]="pt.kind !== 'level'"
+                [class.bg-slate-400]="pt.kind === 'level'"
+              ></div>
+              <p class="mt-1 text-[10px] tabular-nums text-slate-600">{{ formatPrice(pt.price) }}</p>
+              <p class="text-[10px] tabular-nums" [class]="metricTone(pt.pctFromCmp)">
+                {{ pt.kind === 'cmp' ? 'CMP' : formatPctSigned(pt.pctFromCmp, 1) }}
+              </p>
+            </div>
+          }
         </div>
       </div>
     }

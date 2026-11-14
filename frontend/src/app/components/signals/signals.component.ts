@@ -19,8 +19,10 @@ import {
   avgPrice,
   buildPriceLadder,
   formatPriceListText,
+  levelsAroundCmp,
   parsePriceListText,
   pctFromCmp,
+  SignalBracket,
   SignalBrokerTarget,
   SignalLadderPoint,
 } from '../../utils/signal-watch.utils';
@@ -33,6 +35,8 @@ interface SignalRow extends SignalWatch {
   sector: string;
   analysis: StockFundamentalAnalysis;
   ladder: SignalLadderPoint[];
+  below: SignalBracket | null;
+  above: SignalBracket | null;
   avgTarget: number | null;
   avgDiff: number | null;
   pricesText: string;
@@ -98,6 +102,10 @@ function metricTone(value: number | null): string {
   return 'text-slate-600';
 }
 
+function isNearLevel(pct: number | null | undefined): boolean {
+  return pct != null && Math.abs(pct) <= 5;
+}
+
 @Component({
   selector: 'app-signals',
   standalone: true,
@@ -105,12 +113,18 @@ function metricTone(value: number | null): string {
   templateUrl: './signals.component.html',
   host: { class: 'block' },
   styles: `
-    .sig-ladder { padding: 0 3.75rem; }
-    .sig-ladder-track { position: relative; min-height: 5.25rem; }
-    .sig-ladder-line { position: absolute; left: 0; right: 0; top: 1.85rem; height: 2px; background: #e2e8f0; }
-    .sig-ladder-pt { position: absolute; top: 0; width: 7rem; margin-left: -3.5rem; text-align: center; }
-    .sig-ladder-pt p { white-space: nowrap; }
+    .sig-ladder { padding: 0 3.25rem; }
+    .sig-ladder-track { position: relative; min-height: 5.5rem; }
+    .sig-ladder-line { position: absolute; top: 1.85rem; height: 2px; background: #cbd5e1; }
+    .sig-ladder-pt { position: absolute; top: 0; width: 6.25rem; margin-left: -3.125rem; text-align: center; }
+    .sig-ladder-pt p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .sig-dot { margin: 0.35rem auto 0; height: 0.5rem; width: 0.5rem; border-radius: 999px; }
+    .sig-quote { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; min-width: 17rem; }
+    .sig-quote-leg { display: flex; flex-direction: column; gap: 1px; }
+    .sig-quote-mid {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      margin: 0 0.75rem; padding: 0 0.85rem; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;
+    }
   `,
 })
 export class SignalsComponent {
@@ -126,6 +140,7 @@ export class SignalsComponent {
   readonly formatAnalysisChange = formatAnalysisChange;
   readonly pctFromCmp = pctFromCmp;
   readonly metricTone = metricTone;
+  readonly isNearLevel = isNearLevel;
   readonly tableSort = new TableSortState('symbol', 'asc');
 
   query = '';
@@ -222,6 +237,7 @@ export class SignalsComponent {
             : null;
       const cap = registry?.marketCap ?? snap?.marketCap ?? 0;
       const avgTarget = avgPrice(row.prices);
+      const around = levelsAroundCmp(row.prices, cmp);
       return {
         ...row,
         cmp,
@@ -229,6 +245,8 @@ export class SignalsComponent {
         sector: snap?.sector?.trim() || '',
         analysis: buildStockAnalysis(registry),
         ladder: buildPriceLadder(row.prices, cmp),
+        below: around.below,
+        above: around.above,
         avgTarget,
         avgDiff: avgTarget != null ? pctFromCmp(cmp, avgTarget) : null,
         pricesText: formatPriceListText(row.prices),
@@ -239,12 +257,12 @@ export class SignalsComponent {
       switch (column) {
         case 'name':
           return row.name || row.symbol;
+        case 'below':
+          return row.below?.price ?? -1;
         case 'cmp':
           return row.cmp ?? -1;
-        case 'avgTarget':
-          return row.avgTarget ?? -1;
-        case 'avgDiff':
-          return row.avgDiff ?? Number.NEGATIVE_INFINITY;
+        case 'above':
+          return row.above?.price ?? -1;
         case 'cap':
           return row.capTier ?? '';
         default:

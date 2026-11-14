@@ -2,6 +2,7 @@ import {
   avgPrice,
   buildPriceLadder,
   formatPriceListText,
+  levelsAroundCmp,
   parseBrokerTargets,
   parsePriceListText,
   pctFromCmp,
@@ -22,6 +23,20 @@ describe('signal watch utils', () => {
     expect(ladder[2].pctFromCmp).toBe(10);
     expect(ladder[0].position).toBe(0);
     expect(ladder[2].position).toBe(100);
+  });
+
+  it('merges CMP into a nearby level instead of overlapping labels', () => {
+    const ladder = buildPriceLadder([1580, 1650, 1730, 1850, 1950], 1940);
+    expect(ladder.some((p) => p.kind === 'both' && p.label.includes('P5'))).toBeTrue();
+    expect(ladder.some((p) => p.id === 'cmp')).toBeFalse();
+    const gaps = ladder.slice(1).map((p, i) => p.position - ladder[i].position);
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(16 - 0.001);
+  });
+
+  it('picks the level just below CMP and just above CMP', () => {
+    const around = levelsAroundCmp([1080, 1196, 1245, 1310], 1224);
+    expect(around.below).toEqual(jasmine.objectContaining({ label: 'P2', price: 1196 }));
+    expect(around.above).toEqual(jasmine.objectContaining({ label: 'P3', price: 1245 }));
   });
 
   it('averages prices and parses broker targets', () => {
