@@ -20,7 +20,7 @@ export const routes: Routes = [
       {
         path: 'signals',
         component: SignalsComponent,
-        data: { title: 'Signals', subtitle: 'Trade recommendations from your engine' },
+        data: { title: 'Signals', subtitle: 'Watchlist with price ladders and Screener financials' },
       },
       {
         path: 'analytics/custom-lists/new',
