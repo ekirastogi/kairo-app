@@ -78,7 +78,7 @@ export const routes: Routes = [
           import('./components/aop/aop.component').then((m) => m.AopComponent),
         data: {
           title: 'AOP',
-          subtitle: 'Stock profit targets with current and after-target P&L tiers',
+          subtitle: 'Pick a week or month and set profit targets',
         },
       },
       {

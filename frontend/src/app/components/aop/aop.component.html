@@ -2,50 +2,35 @@
 
 <div class="space-y-4">
   <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-    <div class="pill-tabs">
+    <div class="pill-tabs" role="tablist" aria-label="Week or month">
       <button type="button" class="pill-tab" [class.pill-tab-active]="viewKind() === 'week'" (click)="setViewKind('week')">
-        Weeks
+        Week
       </button>
       <button type="button" class="pill-tab" [class.pill-tab-active]="viewKind() === 'month'" (click)="setViewKind('month')">
-        Months
+        Month
       </button>
     </div>
-    <div class="period-track" role="tablist" [attr.aria-label]="viewKind() === 'week' ? 'AOP weeks' : 'AOP months'">
-      @for (tab of periodTabs(); track tab.key) {
-        <button
-          type="button"
-          role="tab"
-          class="period-seg"
-          [class.period-seg-active]="viewKey() === tab.key"
-          [attr.aria-selected]="viewKey() === tab.key"
-          [title]="tab.hint"
-          (click)="selectPeriod(tab.key)"
-        >
-          {{ tab.label }}
-        </button>
-      }
+    <div class="flex items-center justify-between gap-2 sm:justify-end">
+      <button type="button" class="btn-secondary px-2.5 py-1.5 text-xs" (click)="stepPeriod(-1)" [attr.aria-label]="viewKind() === 'week' ? 'Previous week' : 'Previous month'">
+        ←
+      </button>
+      <div class="min-w-[10.5rem] text-center">
+        <p class="text-sm font-semibold text-slate-900">{{ viewLabel() }}</p>
+        <p class="text-[11px] text-slate-500">{{ viewHint() }}</p>
+      </div>
+      <button type="button" class="btn-secondary px-2.5 py-1.5 text-xs" (click)="stepPeriod(1)" [attr.aria-label]="viewKind() === 'week' ? 'Next week' : 'Next month'">
+        →
+      </button>
     </div>
   </div>
 
+  @if (viewWritable()) {
   <div class="card p-4 sm:p-5">
     <div class="mb-3">
       <h2 class="text-sm font-semibold text-slate-900">Add stock</h2>
       <p class="mt-0.5 text-xs text-slate-500">
-        Add to this week, next week, or this month. Current net P&amp;L and tier come from your book.
+        Adds to {{ viewLabel().toLowerCase() }}. Target is extra profit on top of current net P&amp;L.
       </p>
-    </div>
-    <div class="period-track mb-3" role="group" aria-label="Add AOP to">
-      @for (dest of addDestinations; track dest.key) {
-        <button
-          type="button"
-          class="period-seg"
-          [class.period-seg-active]="addKey() === dest.key"
-          (click)="setAddKey(dest.key)"
-          [title]="dest.hint"
-        >
-          {{ dest.label }}
-        </button>
-      }
     </div>
     <div class="grid gap-3 sm:grid-cols-12 sm:items-end">
       <label class="block sm:col-span-6">
@@ -76,6 +61,7 @@
       </div>
     </div>
   </div>
+  }
 
   <div class="card overflow-visible">
     <div class="relative z-10 border-b border-slate-100 px-4 py-3">
@@ -83,14 +69,13 @@
         <div>
           <h2 class="text-sm font-semibold text-slate-900">{{ viewLabel() }}</h2>
           <p class="mt-0.5 text-xs text-slate-500">
-            {{ viewHint() }}
-            · {{ rows().length }} stock{{ rows().length === 1 ? '' : 's' }}
+            {{ rows().length }} stock{{ rows().length === 1 ? '' : 's' }}
             · Target {{ formatCurrency(periodTotal()) }}
             @if (achievedLoaded()) {
               · Achieved {{ formatCurrency(achievedTotal()) }}
             }
             @if (!viewWritable()) {
-              · History
+              · View only
             }
           </p>
         </div>

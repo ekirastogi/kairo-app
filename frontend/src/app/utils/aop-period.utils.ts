@@ -3,14 +3,6 @@ import { istTodayIso } from './market-calendar.utils';
 
 export type AopKind = 'week' | 'month';
 
-export interface AopPeriodOption {
-  key: string;
-  kind: AopKind;
-  label: string;
-  hint: string;
-  writable: boolean;
-}
-
 const MS_DAY = 86_400_000;
 
 export function aopTodayIso(): string {
@@ -39,10 +31,6 @@ export function shiftMonthKey(monthKey: string, months: number): string {
   return `M:${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export function aopKindOf(key: string): AopKind {
-  return key.startsWith('M:') ? 'month' : 'week';
-}
-
 export function aopPeriodDateRange(key: string): { start: string; end: string } {
   if (key.startsWith('M:')) {
     const month = key.slice(2);
@@ -61,12 +49,14 @@ function isoFromUtc(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-export function aopWritableKeys(todayIso = aopTodayIso()): string[] {
-  return [
-    aopWeekKeyFromIso(todayIso),
-    aopWeekKeyFromIso(shiftIsoDays(todayIso, 7)),
-    aopMonthKeyFromIso(todayIso),
-  ];
+/** Open for adds until the period’s last day (IST). Past weeks/months are history. */
+export function aopPeriodWritable(key: string, todayIso = aopTodayIso()): boolean {
+  return aopPeriodDateRange(key).end >= todayIso;
+}
+
+export function shiftWeekKey(weekKey: string, weeks: number): string {
+  const { start } = aopPeriodDateRange(weekKey);
+  return aopWeekKeyFromIso(shiftIsoDays(start, weeks * 7));
 }
 
 function isoWeekMondayUtc(year: number, week: number): number {
@@ -103,61 +93,15 @@ export function aopPeriodLabel(key: string, todayIso = aopTodayIso()): string {
   const twoWeeks = aopWeekKeyFromIso(shiftIsoDays(todayIso, -14));
   const thisMonth = aopMonthKeyFromIso(todayIso);
   const lastMonth = shiftMonthKey(thisMonth, -1);
+  const nextMonth = shiftMonthKey(thisMonth, 1);
   if (key === thisWeek) return 'This week';
   if (key === nextWeek) return 'Next week';
   if (key === lastWeek) return 'Last week';
   if (key === twoWeeks) return '2 weeks ago';
   if (key === thisMonth) return 'This month';
   if (key === lastMonth) return 'Last month';
+  if (key === nextMonth) return 'Next month';
   if (key.startsWith('M:')) return aopPeriodHint(key);
   const match = key.slice(2).match(/^(\d{4})-W(\d{2})$/i);
   return match ? `W${Number(match[2])}` : key;
-}
-
-export function aopWeekOptions(storedKeys: string[], todayIso = aopTodayIso()): AopPeriodOption[] {
-  const writable = new Set(aopWritableKeys(todayIso));
-  const preset = [
-    aopWeekKeyFromIso(shiftIsoDays(todayIso, 7)),
-    aopWeekKeyFromIso(todayIso),
-    aopWeekKeyFromIso(shiftIsoDays(todayIso, -7)),
-    aopWeekKeyFromIso(shiftIsoDays(todayIso, -14)),
-  ];
-  const extras = storedKeys
-    .filter((key) => aopKindOf(key) === 'week' && !preset.includes(key))
-    .sort()
-    .reverse();
-  return [...preset, ...extras].map((key) => ({
-    key,
-    kind: 'week' as const,
-    label: aopPeriodLabel(key, todayIso),
-    hint: aopPeriodHint(key),
-    writable: writable.has(key),
-  }));
-}
-
-export function aopMonthOptions(storedKeys: string[], todayIso = aopTodayIso()): AopPeriodOption[] {
-  const writable = new Set(aopWritableKeys(todayIso));
-  const thisMonth = aopMonthKeyFromIso(todayIso);
-  const preset = [thisMonth, shiftMonthKey(thisMonth, -1)];
-  const extras = storedKeys
-    .filter((key) => aopKindOf(key) === 'month' && !preset.includes(key))
-    .sort()
-    .reverse();
-  return [...preset, ...extras].map((key) => ({
-    key,
-    kind: 'month' as const,
-    label: aopPeriodLabel(key, todayIso),
-    hint: aopPeriodHint(key),
-    writable: writable.has(key),
-  }));
-}
-
-export function aopAddDestinations(todayIso = aopTodayIso()): AopPeriodOption[] {
-  return aopWritableKeys(todayIso).map((key) => ({
-    key,
-    kind: aopKindOf(key),
-    label: aopPeriodLabel(key, todayIso),
-    hint: aopPeriodHint(key),
-    writable: true,
-  }));
 }

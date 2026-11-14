@@ -14,17 +14,15 @@ import { TradeLedgerService } from '../../services/trade-ledger.service';
 import { ToastService } from '../../services/toast.service';
 import {
   AopKind,
-  aopAddDestinations,
-  aopKindOf,
   aopMonthKeyFromIso,
-  aopMonthOptions,
   aopPeriodDateRange,
   aopPeriodHint,
   aopPeriodLabel,
+  aopPeriodWritable,
   aopTodayIso,
   aopWeekKeyFromIso,
-  aopWeekOptions,
-  aopWritableKeys,
+  shiftMonthKey,
+  shiftWeekKey,
 } from '../../utils/aop-period.utils';
 import { analysePnlTierInfo } from '../../utils/pnl-watchlist.utils';
 import { formatCurrency, formatPrice, pnlClass } from '../../utils/format.utils';
@@ -93,8 +91,6 @@ export class AopComponent implements OnInit {
   readonly pnlClass = pnlClass;
 
   private todayIso = aopTodayIso();
-  readonly addDestinations = aopAddDestinations(this.todayIso);
-  readonly writableKeys = new Set(aopWritableKeys(this.todayIso));
 
   query = '';
   targetProfit = '';
@@ -102,7 +98,6 @@ export class AopComponent implements OnInit {
   targets = signal<AopTarget[]>(loadTargets());
   viewKind = signal<AopKind>('week');
   viewKey = signal(aopWeekKeyFromIso(this.todayIso));
-  addKey = signal(aopWeekKeyFromIso(this.todayIso));
   periodTrades = signal<Trade[] | null>(null);
   fetching = signal(false);
   uploading = signal(false);
@@ -114,16 +109,9 @@ export class AopComponent implements OnInit {
     await this.loadAchieved();
   }
 
-  periodTabs = computed(() => {
-    const keys = [...new Set(this.targets().map((row) => row.periodKey))];
-    return this.viewKind() === 'month'
-      ? aopMonthOptions(keys, this.todayIso)
-      : aopWeekOptions(keys, this.todayIso);
-  });
-
   viewLabel = computed(() => aopPeriodLabel(this.viewKey(), this.todayIso));
   viewHint = computed(() => aopPeriodHint(this.viewKey()));
-  viewWritable = computed(() => this.writableKeys.has(this.viewKey()));
+  viewWritable = computed(() => aopPeriodWritable(this.viewKey(), this.todayIso));
 
   periodTargets = computed(() =>
     this.targets().filter((row) => row.periodKey === this.viewKey())
@@ -225,27 +213,21 @@ export class AopComponent implements OnInit {
   }
 
   setViewKind(kind: AopKind): void {
+    if (this.viewKind() === kind) return;
     this.viewKind.set(kind);
-    const tabs = kind === 'month'
-      ? aopMonthOptions(this.storedKeys(), this.todayIso)
-      : aopWeekOptions(this.storedKeys(), this.todayIso);
-    const preferred = kind === 'month' ? aopMonthKeyFromIso(this.todayIso) : aopWeekKeyFromIso(this.todayIso);
-    const next =
-      tabs.find((tab) => tab.key === this.viewKey()) ??
-      tabs.find((tab) => tab.key === preferred) ??
-      tabs[0];
-    if (next) this.selectPeriod(next.key);
+    this.selectPeriod(
+      kind === 'month' ? aopMonthKeyFromIso(this.todayIso) : aopWeekKeyFromIso(this.todayIso)
+    );
+  }
+
+  stepPeriod(delta: number): void {
+    const key = this.viewKey();
+    this.selectPeriod(this.viewKind() === 'month' ? shiftMonthKey(key, delta) : shiftWeekKey(key, delta));
   }
 
   selectPeriod(key: string): void {
     this.viewKey.set(key);
-    this.viewKind.set(aopKindOf(key));
-    if (this.writableKeys.has(key)) this.addKey.set(key);
     void this.loadAchieved();
-  }
-
-  setAddKey(key: string): void {
-    this.addKey.set(key);
   }
 
   onQuery(value: string): void {
@@ -271,9 +253,9 @@ export class AopComponent implements OnInit {
       this.toast.error('Enter a target profit');
       return;
     }
-    const periodKey = this.addKey();
-    if (!this.writableKeys.has(periodKey)) {
-      this.toast.error('You can only add AOP for this week, next week, or this month');
+    const periodKey = this.viewKey();
+    if (!aopPeriodWritable(periodKey, this.todayIso)) {
+      this.toast.error('Pick this week, a later week, or this month to add stocks');
       return;
     }
     const symbol = stock.symbol.trim().toUpperCase();
@@ -297,8 +279,8 @@ export class AopComponent implements OnInit {
     this.query = '';
     this.targetProfit = '';
     this.picked = null;
-    this.selectPeriod(periodKey);
     this.toast.success(`Added ${symbol} to ${aopPeriodLabel(periodKey, this.todayIso)}`);
+    void this.loadAchieved();
   }
 
   setTargetProfit(id: string, value: string | number): void {
@@ -388,10 +370,6 @@ export class AopComponent implements OnInit {
     if (!client) return [];
     const stored = await this.ledger.getTradesForDateRange(client, start, end);
     return stored.map(storedTradeToTrade);
-  }
-
-  private storedKeys(): string[] {
-    return [...new Set(this.targets().map((row) => row.periodKey))];
   }
 
   private persist(): void {
