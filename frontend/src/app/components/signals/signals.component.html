@@ -116,8 +116,7 @@
                 </td>
                 <td class="px-3 py-3 text-right">
                   @if (row.below) {
-                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{{ row.below.label }}</p>
-                    <p class="mt-0.5 tabular-nums text-sm font-medium text-slate-900">{{ formatPrice(row.below.price) }}</p>
+                    <p class="tabular-nums text-sm font-medium text-slate-900">{{ formatPrice(row.below.price) }}</p>
                     <p class="mt-0.5 tabular-nums text-[11px]" [class]="metricTone(row.below.pctFromCmp)">
                       {{ formatPctSigned(row.below.pctFromCmp, 1) }}
                       @if (isNearLevel(row.below.pctFromCmp)) {
@@ -129,14 +128,11 @@
                   }
                 </td>
                 <td class="px-3 py-3 text-center">
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-kairo-600">Last</p>
-                  <p class="mt-0.5 tabular-nums text-sm font-semibold text-slate-900">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</p>
-                  <p class="mt-0.5 text-[11px] text-slate-400">CMP</p>
+                  <p class="tabular-nums text-sm font-semibold text-slate-900">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</p>
                 </td>
                 <td class="px-3 py-3 text-left">
                   @if (row.above) {
-                    <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{{ row.above.label }}</p>
-                    <p class="mt-0.5 tabular-nums text-sm font-medium text-slate-900">{{ formatPrice(row.above.price) }}</p>
+                    <p class="tabular-nums text-sm font-medium text-slate-900">{{ formatPrice(row.above.price) }}</p>
                     <p class="mt-0.5 tabular-nums text-[11px]" [class]="metricTone(row.above.pctFromCmp)">
                       {{ formatPctSigned(row.above.pctFromCmp, 1) }}
                       @if (isNearLevel(row.above.pctFromCmp)) {
@@ -183,18 +179,15 @@
               </div>
               <div class="sig-quote">
                 <div class="sig-quote-leg text-left">
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{{ row.below?.label || 'Below' }}</p>
                   <p class="tabular-nums text-sm font-medium">{{ row.below ? formatPrice(row.below.price) : '—' }}</p>
                   <p class="tabular-nums text-[11px]" [class]="metricTone(row.below?.pctFromCmp ?? null)">
                     {{ formatPctSigned(row.below?.pctFromCmp ?? null, 1) }}
                   </p>
                 </div>
                 <div class="sig-quote-mid">
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-kairo-600">CMP</p>
                   <p class="tabular-nums text-sm font-semibold">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</p>
                 </div>
                 <div class="sig-quote-leg text-right">
-                  <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{{ row.above?.label || 'Above' }}</p>
                   <p class="tabular-nums text-sm font-medium">{{ row.above ? formatPrice(row.above.price) : '—' }}</p>
                   <p class="tabular-nums text-[11px]" [class]="metricTone(row.above?.pctFromCmp ?? null)">
                     {{ formatPctSigned(row.above?.pctFromCmp ?? null, 1) }}
