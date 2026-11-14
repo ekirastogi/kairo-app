@@ -18,6 +18,7 @@ import { getMarketCapTier, MARKET_CAP_LABELS, MarketCapTier } from '../../utils/
 import {
   avgPrice,
   buildPriceLadder,
+  buildQuoteStrip,
   formatPriceListText,
   levelsAroundCmp,
   OverallSignal,
@@ -38,6 +39,7 @@ interface SignalRow extends SignalWatch {
   ladder: SignalLadderPoint[];
   below: SignalBracket | null;
   above: SignalBracket | null;
+  quoteStrip: SignalLadderPoint[];
   avgTarget: number | null;
   avgDiff: number | null;
   pricesText: string;
@@ -120,12 +122,11 @@ function isNearLevel(pct: number | null | undefined): boolean {
     .sig-ladder-pt { position: absolute; top: 0; width: 6.25rem; margin-left: -3.125rem; text-align: center; }
     .sig-ladder-pt p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .sig-dot { margin: 0.35rem auto 0; height: 0.5rem; width: 0.5rem; border-radius: 999px; }
-    .sig-quote { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; min-width: 17rem; }
-    .sig-quote-leg { display: flex; flex-direction: column; gap: 1px; }
-    .sig-quote-mid {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      margin: 0 0.75rem; padding: 0 0.85rem; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;
-    }
+    .sig-strip { padding: 0 2.6rem; min-width: 16rem; }
+    .sig-strip-track { position: relative; min-height: 3.35rem; }
+    .sig-strip-line { position: absolute; top: 0.35rem; height: 2px; background: #cbd5e1; }
+    .sig-strip-pt { position: absolute; top: 0; width: 5.2rem; margin-left: -2.6rem; text-align: center; }
+    .sig-strip-pt p { white-space: nowrap; }
   `,
 })
 export class SignalsComponent {
@@ -250,6 +251,7 @@ export class SignalsComponent {
         ladder: buildPriceLadder(row.prices, cmp),
         below: around.below,
         above: around.above,
+        quoteStrip: buildQuoteStrip(around.below, cmp, around.above),
         avgTarget,
         avgDiff: avgTarget != null ? pctFromCmp(cmp, avgTarget) : null,
         pricesText: formatPriceListText(row.prices),

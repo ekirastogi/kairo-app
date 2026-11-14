@@ -151,6 +151,56 @@ export function levelsAroundCmp(prices: number[], cmp: number | null | undefined
   };
 }
 
+/** Compact Below–CMP–Above strip for the closed watchlist row. */
+export function buildQuoteStrip(
+  below: SignalBracket | null,
+  cmp: number | null | undefined,
+  above: SignalBracket | null
+): SignalLadderPoint[] {
+  const pts: SignalLadderPoint[] = [];
+  if (below) {
+    pts.push({
+      id: 'below',
+      label: '',
+      price: below.price,
+      pctFromCmp: below.pctFromCmp,
+      kind: 'level',
+      position: 0,
+    });
+  }
+  if (cmp != null && cmp > 0) {
+    pts.push({
+      id: 'cmp',
+      label: '',
+      price: cmp,
+      pctFromCmp: 0,
+      kind: 'cmp',
+      position: 50,
+    });
+  }
+  if (above) {
+    pts.push({
+      id: 'above',
+      label: '',
+      price: above.price,
+      pctFromCmp: above.pctFromCmp,
+      kind: 'level',
+      position: 100,
+    });
+  }
+  if (!pts.length) return [];
+  const min = Math.min(...pts.map((p) => p.price));
+  const max = Math.max(...pts.map((p) => p.price));
+  const span = max - min;
+  const placed = pts.map((p) => ({ ...p, position: rawPosition(p.price, min, span) }));
+  placed.sort((a, b) => a.position - b.position);
+  const spaced = spreadLadderPositions(
+    placed.map((p) => p.position),
+    28
+  );
+  return placed.map((p, i) => ({ ...p, position: spaced[i] }));
+}
+
 function rawPosition(price: number, min: number, span: number): number {
   return span <= 0 ? 50 : ((price - min) / span) * 100;
 }

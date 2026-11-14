@@ -75,21 +75,7 @@
                   Symbol {{ tableSort.indicator('symbol') }}
                 </button>
               </th>
-              <th class="px-3 py-2 text-right">
-                <button type="button" (click)="tableSort.toggle('below')">
-                  Below {{ tableSort.indicator('below') }}
-                </button>
-              </th>
-              <th class="px-3 py-2 text-center">
-                <button type="button" (click)="tableSort.toggle('cmp')">
-                  CMP {{ tableSort.indicator('cmp') }}
-                </button>
-              </th>
-              <th class="px-3 py-2 text-left">
-                <button type="button" (click)="tableSort.toggle('above')">
-                  Above {{ tableSort.indicator('above') }}
-                </button>
-              </th>
+              <th class="px-3 py-2 text-left w-[42%]">Levels</th>
               <th class="px-3 py-2 text-left">
                 <button type="button" (click)="tableSort.toggle('overallSignal')">
                   Call {{ tableSort.indicator('overallSignal') }}
@@ -100,7 +86,6 @@
                   Cap {{ tableSort.indicator('cap') }}
                 </button>
               </th>
-              <th class="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -114,34 +99,8 @@
                   <p class="font-semibold tracking-wide text-slate-900">{{ row.symbol }}</p>
                   <p class="mt-0.5 truncate text-[11px] text-slate-500">{{ row.name }}</p>
                 </td>
-                <td class="px-3 py-3 text-right">
-                  @if (row.below) {
-                    <p class="tabular-nums text-sm font-medium text-slate-900">{{ formatPrice(row.below.price) }}</p>
-                    <p class="mt-0.5 tabular-nums text-[11px]" [class]="metricTone(row.below.pctFromCmp)">
-                      {{ formatPctSigned(row.below.pctFromCmp, 1) }}
-                      @if (isNearLevel(row.below.pctFromCmp)) {
-                        <span class="ml-1 rounded bg-amber-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-800">Near</span>
-                      }
-                    </p>
-                  } @else {
-                    <p class="text-sm text-slate-300">—</p>
-                  }
-                </td>
-                <td class="px-3 py-3 text-center">
-                  <p class="tabular-nums text-sm font-semibold text-slate-900">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</p>
-                </td>
-                <td class="px-3 py-3 text-left">
-                  @if (row.above) {
-                    <p class="tabular-nums text-sm font-medium text-slate-900">{{ formatPrice(row.above.price) }}</p>
-                    <p class="mt-0.5 tabular-nums text-[11px]" [class]="metricTone(row.above.pctFromCmp)">
-                      {{ formatPctSigned(row.above.pctFromCmp, 1) }}
-                      @if (isNearLevel(row.above.pctFromCmp)) {
-                        <span class="ml-1 rounded bg-amber-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-800">Near</span>
-                      }
-                    </p>
-                  } @else {
-                    <p class="text-sm text-slate-300">—</p>
-                  }
+                <td class="px-3 py-3">
+                  <ng-container *ngTemplateOutlet="quoteStrip; context: { $implicit: row }" />
                 </td>
                 <td class="px-3 py-3">
                   <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ signalBadge(row.overallSignal) }}">
@@ -149,15 +108,10 @@
                   </span>
                 </td>
                 <td class="px-3 py-3 text-slate-600">{{ capLabelFor(row.capTier) }}</td>
-                <td class="px-4 py-3 text-right">
-                  <button type="button" class="text-[11px] font-semibold text-rose-600 hover:underline" (click)="removeWatch(row, $event)">
-                    Remove
-                  </button>
-                </td>
               </tr>
               @if (expandedId() === row.id) {
                 <tr class="border-t border-slate-100 bg-slate-50/70">
-                  <td colspan="7" class="px-4 py-4" (click)="$event.stopPropagation()">
+                  <td colspan="4" class="px-4 py-4" (click)="$event.stopPropagation()">
                     <ng-container *ngTemplateOutlet="detail; context: { $implicit: row }" />
                   </td>
                 </tr>
@@ -177,23 +131,7 @@
                   {{ row.overallSignal }}
                 </span>
               </div>
-              <div class="sig-quote">
-                <div class="sig-quote-leg text-left">
-                  <p class="tabular-nums text-sm font-medium">{{ row.below ? formatPrice(row.below.price) : '—' }}</p>
-                  <p class="tabular-nums text-[11px]" [class]="metricTone(row.below?.pctFromCmp ?? null)">
-                    {{ formatPctSigned(row.below?.pctFromCmp ?? null, 1) }}
-                  </p>
-                </div>
-                <div class="sig-quote-mid">
-                  <p class="tabular-nums text-sm font-semibold">{{ row.cmp ? formatPrice(row.cmp) : '—' }}</p>
-                </div>
-                <div class="sig-quote-leg text-right">
-                  <p class="tabular-nums text-sm font-medium">{{ row.above ? formatPrice(row.above.price) : '—' }}</p>
-                  <p class="tabular-nums text-[11px]" [class]="metricTone(row.above?.pctFromCmp ?? null)">
-                    {{ formatPctSigned(row.above?.pctFromCmp ?? null, 1) }}
-                  </p>
-                </div>
-              </div>
+              <ng-container *ngTemplateOutlet="quoteStrip; context: { $implicit: row }" />
             </button>
             @if (expandedId() === row.id) {
               <div class="border-t border-slate-100 bg-slate-50/70 px-4 py-4">
@@ -225,6 +163,7 @@
       <div class="flex flex-wrap gap-2">
         <a class="btn-secondary !py-1.5 !text-xs" [routerLink]="['/stock', row.symbol]">Open stock</a>
         <a class="btn-primary !py-1.5 !text-xs" [routerLink]="['/trade-book']">Create trade plan</a>
+        <button type="button" class="btn-secondary !py-1.5 !text-xs text-rose-700" (click)="removeWatch(row)">Remove</button>
       </div>
     </div>
 
@@ -471,8 +410,36 @@
         >
           Save
         </button>
-        <button type="button" class="btn-secondary text-rose-700" (click)="removeWatch(row)">Remove</button>
       </div>
     </div>
   </div>
+</ng-template>
+
+<ng-template #quoteStrip let-row>
+  @if (row.quoteStrip.length) {
+    <div class="sig-strip">
+      <div class="sig-strip-track">
+      <div
+        class="sig-strip-line"
+        [style.left.%]="row.quoteStrip[0].position"
+        [style.right.%]="100 - row.quoteStrip[row.quoteStrip.length - 1].position"
+      ></div>
+      @for (pt of row.quoteStrip; track pt.id) {
+        <div class="sig-strip-pt" [style.left.%]="pt.position">
+          <div
+            class="sig-dot mx-auto"
+            [class.bg-kairo-600]="pt.kind === 'cmp'"
+            [class.bg-slate-400]="pt.kind !== 'cmp'"
+          ></div>
+          <p class="mt-1 text-[11px] tabular-nums font-medium text-slate-900">{{ formatPrice(pt.price) }}</p>
+          <p class="text-[10px] tabular-nums" [class]="metricTone(pt.kind === 'cmp' ? 0 : pt.pctFromCmp)">
+            {{ pt.kind === 'cmp' ? 'CMP' : formatPctSigned(pt.pctFromCmp, 1) }}
+          </p>
+        </div>
+      }
+      </div>
+    </div>
+  } @else {
+    <p class="text-sm text-slate-300">—</p>
+  }
 </ng-template>
