@@ -115,7 +115,7 @@
                 <td class="px-3 py-2.5 text-right tabular-nums" [class]="metricTone(row.avgDiff)">
                   {{ formatPctSigned(row.avgDiff, 1) }}
                 </td>
-                <td class="px-3 py-2.5 text-slate-600">{{ row.capTier ? capLabel[row.capTier] : '—' }}</td>
+                <td class="px-3 py-2.5 text-slate-600">{{ capLabelFor(row.capTier) }}</td>
                 <td class="px-4 py-2.5 text-right">
                   <button type="button" class="text-[11px] font-semibold text-rose-600 hover:underline" (click)="removeWatch(row, $event)">
                     Remove
@@ -170,7 +170,7 @@
             · {{ row.sector }}
           }
           @if (row.capTier) {
-            · {{ capLabel[row.capTier] }} cap
+            · {{ capLabelFor(row.capTier) }} cap
           }
         </p>
       </div>
@@ -232,9 +232,9 @@
           <span class="text-slate-500">Profit</span>
           <input
             class="input-field mt-1 !py-1.5"
-            [ngModel]="draftGuidance[row.id]?.profit ?? row.guidanceProfit"
-            (ngModelChange)="draftGuidance[row.id] = { profit: $event, sales: draftGuidance[row.id]?.sales ?? row.guidanceSales }"
-            (blur)="saveGuidance(row, 'guidanceProfit', draftGuidance[row.id]?.profit ?? '')"
+            [ngModel]="guidanceDraft(row, 'profit')"
+            (ngModelChange)="setGuidanceDraft(row, 'profit', $event)"
+            (blur)="saveGuidance(row, 'guidanceProfit', guidanceDraft(row, 'profit'))"
             [placeholder]="guidanceProfit(row)"
           />
         </label>
@@ -242,9 +242,9 @@
           <span class="text-slate-500">Sales</span>
           <input
             class="input-field mt-1 !py-1.5"
-            [ngModel]="draftGuidance[row.id]?.sales ?? row.guidanceSales"
-            (ngModelChange)="draftGuidance[row.id] = { profit: draftGuidance[row.id]?.profit ?? row.guidanceProfit, sales: $event }"
-            (blur)="saveGuidance(row, 'guidanceSales', draftGuidance[row.id]?.sales ?? '')"
+            [ngModel]="guidanceDraft(row, 'sales')"
+            (ngModelChange)="setGuidanceDraft(row, 'sales', $event)"
+            (blur)="saveGuidance(row, 'guidanceSales', guidanceDraft(row, 'sales'))"
             [placeholder]="guidanceSales(row)"
           />
         </label>
@@ -284,8 +284,8 @@
         <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">Prices</span>
         <input
           class="input-field !py-2 tabular-nums"
-          [ngModel]="draftPrices[row.id] ?? row.pricesText"
-          (ngModelChange)="draftPrices[row.id] = $event"
+          [ngModel]="priceDraft(row)"
+          (ngModelChange)="setPriceDraft(row, $event)"
           placeholder="P1, P2, P3, P4"
         />
       </label>
@@ -293,7 +293,7 @@
         <button
           type="button"
           class="btn-primary flex-1"
-          (click)="savePrices(row, draftPrices[row.id] ?? row.pricesText)"
+          (click)="savePrices(row, priceDraft(row))"
         >
           Save
         </button>

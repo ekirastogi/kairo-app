@@ -123,7 +123,6 @@ export class SignalsComponent {
   readonly formatPctSigned = formatPctSigned;
   readonly formatAnalysisChange = formatAnalysisChange;
   readonly pctFromCmp = pctFromCmp;
-  readonly capLabel = MARKET_CAP_LABELS;
   readonly metricTone = metricTone;
   readonly tableSort = new TableSortState('symbol', 'asc');
 
@@ -165,6 +164,32 @@ export class SignalsComponent {
 
   extraStocks(): RegistryStock[] {
     return this.picked ? [this.picked] : [];
+  }
+
+  capLabelFor(tier: string | null | undefined): string {
+    if (tier === 'large' || tier === 'mid' || tier === 'small' || tier === 'micro') {
+      return MARKET_CAP_LABELS[tier];
+    }
+    return '—';
+  }
+
+  priceDraft(row: SignalRow): string {
+    return this.draftPrices[row.id] || row.pricesText;
+  }
+
+  setPriceDraft(row: SignalRow, value: string): void {
+    this.draftPrices[row.id] = value;
+  }
+
+  guidanceDraft(row: SignalRow, field: 'profit' | 'sales'): string {
+    const draft = this.draftGuidance[row.id];
+    if (!draft) return field === 'profit' ? row.guidanceProfit : row.guidanceSales;
+    return field === 'profit' ? draft.profit : draft.sales;
+  }
+
+  setGuidanceDraft(row: SignalRow, field: 'profit' | 'sales', value: string): void {
+    const current = this.draftGuidance[row.id] ?? { profit: row.guidanceProfit, sales: row.guidanceSales };
+    this.draftGuidance[row.id] = { ...current, [field]: value };
   }
 
   rows = computed((): SignalRow[] => {
