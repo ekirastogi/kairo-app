@@ -20,6 +20,7 @@ import {
   buildPriceLadder,
   formatPriceListText,
   levelsAroundCmp,
+  OverallSignal,
   parsePriceListText,
   pctFromCmp,
   SignalBracket,
@@ -142,6 +143,7 @@ export class SignalsComponent {
   readonly metricTone = metricTone;
   readonly isNearLevel = isNearLevel;
   readonly tableSort = new TableSortState('symbol', 'asc');
+  readonly signalOptions: OverallSignal[] = ['positive', 'negative', 'neutral'];
 
   query = '';
   pricesText = '';
@@ -149,6 +151,7 @@ export class SignalsComponent {
   busy = signal(false);
   refreshBusy = signal(false);
   expandedId = signal<string | null>(null);
+  expandedAnalysisId = signal<string | null>(null);
   brokerName = '';
   brokerPrice = '';
   draftPrices: Record<string, string> = {};
@@ -265,6 +268,8 @@ export class SignalsComponent {
           return row.above?.price ?? -1;
         case 'cap':
           return row.capTier ?? '';
+        case 'overallSignal':
+          return row.overallSignal;
         default:
           return row.symbol;
       }
@@ -289,6 +294,7 @@ export class SignalsComponent {
     this.expandedId.update((cur) => (cur === id ? null : id));
     this.brokerName = '';
     this.brokerPrice = '';
+    this.expandedAnalysisId.set(null);
     const row = this.rows().find((item) => item.id === id);
     if (row) {
       this.draftPrices[id] = row.pricesText;
@@ -444,6 +450,13 @@ export class SignalsComponent {
       name: '',
       prices: [],
       brokerTargets: [],
+      news: [],
+      overallSignal: 'neutral',
+      signalReason: '',
+      niftyNote: '',
+      sectorNote: '',
+      newsUpdatedAt: 0,
+      aiAnalyses: [],
       guidanceProfit: '',
       guidanceSales: '',
       sortOrder: 0,
@@ -454,6 +467,51 @@ export class SignalsComponent {
 
   private patchLocal(row: SignalWatch): void {
     this.localById.update((map) => ({ ...map, [row.id]: { ...row, updatedAt: Date.now() } }));
+  }
+
+  signalBadge(signal: OverallSignal): string {
+    if (signal === 'positive') return 'bg-emerald-100 text-emerald-800';
+    if (signal === 'negative') return 'bg-rose-100 text-rose-800';
+    return 'bg-slate-100 text-slate-600';
+  }
+
+  async setOverall(row: SignalRow, overallSignal: OverallSignal): Promise<void> {
+    try {
+      await this.watchSvc.update(row.id, { overallSignal });
+      this.patchLocal({ ...this.watchById(row.id), overallSignal });
+    } catch (e) {
+      this.toast.error(e instanceof Error ? e.message : 'Could not save signal');
+    }
+  }
+
+  async saveReason(row: SignalRow, signalReason: string): Promise<void> {
+    try {
+      await this.watchSvc.update(row.id, { signalReason });
+      this.patchLocal({ ...this.watchById(row.id), signalReason });
+    } catch (e) {
+      this.toast.error(e instanceof Error ? e.message : 'Could not save note');
+    }
+  }
+
+  async removeNews(row: SignalRow, index: number): Promise<void> {
+    const news = row.news.filter((_, i) => i !== index);
+    try {
+      await this.watchSvc.update(row.id, { news });
+      this.patchLocal({ ...this.watchById(row.id), news });
+    } catch (e) {
+      this.toast.error(e instanceof Error ? e.message : 'Could not update news');
+    }
+  }
+
+  toggleAnalysis(id: string): void {
+    this.expandedAnalysisId.update((cur) => (cur === id ? null : id));
+  }
+
+  newsWhen(iso: string): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'Asia/Kolkata' });
   }
 
   guidanceProfit(row: SignalRow): string {

@@ -37,6 +37,72 @@ export function formatPriceListText(prices: number[]): string {
     .join(', ');
 }
 
+export type OverallSignal = 'positive' | 'negative' | 'neutral';
+
+export interface SignalNewsItem {
+  title: string;
+  source: string;
+  url: string;
+  publishedAt: string;
+  summary: string;
+}
+
+export function parseOverallSignal(raw: unknown): OverallSignal {
+  const value = String(raw ?? '').trim().toLowerCase();
+  if (value === 'positive' || value === 'negative' || value === 'neutral') return value;
+  return 'neutral';
+}
+
+export interface SignalAiAnalysis {
+  id: string;
+  createdAt: number;
+  overallSignal: OverallSignal;
+  title: string;
+  body: string;
+}
+
+export function parseAiAnalyses(raw: unknown): SignalAiAnalysis[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SignalAiAnalysis[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const rec = item as Record<string, unknown>;
+    const body = String(rec['body'] ?? rec['text'] ?? '').trim();
+    const title = String(rec['title'] ?? '').trim() || 'AI analysis';
+    if (!body && !title) continue;
+    const createdAt = Number(rec['createdAt'] ?? rec['created_at'] ?? 0);
+    out.push({
+      id: String(rec['id'] ?? `${createdAt}-${out.length}`),
+      createdAt: Number.isFinite(createdAt) ? createdAt : 0,
+      overallSignal: parseOverallSignal(rec['overallSignal'] ?? rec['overall_signal']),
+      title,
+      body,
+    });
+    if (out.length >= 10) break;
+  }
+  return out.sort((a, b) => b.createdAt - a.createdAt).slice(0, 10);
+}
+
+export function parseNewsItems(raw: unknown): SignalNewsItem[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SignalNewsItem[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const rec = item as Record<string, unknown>;
+    const title = String(rec['title'] ?? '').trim();
+    if (!title) continue;
+    out.push({
+      title,
+      source: String(rec['source'] ?? '').trim(),
+      url: String(rec['url'] ?? '').trim(),
+      publishedAt: String(rec['publishedAt'] ?? rec['published_at'] ?? '').trim(),
+      summary: String(rec['summary'] ?? '').trim(),
+    });
+    if (out.length >= 10) break;
+  }
+  return out;
+}
+
 export function parseBrokerTargets(raw: unknown): SignalBrokerTarget[] {
   if (!Array.isArray(raw)) return [];
   const out: SignalBrokerTarget[] = [];

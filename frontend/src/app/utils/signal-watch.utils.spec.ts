@@ -4,6 +4,9 @@ import {
   formatPriceListText,
   levelsAroundCmp,
   parseBrokerTargets,
+  parseAiAnalyses,
+  parseNewsItems,
+  parseOverallSignal,
   parsePriceListText,
   pctFromCmp,
 } from './signal-watch.utils';
@@ -43,5 +46,15 @@ describe('signal watch utils', () => {
     expect(avgPrice([100, 200])).toBe(150);
     expect(pctFromCmp(100, 115)).toBe(15);
     expect(parseBrokerTargets([{ broker: 'Motilal', price: 240 }])).toEqual([{ broker: 'Motilal', price: 240 }]);
+    expect(parseOverallSignal('Positive')).toBe('positive');
+    expect(parseNewsItems([{ title: 'Beat', source: 'ET' }, { title: '' }])).toEqual([
+      { title: 'Beat', source: 'ET', url: '', publishedAt: '', summary: '' },
+    ]);
+    const reports = parseAiAnalyses([
+      { id: 'old', createdAt: 1, title: 'Old', body: 'a', overallSignal: 'negative' },
+      { id: 'new', createdAt: 9, title: 'New', body: 'b', overallSignal: 'positive' },
+    ]);
+    expect(reports[0].id).toBe('new');
+    expect(reports.length).toBe(2);
   });
 });

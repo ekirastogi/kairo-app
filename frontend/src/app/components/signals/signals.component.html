@@ -10,7 +10,8 @@
       <div>
         <h2 class="text-sm font-semibold text-slate-900">Add signal</h2>
         <p class="mt-0.5 text-xs text-slate-500">
-          Pick a stock and optional scale-in prices (P1, P2, P3, P4), same comma list as TradeBook.
+          Pick a stock and optional scale-in prices (P1, P2, P3, P4). Daily refresh: run the
+          <span class="font-medium text-slate-700">update-signals</span> skill for news, broker targets, and the overall call.
         </p>
       </div>
       <button
@@ -90,6 +91,11 @@
                 </button>
               </th>
               <th class="px-3 py-2 text-left">
+                <button type="button" (click)="tableSort.toggle('overallSignal')">
+                  Call {{ tableSort.indicator('overallSignal') }}
+                </button>
+              </th>
+              <th class="px-3 py-2 text-left">
                 <button type="button" (click)="tableSort.toggle('cap')">
                   Cap {{ tableSort.indicator('cap') }}
                 </button>
@@ -141,6 +147,11 @@
                     <p class="text-sm text-slate-300">—</p>
                   }
                 </td>
+                <td class="px-3 py-3">
+                  <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ signalBadge(row.overallSignal) }}">
+                    {{ row.overallSignal }}
+                  </span>
+                </td>
                 <td class="px-3 py-3 text-slate-600">{{ capLabelFor(row.capTier) }}</td>
                 <td class="px-4 py-3 text-right">
                   <button type="button" class="text-[11px] font-semibold text-rose-600 hover:underline" (click)="removeWatch(row, $event)">
@@ -150,7 +161,7 @@
               </tr>
               @if (expandedId() === row.id) {
                 <tr class="border-t border-slate-100 bg-slate-50/70">
-                  <td colspan="6" class="px-4 py-4" (click)="$event.stopPropagation()">
+                  <td colspan="7" class="px-4 py-4" (click)="$event.stopPropagation()">
                     <ng-container *ngTemplateOutlet="detail; context: { $implicit: row }" />
                   </td>
                 </tr>
@@ -166,7 +177,9 @@
             <button type="button" class="w-full px-4 py-3 text-left" (click)="toggle(row.id)">
               <div class="mb-2 flex items-baseline justify-between gap-2">
                 <p class="text-sm font-semibold tracking-wide text-slate-900">{{ row.symbol }}</p>
-                <p class="truncate text-[11px] text-slate-500">{{ capLabelFor(row.capTier) }}</p>
+                <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ signalBadge(row.overallSignal) }}">
+                  {{ row.overallSignal }}
+                </span>
               </div>
               <div class="sig-quote">
                 <div class="sig-quote-leg text-left">
@@ -253,6 +266,118 @@
         </div>
       </div>
     }
+
+    <section class="rounded-lg border border-slate-200 p-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Overall call</h3>
+        <div class="flex gap-1">
+          @for (opt of signalOptions; track opt) {
+            <button
+              type="button"
+              class="rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize"
+              [class.bg-emerald-600]="opt === 'positive' && row.overallSignal === opt"
+              [class.text-white]="row.overallSignal === opt"
+              [class.bg-rose-600]="opt === 'negative' && row.overallSignal === opt"
+              [class.bg-slate-700]="opt === 'neutral' && row.overallSignal === opt"
+              [class.bg-slate-100]="row.overallSignal !== opt"
+              [class.text-slate-600]="row.overallSignal !== opt"
+              (click)="setOverall(row, opt)"
+            >
+              {{ opt }}
+            </button>
+          }
+        </div>
+      </div>
+      @if (row.niftyNote || row.sectorNote) {
+        <p class="mt-2 text-[11px] text-slate-500">
+          @if (row.niftyNote) {
+            <span>Nifty {{ row.niftyNote }}</span>
+          }
+          @if (row.niftyNote && row.sectorNote) {
+            <span> · </span>
+          }
+          @if (row.sectorNote) {
+            <span>Sector {{ row.sectorNote }}</span>
+          }
+        </p>
+      }
+      <textarea
+        class="input-field mt-2 min-h-[3.5rem] !py-2 text-xs"
+        [ngModel]="row.signalReason"
+        (blur)="saveReason(row, $any($event.target).value)"
+        placeholder="Why this call — prices vs CMP, Nifty, sector…"
+      ></textarea>
+    </section>
+
+    <section class="rounded-lg border border-slate-200 p-3">
+      <div class="flex items-baseline justify-between gap-2">
+        <h3 class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">AI analysis</h3>
+        <p class="text-[11px] text-slate-400">{{ row.aiAnalyses.length }}/10 reports</p>
+      </div>
+      @if (!row.aiAnalyses.length) {
+        <p class="mt-2 text-xs text-slate-500">No reports yet. The update-signals skill prepends a dated analysis each run.</p>
+      } @else {
+        <ul class="mt-2 divide-y divide-slate-100">
+          @for (report of row.aiAnalyses; track report.id) {
+            <li>
+              <button type="button" class="flex w-full items-start justify-between gap-2 py-2 text-left" (click)="toggleAnalysis(report.id)">
+                <div class="min-w-0">
+                  <p class="text-xs font-medium text-slate-800">{{ report.title }}</p>
+                  <p class="mt-0.5 text-[11px] text-slate-400">
+                    {{ report.createdAt | date:'d MMM y, HH:mm':'Asia/Kolkata' }}
+                  </p>
+                </div>
+                <span class="mt-0.5 inline-flex shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ signalBadge(report.overallSignal) }}">
+                  {{ report.overallSignal }}
+                </span>
+              </button>
+              @if (expandedAnalysisId() === report.id) {
+                <pre class="mb-2 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-700">{{ report.body }}</pre>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <section class="rounded-lg border border-slate-200 p-3">
+      <div class="flex items-baseline justify-between gap-2">
+        <h3 class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Latest news</h3>
+        <p class="text-[11px] text-slate-400">
+          {{ row.news.length }}/10
+          @if (row.newsUpdatedAt) {
+            · saved {{ row.newsUpdatedAt | date:'d MMM':'':'Asia/Kolkata' }}
+          }
+        </p>
+      </div>
+      @if (!row.news.length) {
+        <p class="mt-2 text-xs text-slate-500">No headlines saved yet. Run the update-signals skill, then they appear here to review.</p>
+      } @else {
+        <ul class="mt-2 divide-y divide-slate-100">
+          @for (item of row.news; track item.title + item.url; let i = $index) {
+            <li class="flex items-start gap-2 py-2">
+              <div class="min-w-0 flex-1">
+                @if (item.url) {
+                  <a class="text-xs font-medium text-kairo-700 hover:underline" [href]="item.url" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>
+                } @else {
+                  <p class="text-xs font-medium text-slate-800">{{ item.title }}</p>
+                }
+                <p class="mt-0.5 text-[11px] text-slate-400">
+                  {{ item.source || 'News' }}
+                  @if (item.publishedAt) {
+                    · {{ newsWhen(item.publishedAt) }}
+                  }
+                </p>
+                @if (item.summary) {
+                  <p class="mt-0.5 text-[11px] text-slate-600">{{ item.summary }}</p>
+                }
+              </div>
+              <button type="button" class="shrink-0 text-[11px] text-rose-600" (click)="removeNews(row, i)">✕</button>
+            </li>
+          }
+        </ul>
+      }
+    </section>
 
     <div class="grid gap-3 md:grid-cols-3">
       <section class="rounded-lg border border-slate-200 p-3">

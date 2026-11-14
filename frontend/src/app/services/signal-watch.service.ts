@@ -2,7 +2,17 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, Subject, catchError, from, merge, of, switchMap } from 'rxjs';
 import { AuthService } from './auth.service';
 import { objectToSnake, rowToCamel, SupabaseService } from './supabase.service';
-import { parseBrokerTargets, parsePriceListText, SignalBrokerTarget } from '../utils/signal-watch.utils';
+import {
+  OverallSignal,
+  parseBrokerTargets,
+  parseAiAnalyses,
+  parseNewsItems,
+  parseOverallSignal,
+  parsePriceListText,
+  SignalAiAnalysis,
+  SignalBrokerTarget,
+  SignalNewsItem,
+} from '../utils/signal-watch.utils';
 
 function throwDb(error: { message?: string; code?: string } | null, fallback: string): never {
   throw new Error(error?.message || fallback);
@@ -15,6 +25,13 @@ export interface SignalWatch {
   isin?: string;
   prices: number[];
   brokerTargets: SignalBrokerTarget[];
+  news: SignalNewsItem[];
+  overallSignal: OverallSignal;
+  signalReason: string;
+  niftyNote: string;
+  sectorNote: string;
+  newsUpdatedAt: number;
+  aiAnalyses: SignalAiAnalysis[];
   guidanceProfit: string;
   guidanceSales: string;
   sortOrder: number;
@@ -37,6 +54,13 @@ function rowToWatch(row: Record<string, unknown>): SignalWatch {
     isin: camel['isin'] ? String(camel['isin']) : undefined,
     prices: parsePrices(camel['prices']),
     brokerTargets: parseBrokerTargets(camel['brokerTargets']),
+    news: parseNewsItems(camel['news']),
+    overallSignal: parseOverallSignal(camel['overallSignal']),
+    signalReason: String(camel['signalReason'] ?? ''),
+    niftyNote: String(camel['niftyNote'] ?? ''),
+    sectorNote: String(camel['sectorNote'] ?? ''),
+    newsUpdatedAt: Number(camel['newsUpdatedAt'] ?? 0),
+    aiAnalyses: parseAiAnalyses(camel['aiAnalyses']),
     guidanceProfit: String(camel['guidanceProfit'] ?? ''),
     guidanceSales: String(camel['guidanceSales'] ?? ''),
     sortOrder: Number(camel['sortOrder'] ?? 0),
@@ -95,6 +119,13 @@ export class SignalWatchService {
       isin: input.isin,
       prices: input.prices ?? [],
       brokerTargets: [],
+      news: [],
+      overallSignal: 'neutral',
+      signalReason: '',
+      niftyNote: '',
+      sectorNote: '',
+      newsUpdatedAt: 0,
+      aiAnalyses: [],
       guidanceProfit: '',
       guidanceSales: '',
       sortOrder,
@@ -118,13 +149,37 @@ export class SignalWatchService {
 
   async update(
     id: string,
-    patch: Partial<Pick<SignalWatch, 'prices' | 'brokerTargets' | 'guidanceProfit' | 'guidanceSales' | 'name' | 'isin'>>
+    patch: Partial<
+      Pick<
+        SignalWatch,
+        | 'prices'
+        | 'brokerTargets'
+        | 'news'
+        | 'overallSignal'
+        | 'signalReason'
+        | 'niftyNote'
+        | 'sectorNote'
+        | 'newsUpdatedAt'
+        | 'aiAnalyses'
+        | 'guidanceProfit'
+        | 'guidanceSales'
+        | 'name'
+        | 'isin'
+      >
+    >
   ): Promise<void> {
     const uid = await this.auth.getDataUserId();
     if (!uid) throw new Error('Sign in to update signals');
     const body: Record<string, unknown> = { updatedAt: Date.now() };
     if (patch.prices != null) body['prices'] = patch.prices;
     if (patch.brokerTargets != null) body['brokerTargets'] = patch.brokerTargets;
+    if (patch.news != null) body['news'] = patch.news;
+    if (patch.overallSignal != null) body['overallSignal'] = patch.overallSignal;
+    if (patch.signalReason != null) body['signalReason'] = patch.signalReason;
+    if (patch.niftyNote != null) body['niftyNote'] = patch.niftyNote;
+    if (patch.sectorNote != null) body['sectorNote'] = patch.sectorNote;
+    if (patch.newsUpdatedAt != null) body['newsUpdatedAt'] = patch.newsUpdatedAt;
+    if (patch.aiAnalyses != null) body['aiAnalyses'] = patch.aiAnalyses;
     if (patch.guidanceProfit != null) body['guidanceProfit'] = patch.guidanceProfit;
     if (patch.guidanceSales != null) body['guidanceSales'] = patch.guidanceSales;
     if (patch.name != null) body['name'] = patch.name;
