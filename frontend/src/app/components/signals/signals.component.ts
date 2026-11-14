@@ -105,9 +105,11 @@ function metricTone(value: number | null): string {
   templateUrl: './signals.component.html',
   host: { class: 'block' },
   styles: `
-    .sig-ladder { position: relative; min-height: 4.5rem; }
-    .sig-ladder-line { position: absolute; left: 0.75rem; right: 0.75rem; top: 1.85rem; height: 2px; background: #e2e8f0; }
-    .sig-ladder-pt { position: absolute; top: 0; width: 4.5rem; margin-left: -2.25rem; text-align: center; }
+    .sig-ladder { padding: 0 3.75rem; }
+    .sig-ladder-track { position: relative; min-height: 5.25rem; }
+    .sig-ladder-line { position: absolute; left: 0; right: 0; top: 1.85rem; height: 2px; background: #e2e8f0; }
+    .sig-ladder-pt { position: absolute; top: 0; width: 7rem; margin-left: -3.5rem; text-align: center; }
+    .sig-ladder-pt p { white-space: nowrap; }
     .sig-dot { margin: 0.35rem auto 0; height: 0.5rem; width: 0.5rem; border-radius: 999px; }
   `,
 })
@@ -137,11 +139,23 @@ export class SignalsComponent {
   draftPrices: Record<string, string> = {};
   draftGuidance: Record<string, { profit: string; sales: string }> = {};
   private refreshedRegistry = signal<RegistryStock[]>([]);
+  private localById = signal<Record<string, SignalWatch>>({});
+  private removedIds = signal<string[]>([]);
 
   private dbWatches = toSignal(this.watchSvc.watchAll(), { initialValue: [] as SignalWatch[] });
 
+  private watches = computed((): SignalWatch[] => {
+    const removed = new Set(this.removedIds());
+    const local = this.localById();
+    const db = this.dbWatches();
+    const dbIds = new Set(db.map((row) => row.id));
+    const fromDb = db.filter((row) => !removed.has(row.id)).map((row) => local[row.id] ?? row);
+    const extras = Object.values(local).filter((row) => !dbIds.has(row.id) && !removed.has(row.id));
+    return [...extras, ...fromDb];
+  });
+
   private symbolKey = computed(() =>
-    [...new Set(this.dbWatches().map((row) => row.symbol.trim().toUpperCase()).filter(Boolean))]
+    [...new Set(this.watches().map((row) => row.symbol.trim().toUpperCase()).filter(Boolean))]
       .sort()
       .join('\0')
   );
@@ -196,7 +210,7 @@ export class SignalsComponent {
     const overlay = new Map(this.registryOverlay().map((s) => [s.symbol.toUpperCase(), s]));
     for (const stock of this.refreshedRegistry()) overlay.set(stock.symbol.toUpperCase(), stock);
     const catalog = new Map(this.catalog().map((s) => [s.symbol.toUpperCase(), s]));
-    const built = this.dbWatches().map((row) => {
+    const built = this.watches().map((row) => {
       const symbol = row.symbol.toUpperCase();
       const registry = overlay.get(symbol) ?? null;
       const snap = catalog.get(symbol);
@@ -271,25 +285,28 @@ export class SignalsComponent {
       return;
     }
     const symbol = stock.symbol.trim().toUpperCase();
-    if (this.dbWatches().some((row) => row.symbol.toUpperCase() === symbol)) {
+    if (this.watches().some((row) => row.symbol.toUpperCase() === symbol)) {
       this.toast.error(`${symbol} is already on Signals`);
       return;
     }
     this.busy.set(true);
     try {
       const prices = parsePriceListText(this.pricesText);
-      const id = await this.watchSvc.create({
+      const created = await this.watchSvc.create({
         symbol,
         name: stock.name || symbol,
         isin: stock.isin,
         prices,
       });
-      await this.registrySvc.ensureListed(symbol, { name: stock.name, isin: stock.isin });
+      this.patchLocal(created);
       this.picked = null;
       this.query = '';
       this.pricesText = '';
-      this.expandedId.set(id);
+      this.expandedId.set(created.id);
+      this.draftPrices[created.id] = formatPriceListText(created.prices);
+      this.draftGuidance[created.id] = { profit: '', sales: '' };
       this.toast.success(`Added ${symbol}`);
+      void this.registrySvc.ensureListed(symbol, { name: stock.name, isin: stock.isin });
     } catch (e) {
       this.toast.error(e instanceof Error ? e.message : 'Could not add stock');
     } finally {
@@ -301,6 +318,7 @@ export class SignalsComponent {
     const prices = parsePriceListText(raw);
     try {
       await this.watchSvc.update(row.id, { prices });
+      this.patchLocal({ ...this.watchById(row.id), prices });
     } catch (e) {
       this.toast.error(e instanceof Error ? e.message : 'Could not save prices');
     }
@@ -309,6 +327,7 @@ export class SignalsComponent {
   async saveGuidance(row: SignalRow, field: 'guidanceProfit' | 'guidanceSales', value: string): Promise<void> {
     try {
       await this.watchSvc.update(row.id, { [field]: value });
+      this.patchLocal({ ...this.watchById(row.id), [field]: value });
     } catch (e) {
       this.toast.error(e instanceof Error ? e.message : 'Could not save guidance');
     }
@@ -324,6 +343,7 @@ export class SignalsComponent {
     const next: SignalBrokerTarget[] = [...row.brokerTargets, { broker, price: Math.round(price * 100) / 100 }];
     try {
       await this.watchSvc.update(row.id, { brokerTargets: next });
+      this.patchLocal({ ...this.watchById(row.id), brokerTargets: next });
       this.brokerName = '';
       this.brokerPrice = '';
     } catch (e) {
@@ -335,6 +355,7 @@ export class SignalsComponent {
     const next = row.brokerTargets.filter((_, i) => i !== index);
     try {
       await this.watchSvc.update(row.id, { brokerTargets: next });
+      this.patchLocal({ ...this.watchById(row.id), brokerTargets: next });
     } catch (e) {
       this.toast.error(e instanceof Error ? e.message : 'Could not remove target');
     }
@@ -345,6 +366,12 @@ export class SignalsComponent {
     if (!confirm(`Remove ${row.symbol} from Signals?`)) return;
     try {
       await this.watchSvc.remove(row.id);
+      this.removedIds.update((ids) => [...ids, row.id]);
+      this.localById.update((map) => {
+        const next = { ...map };
+        delete next[row.id];
+        return next;
+      });
       if (this.expandedId() === row.id) this.expandedId.set(null);
     } catch (e) {
       this.toast.error(e instanceof Error ? e.message : 'Could not remove stock');
@@ -352,7 +379,7 @@ export class SignalsComponent {
   }
 
   async refreshAll(): Promise<void> {
-    const symbols = this.dbWatches().map((row) => row.symbol);
+    const symbols = this.watches().map((row) => row.symbol);
     if (!symbols.length || this.refreshBusy()) return;
     this.refreshBusy.set(true);
     const failed: string[] = [];
@@ -390,6 +417,25 @@ export class SignalsComponent {
     } finally {
       this.refreshBusy.set(false);
     }
+  }
+
+  private watchById(id: string): SignalWatch {
+    return this.watches().find((row) => row.id === id) ?? {
+      id,
+      symbol: '',
+      name: '',
+      prices: [],
+      brokerTargets: [],
+      guidanceProfit: '',
+      guidanceSales: '',
+      sortOrder: 0,
+      createdAt: 0,
+      updatedAt: Date.now(),
+    };
+  }
+
+  private patchLocal(row: SignalWatch): void {
+    this.localById.update((map) => ({ ...map, [row.id]: { ...row, updatedAt: Date.now() } }));
   }
 
   guidanceProfit(row: SignalRow): string {

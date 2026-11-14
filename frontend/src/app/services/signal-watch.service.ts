@@ -1,8 +1,12 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, of, switchMap } from 'rxjs';
+import { Observable, Subject, catchError, from, merge, of, switchMap } from 'rxjs';
 import { AuthService } from './auth.service';
 import { objectToSnake, rowToCamel, SupabaseService } from './supabase.service';
 import { parseBrokerTargets, parsePriceListText, SignalBrokerTarget } from '../utils/signal-watch.utils';
+
+function throwDb(error: { message?: string; code?: string } | null, fallback: string): never {
+  throw new Error(error?.message || fallback);
+}
 
 export interface SignalWatch {
   id: string;
@@ -46,13 +50,22 @@ export class SignalWatchService {
   private supabase = inject(SupabaseService);
   private auth = inject(AuthService);
 
+  private refresh$ = new Subject<void>();
+
   watchAll(): Observable<SignalWatch[]> {
     return this.auth.user$.pipe(
       switchMap((user) => {
         if (!user) return of([]);
-        return this.supabase.watchTable('signal_watch', () => this.listAll(), undefined, 'signal_watch');
+        return merge(
+          this.supabase.watchTable('signal_watch', () => this.listAll(), undefined, 'signal_watch'),
+          this.refresh$.pipe(switchMap(() => from(this.listAll()).pipe(catchError(() => of([] as SignalWatch[])))))
+        );
       })
     );
+  }
+
+  reload(): void {
+    this.refresh$.next();
   }
 
   async listAll(): Promise<SignalWatch[]> {
@@ -67,7 +80,7 @@ export class SignalWatchService {
     name: string;
     isin?: string;
     prices?: number[];
-  }): Promise<string> {
+  }): Promise<SignalWatch> {
     const uid = await this.auth.getDataUserId();
     if (!uid) throw new Error('Sign in to save signals');
     const symbol = input.symbol.trim().toUpperCase();
@@ -75,28 +88,32 @@ export class SignalWatchService {
     const existing = await this.fetchAll(uid);
     const sortOrder = existing.reduce((min, row) => Math.min(min, row.sortOrder), 0) - 1;
     const now = Date.now();
-    const id = crypto.randomUUID();
+    const row: SignalWatch = {
+      id: crypto.randomUUID(),
+      symbol,
+      name: input.name.trim() || symbol,
+      isin: input.isin,
+      prices: input.prices ?? [],
+      brokerTargets: [],
+      guidanceProfit: '',
+      guidanceSales: '',
+      sortOrder,
+      createdAt: now,
+      updatedAt: now,
+    };
     const { error } = await this.supabase.client.from('signal_watch').insert(
       objectToSnake({
-        id,
+        ...row,
         userId: uid,
-        symbol,
-        name: input.name.trim() || symbol,
-        isin: input.isin ?? null,
-        prices: input.prices ?? [],
-        brokerTargets: [],
-        guidanceProfit: '',
-        guidanceSales: '',
-        sortOrder,
-        createdAt: now,
-        updatedAt: now,
+        isin: row.isin ?? null,
       })
     );
     if (error) {
       if (error.code === '23505') throw new Error(`${symbol} is already on Signals`);
-      throw error;
+      throwDb(error, 'Could not add stock');
     }
-    return id;
+    this.reload();
+    return row;
   }
 
   async update(
@@ -117,14 +134,16 @@ export class SignalWatchService {
       .update(objectToSnake(body))
       .eq('id', id)
       .eq('user_id', uid);
-    if (error) throw error;
+    if (error) throwDb(error, 'Could not update signal');
+    this.reload();
   }
 
   async remove(id: string): Promise<void> {
     const uid = await this.auth.getDataUserId();
     if (!uid) throw new Error('Sign in to remove signals');
     const { error } = await this.supabase.client.from('signal_watch').delete().eq('id', id).eq('user_id', uid);
-    if (error) throw error;
+    if (error) throwDb(error, 'Could not remove stock');
+    this.reload();
   }
 
   private async fetchAll(uid: string): Promise<SignalWatch[]> {
@@ -134,7 +153,7 @@ export class SignalWatchService {
       .eq('user_id', uid)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true });
-    if (error) throw error;
+    if (error) throwDb(error, 'Could not load signals');
     return (data ?? []).map((row) => rowToWatch(row as Record<string, unknown>));
   }
 }

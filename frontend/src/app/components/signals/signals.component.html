@@ -182,6 +182,7 @@
 
     @if (row.ladder.length) {
       <div class="sig-ladder">
+        <div class="sig-ladder-track">
         <div class="sig-ladder-line"></div>
         @for (pt of row.ladder; track pt.id) {
           <div class="sig-ladder-pt" [style.left.%]="pt.position">
@@ -195,6 +196,7 @@
             </p>
           </div>
         }
+        </div>
       </div>
     }
 
