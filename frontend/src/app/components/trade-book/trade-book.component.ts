@@ -32,8 +32,9 @@ import {
   SignalRowTone,
   signalRowTone,
 } from '../../utils/signal-watch.utils';
-import { TableSortState } from '../../utils/table-sort.utils';
 import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
+
+type CallFilter = 'all' | OverallSignal;
 
 interface SignalRow extends SignalWatch {
   cmp: number | null;
@@ -173,8 +174,14 @@ export class TradeBookComponent {
   readonly pctFromCmp = pctFromCmp;
   readonly metricTone = metricTone;
   readonly isNearLevel = isNearLevel;
-  readonly tableSort = new TableSortState('supportPct', 'asc');
   readonly signalOptions: OverallSignal[] = ['positive', 'negative', 'neutral'];
+  readonly callFilters: { id: CallFilter; label: string }[] = [
+    { id: 'all', label: 'All' },
+    { id: 'positive', label: 'Positive' },
+    { id: 'negative', label: 'Negative' },
+    { id: 'neutral', label: 'Neutral' },
+  ];
+  readonly callFilter = signal<CallFilter>('all');
 
   query = '';
   pricesText = '';
@@ -342,34 +349,17 @@ export class TradeBookComponent {
         registry,
       };
     });
-    return this.tableSort.sort(built, (row, column) => {
-      switch (column) {
-        case 'name':
-          return row.name || row.symbol;
-        case 'below':
-          return row.below?.[0]?.price ?? -1;
-        case 'cmp':
-          return row.cmp ?? -1;
-        case 'above':
-          return row.above?.[0]?.price ?? -1;
-        case 'supportPct':
-          return row.supportPct ?? Number.POSITIVE_INFINITY;
-        case 'cap':
-          return row.capTier ?? '';
-        case 'overallSignal':
-          return row.overallSignal === 'negative' ? 0 : row.overallSignal === 'neutral' ? 1 : 2;
-        default:
-          return row.symbol;
-      }
-    });
+    return built;
   });
 
   visibleRows = computed((): SignalRow[] => {
     const q = this.searchQuery().trim().toUpperCase();
-    if (!q) return this.rows();
-    return this.rows().filter(
-      (row) => row.symbol.includes(q) || row.name.toUpperCase().includes(q)
-    );
+    const call = this.callFilter();
+    return this.rows().filter((row) => {
+      if (call !== 'all' && row.overallSignal !== call) return false;
+      if (!q) return true;
+      return row.symbol.includes(q) || row.name.toUpperCase().includes(q);
+    });
   });
 
   applySearch(): void {
