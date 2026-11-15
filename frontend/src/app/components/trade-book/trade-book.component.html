@@ -48,31 +48,82 @@
   }
 
   <div class="card overflow-hidden">
-    <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-      <div>
-        <h2 class="text-sm font-semibold text-slate-900">Watchlist</h2>
-        <p class="mt-0.5 text-xs text-slate-500">
-          {{ rows().length }} stock{{ rows().length === 1 ? '' : 's' }}
-          · Below = level just under CMP · Above = level just over CMP
-        </p>
+    <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-3">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-900">Watchlist</h2>
+          <p class="mt-0.5 text-xs text-slate-500">
+            {{ visibleRows().length }}{{ searchQuery() ? ' of ' + rows().length : '' }}
+            stock{{ visibleRows().length === 1 ? '' : 's' }}
+            · sort by support %, symbol, or call
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="btn-primary !py-1.5 !text-xs" (click)="addOpen.set(true)" [disabled]="addOpen()">
+            Open
+          </button>
+          <button
+            type="button"
+            class="btn-secondary !py-1.5 !text-xs"
+            [disabled]="refreshBusy() || !rows().length"
+            (click)="refreshAll()"
+          >
+            {{ refreshBusy() ? 'Refreshing…' : 'Refresh all' }}
+          </button>
+        </div>
       </div>
-      <div class="flex flex-wrap gap-2">
-        <button type="button" class="btn-primary !py-1.5 !text-xs" (click)="addOpen.set(true)" [disabled]="addOpen()">
-          Open
+      <div class="flex gap-2">
+        <input
+          class="input-field min-w-0 flex-1 !py-2"
+          [(ngModel)]="searchText"
+          (ngModelChange)="applySearch()"
+          (keydown.enter)="applySearch()"
+          placeholder="Search symbol or name"
+          type="search"
+        />
+        <button type="button" class="btn-secondary !py-2 !text-xs" (click)="applySearch()">Search</button>
+      </div>
+      <div class="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+          [class.bg-slate-900]="tableSort.isActive('supportPct')"
+          [class.text-white]="tableSort.isActive('supportPct')"
+          [class.bg-slate-100]="!tableSort.isActive('supportPct')"
+          [class.text-slate-600]="!tableSort.isActive('supportPct')"
+          (click)="tableSort.toggle('supportPct')"
+        >
+          Support % {{ tableSort.indicator('supportPct') }}
         </button>
         <button
           type="button"
-          class="btn-secondary !py-1.5 !text-xs"
-          [disabled]="refreshBusy() || !rows().length"
-          (click)="refreshAll()"
+          class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+          [class.bg-slate-900]="tableSort.isActive('symbol')"
+          [class.text-white]="tableSort.isActive('symbol')"
+          [class.bg-slate-100]="!tableSort.isActive('symbol')"
+          [class.text-slate-600]="!tableSort.isActive('symbol')"
+          (click)="tableSort.toggle('symbol')"
         >
-          {{ refreshBusy() ? 'Refreshing…' : 'Refresh all' }}
+          Symbol {{ tableSort.indicator('symbol') }}
+        </button>
+        <button
+          type="button"
+          class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+          [class.bg-slate-900]="tableSort.isActive('overallSignal')"
+          [class.text-white]="tableSort.isActive('overallSignal')"
+          [class.bg-slate-100]="!tableSort.isActive('overallSignal')"
+          [class.text-slate-600]="!tableSort.isActive('overallSignal')"
+          (click)="tableSort.toggle('overallSignal')"
+        >
+          Call {{ tableSort.indicator('overallSignal') }}
         </button>
       </div>
     </div>
 
     @if (!rows().length) {
       <p class="px-4 py-8 text-center text-sm text-slate-500">No signals yet. Click Open to add a stock.</p>
+    } @else if (!visibleRows().length) {
+      <p class="px-4 py-8 text-center text-sm text-slate-500">No stocks match that search.</p>
     } @else {
       <div class="hidden overflow-x-auto md:block">
         <table class="min-w-full text-sm">
@@ -83,7 +134,11 @@
                   Symbol {{ tableSort.indicator('symbol') }}
                 </button>
               </th>
-              <th class="px-3 py-2 text-left w-[42%]">Levels</th>
+              <th class="px-3 py-2 text-left w-[42%]">
+                <button type="button" (click)="tableSort.toggle('supportPct')">
+                  Levels {{ tableSort.indicator('supportPct') }}
+                </button>
+              </th>
               <th class="px-3 py-2 text-left">
                 <button type="button" (click)="tableSort.toggle('overallSignal')">
                   Call {{ tableSort.indicator('overallSignal') }}
@@ -97,7 +152,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (row of rows(); track row.id) {
+            @for (row of visibleRows(); track row.id) {
               <tr
                 class="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
                 [class.bg-kairo-50]="expandedId() === row.id"
@@ -130,7 +185,7 @@
       </div>
 
       <div class="divide-y divide-slate-100 md:hidden">
-        @for (row of rows(); track row.id) {
+        @for (row of visibleRows(); track row.id) {
           <article>
             <button type="button" class="w-full px-4 py-3 text-left" (click)="toggle(row.id)">
               <div class="mb-2 flex items-baseline justify-between gap-2">

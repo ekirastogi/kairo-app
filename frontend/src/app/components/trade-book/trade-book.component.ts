@@ -42,6 +42,8 @@ interface SignalRow extends SignalWatch {
   quoteStrip: SignalLadderPoint[];
   avgTarget: number | null;
   avgDiff: number | null;
+  /** % CMP sits above the nearest user level under CMP (support). Null if none. */
+  supportPct: number | null;
   pricesText: string;
   registry: RegistryStock | null;
 }
@@ -143,11 +145,13 @@ export class TradeBookComponent {
   readonly pctFromCmp = pctFromCmp;
   readonly metricTone = metricTone;
   readonly isNearLevel = isNearLevel;
-  readonly tableSort = new TableSortState('symbol', 'asc');
+  readonly tableSort = new TableSortState('supportPct', 'asc');
   readonly signalOptions: OverallSignal[] = ['positive', 'negative', 'neutral'];
 
   query = '';
   pricesText = '';
+  searchText = '';
+  readonly searchQuery = signal('');
   picked: RegistryStock | null = null;
   busy = signal(false);
   refreshBusy = signal(false);
@@ -243,6 +247,9 @@ export class TradeBookComponent {
       const cap = registry?.marketCap ?? snap?.marketCap ?? 0;
       const avgTarget = avgPrice(row.prices);
       const around = levelsAroundCmp(row.prices, cmp);
+      const support = around.below?.price ?? null;
+      const supportPct =
+        cmp != null && support != null && support > 0 ? ((cmp - support) / support) * 100 : null;
       return {
         ...row,
         cmp,
@@ -255,6 +262,7 @@ export class TradeBookComponent {
         quoteStrip: buildQuoteStrip(around.below, cmp, around.above),
         avgTarget,
         avgDiff: avgTarget != null ? pctFromCmp(cmp, avgTarget) : null,
+        supportPct,
         pricesText: formatPriceListText(row.prices),
         registry,
       };
@@ -269,15 +277,29 @@ export class TradeBookComponent {
           return row.cmp ?? -1;
         case 'above':
           return row.above?.price ?? -1;
+        case 'supportPct':
+          return row.supportPct ?? Number.POSITIVE_INFINITY;
         case 'cap':
           return row.capTier ?? '';
         case 'overallSignal':
-          return row.overallSignal;
+          return row.overallSignal === 'negative' ? 0 : row.overallSignal === 'neutral' ? 1 : 2;
         default:
           return row.symbol;
       }
     });
   });
+
+  visibleRows = computed((): SignalRow[] => {
+    const q = this.searchQuery().trim().toUpperCase();
+    if (!q) return this.rows();
+    return this.rows().filter(
+      (row) => row.symbol.includes(q) || row.name.toUpperCase().includes(q)
+    );
+  });
+
+  applySearch(): void {
+    this.searchQuery.set(this.searchText);
+  }
 
   expanded = computed(() => this.rows().find((row) => row.id === this.expandedId()) ?? null);
 

@@ -12,6 +12,8 @@ const ASC_DEFAULT_COLUMNS = new Set([
   'status',
   'tradeType',
   'createdAt',
+  'supportPct',
+  'overallSignal',
   'buyDate',
   'letter',
 ]);
