@@ -33,7 +33,8 @@ service cloud.firestore {
           request.resource.data.type == 'hot_ingest'
           || request.resource.data.type == 'seed_universe'
           || (
-            request.resource.data.type == 'symbol_ingest'
+            (request.resource.data.type == 'symbol_ingest'
+              || request.resource.data.type == 'fetch_history')
             && request.resource.data.symbol is string
             && request.resource.data.symbol.size() > 0
             && request.resource.data.symbol.size() <= 32
@@ -45,6 +46,22 @@ service cloud.firestore {
     // Per-user settings (encrypted contract-note password, etc.)
     match /userConfig/{uid} {
       allow read, create, update, delete: if isOwner() && request.auth.uid == uid;
+    }
+
+    match /liveQuotes/{symbol} {
+      allow read: if isOwner();
+      allow write: if false;
+    }
+
+    match /worker/liveTracker {
+      allow read: if isOwner();
+      allow write: if false;
+    }
+
+    match /fcmTokens/{tokenId} {
+      allow read: if isOwner();
+      allow create, update: if isOwner() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isOwner();
     }
   }
 }

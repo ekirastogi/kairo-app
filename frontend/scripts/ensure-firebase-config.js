@@ -13,6 +13,26 @@ const { projectId, secretName, webAppId } = require('./firebase-project');
 const fromSecrets = process.argv.includes('--from-secrets');
 const configPath = path.join(__dirname, '../src/environments/firebase.config.ts');
 const examplePath = path.join(__dirname, '../src/environments/firebase.config.example.ts');
+const messagingSwPath = path.join(__dirname, '../src/firebase-messaging-sw.js');
+
+function writeMessagingSw(config) {
+  const json = JSON.stringify(
+    {
+      apiKey: config.apiKey,
+      authDomain: config.authDomain,
+      projectId: config.projectId,
+      storageBucket: config.storageBucket,
+      messagingSenderId: config.messagingSenderId,
+      appId: config.appId,
+    },
+    null,
+    2
+  );
+  fs.writeFileSync(
+    messagingSwPath,
+    `/* Generated — do not edit */\nimportScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');\nimportScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');\nfirebase.initializeApp(${json});\nfirebase.messaging();\n`
+  );
+}
 
 function writeConfigTs(config) {
   const ts = JSON.stringify(config, null, 2).replace(/"([^"]+)":/g, '$1:');
@@ -21,6 +41,7 @@ function writeConfigTs(config) {
     '/** Generated from Google Secret Manager — DO NOT COMMIT */\n' +
       `export const firebaseConfig = ${ts};\n`
   );
+  writeMessagingSw(config);
 }
 
 function fetchFromSecretManager() {
@@ -98,6 +119,16 @@ if (fromSecrets) {
 }
 
 if (fs.existsSync(configPath)) {
+  try {
+    const text = fs.readFileSync(configPath, 'utf8');
+    const match = text.match(/firebaseConfig\s*=\s*(\{[\s\S]*\});?\s*$/);
+    if (match) {
+      const config = Function(`"use strict"; return (${match[1]})`)();
+      writeMessagingSw(config);
+    }
+  } catch {
+    /* keep existing service worker */
+  }
   console.log('Using local firebase.config.ts for development.');
   process.exit(0);
 }

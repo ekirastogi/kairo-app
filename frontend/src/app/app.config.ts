@@ -4,6 +4,7 @@ import { provideAnimations } from '@angular/platform-browser/animations';
 import { FirebaseOptions, initializeApp, provideFirebaseApp } from '@angular/fire/app';
 import { provideAuth } from '@angular/fire/auth';
 import { getFirestore, provideFirestore } from '@angular/fire/firestore';
+import { getMessaging, provideMessaging } from '@angular/fire/messaging';
 import { getApp } from 'firebase/app';
 import {
   browserPopupRedirectResolver,
@@ -35,6 +36,7 @@ export function buildAppConfig(firebase: FirebaseOptions): ApplicationConfig {
         }
       }),
       provideFirestore(() => getFirestore()),
+      provideMessaging(() => getMessaging()),
       AppErrorHandler,
       { provide: ErrorHandler, useExisting: AppErrorHandler },
       {

@@ -65,6 +65,16 @@ def clip_news(raw) -> list:
     return out
 
 
+def optional_float(value) -> float | None:
+    try:
+        price = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not (price > 0):
+        return None
+    return round(price, 2)
+
+
 def clip_brokers(raw) -> list:
     if not isinstance(raw, list):
         return []
@@ -119,8 +129,17 @@ def main() -> int:
                         "title": title,
                         "body": body,
                     }
+                cmp = optional_float(stock.get("cmp") or stock.get("currentPrice"))
+                pe = optional_float(stock.get("pe"))
+                market_cap = optional_float(stock.get("marketCap") or stock.get("market_cap"))
+                sales_ttm = optional_float(stock.get("salesGrowthTtm") or stock.get("sales_growth_ttm"))
+                profit_ttm = optional_float(stock.get("profitGrowthTtm") or stock.get("profit_growth_ttm"))
                 cur.execute(
-                    "select id, broker_targets, ai_analyses from public.signal_watch where symbol = %s",
+                    """
+                    select id, user_id, name, broker_targets, ai_analyses
+                    from public.signal_watch
+                    where symbol = %s
+                    """,
                     (symbol,),
                 )
                 rows = list(cur.fetchall())
@@ -128,7 +147,13 @@ def main() -> int:
                     existing_brokers = row["broker_targets"] if isinstance(row["broker_targets"], list) else []
                     next_brokers = brokers if brokers else existing_brokers
                     existing_ai = row["ai_analyses"] if isinstance(row["ai_analyses"], list) else []
-                    next_ai = ([report] + existing_ai)[:10] if report else existing_ai[:10]
+                    if report:
+                        if existing_ai and str(existing_ai[0].get("title") or "") == title:
+                            next_ai = ([report] + existing_ai[1:])[:10]
+                        else:
+                            next_ai = ([report] + existing_ai)[:10]
+                    else:
+                        next_ai = existing_ai[:10]
                     cur.execute(
                         """
                         update public.signal_watch
@@ -157,6 +182,40 @@ def main() -> int:
                         ),
                     )
                     updated += cur.rowcount
+                    if cmp is None:
+                        continue
+                    name = str(row["name"] or symbol)
+                    cur.execute(
+                        """
+                        insert into public.registry_stocks (
+                          user_id, symbol, name, current_price, source, updated_at,
+                          pe, market_cap, sales_growth_ttm, profit_growth_ttm
+                        )
+                        values (%s, %s, %s, %s, 'manual', %s, %s, %s, %s, %s)
+                        on conflict (user_id, symbol) do update
+                        set current_price = excluded.current_price,
+                            updated_at = excluded.updated_at,
+                            pe = coalesce(excluded.pe, public.registry_stocks.pe),
+                            market_cap = coalesce(excluded.market_cap, public.registry_stocks.market_cap),
+                            sales_growth_ttm = coalesce(excluded.sales_growth_ttm, public.registry_stocks.sales_growth_ttm),
+                            profit_growth_ttm = coalesce(excluded.profit_growth_ttm, public.registry_stocks.profit_growth_ttm),
+                            name = case
+                              when coalesce(public.registry_stocks.name, '') = '' then excluded.name
+                              else public.registry_stocks.name
+                            end
+                        """,
+                        (
+                            row["user_id"],
+                            symbol,
+                            name,
+                            cmp,
+                            now,
+                            pe,
+                            market_cap,
+                            sales_ttm,
+                            profit_ttm,
+                        ),
+                    )
     finally:
         conn.close()
     print(json.dumps({"updatedRows": updated, "stocks": len(stocks)}))

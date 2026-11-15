@@ -115,6 +115,19 @@
           @if (pageShell.cachePageId(); as cachePage) {
             <app-page-cache-refresh-button class="shrink-0" [pageId]="cachePage" />
           }
+          @if (onTradeBook()) {
+            <button
+              type="button"
+              class="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold"
+              [class.bg-emerald-600]="liveQuotes.enabled()"
+              [class.text-white]="liveQuotes.enabled()"
+              [class.bg-slate-100]="!liveQuotes.enabled()"
+              [class.text-slate-700]="!liveQuotes.enabled()"
+              (click)="liveQuotes.toggle()"
+            >
+              {{ liveQuotes.enabled() ? 'Live on' : 'Live tracker' }}
+            </button>
+          }
         </div>
       </header>
     }

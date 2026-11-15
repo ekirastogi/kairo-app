@@ -12,13 +12,19 @@ import {
 import { Candle, ChartView } from '../../models/market.models';
 import { UserLevel } from '../../services/stock-levels.service';
 
+export interface ChartPriceLevel {
+  price: number;
+  label: string;
+  color: string;
+}
+
 @Component({
   selector: 'app-trading-chart',
   standalone: true,
   imports: [CommonModule],
   template: `
     <div class="min-w-0 max-w-full space-y-2 overflow-hidden">
-      <div #chartContainer class="h-64 w-full max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white sm:h-80"></div>
+      <div #chartContainer class="h-[22rem] w-full max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white sm:h-[28rem]"></div>
       @if (showMacd || showRsi) {
         <div #macdContainer class="h-24 w-full max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white"></div>
       }
@@ -35,6 +41,8 @@ export class TradingChartComponent implements OnChanges, OnDestroy {
   @Input() resistanceLevels: number[] = [];
   @Input() userSupports: UserLevel[] = [];
   @Input() userResistances: UserLevel[] = [];
+  @Input() extraLevels: ChartPriceLevel[] = [];
+  @Input() cmp: number | null = null;
   @Input() showSma = true;
   @Input() showMacd = false;
   @Input() showRsi = false;
@@ -42,12 +50,11 @@ export class TradingChartComponent implements OnChanges, OnDestroy {
   private chart?: IChartApi;
   private macdChart?: IChartApi;
   private candleSeries?: ReturnType<IChartApi['addSeries']>;
+  private overlaySeries: ReturnType<IChartApi['addSeries']>[] = [];
   private priceLines: ReturnType<NonNullable<typeof this.candleSeries>['createPriceLine']>[] = [];
 
-  ngOnChanges(changes: SimpleChanges): void {
-    if (changes['candles'] || changes['chartView'] || changes['supportLevels'] || changes['resistanceLevels']) {
-      this.render();
-    }
+  ngOnChanges(_changes: SimpleChanges): void {
+    this.render();
   }
 
   ngOnDestroy(): void {
@@ -56,8 +63,9 @@ export class TradingChartComponent implements OnChanges, OnDestroy {
   }
 
   private effectiveCandles(): Candle[] {
+    if (this.candles?.length) return this.candles;
     if (this.chartView?.candles?.length) return this.chartView.candles;
-    return this.candles;
+    return [];
   }
 
   private render(): void {
@@ -67,22 +75,38 @@ export class TradingChartComponent implements OnChanges, OnDestroy {
     if (!this.chart) {
       this.chart = createChart(this.container.nativeElement, {
         autoSize: true,
-        layout: { background: { color: '#ffffff' }, textColor: '#334155' },
-        grid: { vertLines: { color: '#f1f5f9' }, horzLines: { color: '#f1f5f9' } },
-        rightPriceScale: { borderColor: '#e2e8f0' },
-        timeScale: { borderColor: '#e2e8f0' },
+        layout: { background: { color: '#0b1220' }, textColor: '#cbd5e1' },
+        grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
+        rightPriceScale: { borderColor: '#334155' },
+        timeScale: { borderColor: '#334155', timeVisible: true, secondsVisible: false },
+        crosshair: { mode: 0 },
       });
       this.candleSeries = this.chart.addSeries(CandlestickSeries, {
-        upColor: '#10b981', downColor: '#ef4444', borderVisible: false,
-        wickUpColor: '#10b981', wickDownColor: '#ef4444',
+        upColor: '#10b981',
+        downColor: '#ef4444',
+        borderVisible: false,
+        wickUpColor: '#34d399',
+        wickDownColor: '#f87171',
       });
     }
 
     const data: CandlestickData[] = candles.map((c) => ({
-      time: c.time as Time,
-      open: c.open, high: c.high, low: c.low, close: c.close,
+      time: (Number(c.time) ? Number(c.time) : c.time) as Time,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
     }));
     this.candleSeries!.setData(data);
+
+    for (const series of this.overlaySeries) {
+      try {
+        this.chart.removeSeries(series);
+      } catch {
+        /* already gone */
+      }
+    }
+    this.overlaySeries = [];
 
     if (this.showSma && this.chartView) {
       this.addLineSeries(this.chartView.sma20, '#3b82f6', candles);
@@ -97,10 +121,12 @@ export class TradingChartComponent implements OnChanges, OnDestroy {
   private addLineSeries(values: number[] | undefined, color: string, candles: Candle[]) {
     if (!values?.length || !this.chart) return;
     const series = this.chart.addSeries(LineSeries, { color, lineWidth: 1 });
+    this.overlaySeries.push(series);
     const lineData: LineData[] = [];
     for (let i = 0; i < candles.length && i < values.length; i++) {
       if (values[i] > 0) {
-        lineData.push({ time: candles[i].time as Time, value: values[i] });
+        const time = (Number(candles[i].time) ? Number(candles[i].time) : candles[i].time) as Time;
+        lineData.push({ time, value: values[i] });
       }
     }
     series.setData(lineData);
@@ -108,14 +134,31 @@ export class TradingChartComponent implements OnChanges, OnDestroy {
 
   private drawPriceLines(): void {
     if (!this.candleSeries) return;
-    const addLine = (price: number, color: string, title: string) => {
-      if (price > 0) {
-        this.candleSeries!.createPriceLine({ price, color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title });
+    for (const line of this.priceLines) {
+      try {
+        this.candleSeries.removePriceLine(line);
+      } catch {
+        /* ignore */
       }
+    }
+    this.priceLines = [];
+    const addLine = (price: number, color: string, title: string, solid = false) => {
+      if (!(price > 0)) return;
+      const line = this.candleSeries!.createPriceLine({
+        price,
+        color,
+        lineWidth: solid ? 2 : 1,
+        lineStyle: solid ? 0 : 2,
+        axisLabelVisible: true,
+        title,
+      });
+      this.priceLines.push(line);
     };
     this.supportLevels.slice(0, 3).forEach((p, i) => addLine(p, '#10b981', `S${i + 1}`));
     this.resistanceLevels.slice(0, 3).forEach((p, i) => addLine(p, '#ef4444', `R${i + 1}`));
     this.userSupports.forEach((l) => addLine(l.price, '#059669', l.label || 'US'));
     this.userResistances.forEach((l) => addLine(l.price, '#dc2626', l.label || 'UR'));
+    this.extraLevels.forEach((l) => addLine(l.price, l.color, l.label));
+    if (this.cmp && this.cmp > 0) addLine(this.cmp, '#f8fafc', 'CMP', true);
   }
 }

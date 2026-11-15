@@ -45,10 +45,13 @@ def main() -> int:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """
-                select id, user_id, symbol, name, prices, broker_targets,
-                       overall_signal, signal_reason, nifty_note, sector_note
-                from public.signal_watch
-                order by symbol, created_at
+                select w.id, w.user_id, w.symbol, w.name, w.prices, w.broker_targets,
+                       w.overall_signal, w.signal_reason, w.nifty_note, w.sector_note,
+                       r.current_price as cmp
+                from public.signal_watch w
+                left join public.registry_stocks r
+                  on r.user_id = w.user_id and r.symbol = w.symbol
+                order by w.symbol, w.created_at
                 """
             )
             rows = list(cur.fetchall())

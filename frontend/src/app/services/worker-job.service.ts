@@ -10,7 +10,7 @@ import { map, Observable } from 'rxjs';
 import { AuthService } from './auth.service';
 
 export type WorkerJobStatus = 'pending' | 'running' | 'completed' | 'failed';
-export type WorkerJobType = 'hot_ingest' | 'symbol_ingest' | 'seed_universe';
+export type WorkerJobType = 'hot_ingest' | 'symbol_ingest' | 'seed_universe' | 'fetch_history';
 
 export interface WorkerJob {
   id: string;
@@ -121,6 +121,12 @@ export class WorkerJobService {
       return this.runLocalIngest('symbol_ingest', `/api/v1/ingest/symbol/${encodeURIComponent(sym)}`, sym);
     }
     return this.requestJob('symbol_ingest', sym);
+  }
+
+  async requestFetchHistory(symbol: string): Promise<string> {
+    const sym = symbol.trim().toUpperCase();
+    if (!sym) throw new Error('Symbol is required');
+    return this.requestJob('fetch_history', sym);
   }
 
   async requestSeedRegistry(): Promise<string> {

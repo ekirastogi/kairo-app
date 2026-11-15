@@ -12,6 +12,8 @@ import { ScreenerService, ScreenerSnapshot } from '../../services/screener.servi
 import { SignalWatch, SignalWatchService } from '../../services/signal-watch.service';
 import { StockFirestoreService } from '../../services/stock-firestore.service';
 import { ToastService } from '../../services/toast.service';
+import { LiveQuoteService } from '../../services/live-quote.service';
+import { WorkerJobService } from '../../services/worker-job.service';
 import { formatAnalysisChange, buildStockAnalysis, StockFundamentalAnalysis } from '../../utils/screener-analysis.utils';
 import { formatPctSigned, formatPrice } from '../../utils/format.utils';
 import { getMarketCapTier, MARKET_CAP_LABELS, MarketCapTier } from '../../utils/market-cap.utils';
@@ -160,6 +162,8 @@ export class TradeBookComponent {
   private screenerSvc = inject(ScreenerService);
   private stocksSvc = inject(StockFirestoreService);
   private toast = inject(ToastService);
+  private liveQuotes = inject(LiveQuoteService);
+  private workerJobs = inject(WorkerJobService);
   readonly auth = inject(AuthService);
   private stockSearch = viewChild(StockSearchInputComponent);
 
@@ -304,12 +308,15 @@ export class TradeBookComponent {
       const symbol = row.symbol.toUpperCase();
       const registry = overlay.get(symbol) ?? null;
       const snap = catalog.get(symbol);
+      const live = this.liveQuotes.enabled() ? this.liveQuotes.quote(symbol) : undefined;
       const cmp =
-        registry?.currentPrice && registry.currentPrice > 0
-          ? registry.currentPrice
-          : snap?.ltp && snap.ltp > 0
-            ? snap.ltp
-            : null;
+        live?.ltp && live.ltp > 0
+          ? live.ltp
+          : registry?.currentPrice && registry.currentPrice > 0
+            ? registry.currentPrice
+            : snap?.ltp && snap.ltp > 0
+              ? snap.ltp
+              : null;
       const cap = registry?.marketCap ?? snap?.marketCap ?? 0;
       const prices = Array.isArray(row.prices) ? row.prices : [];
       const avgTarget = avgPrice(prices);
@@ -429,6 +436,14 @@ export class TradeBookComponent {
       this.draftGuidance[created.id] = { profit: '', sales: '' };
       this.toast.success(`Added ${symbol}`);
       void this.registrySvc.ensureListed(symbol, { name: stock.name, isin: stock.isin });
+      if (confirm(`Fetch Groww history and add ${symbol} to the live tracker? Start python-worker this morning if it is not running.`)) {
+        try {
+          await this.workerJobs.requestFetchHistory(symbol);
+          this.toast.success(`Queued history for ${symbol}`);
+        } catch (err) {
+          this.toast.error(err instanceof Error ? err.message : 'Could not queue history');
+        }
+      }
       queueMicrotask(() => this.stockSearch()?.focus());
     } catch (e) {
       this.toast.error(e instanceof Error ? e.message : 'Could not add stock');

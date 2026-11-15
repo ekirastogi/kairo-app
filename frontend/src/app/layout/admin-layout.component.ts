@@ -11,6 +11,7 @@ import { ToastService } from '../services/toast.service';
 import { FilterUrlService } from '../services/filter-url.service';
 import { BrandLogoComponent } from '../components/shared/brand-logo/brand-logo.component';
 import { PageCacheRefreshButtonComponent } from '../components/shared/page-cache-refresh-button/page-cache-refresh-button.component';
+import { LiveQuoteService } from '../services/live-quote.service';
 import { BRAND } from '../constants/brand';
 
 interface NavItem {
@@ -44,7 +45,9 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
   readonly errors = inject(AppErrorHandler);
   readonly toasts = inject(ToastService);
   readonly pageShell = inject(PageShellService);
+  readonly liveQuotes = inject(LiveQuoteService);
   readonly auth = inject(AuthService);
+  readonly onTradeBook = signal(false);
   readonly brand = BRAND;
   private notifications = inject(NotificationService);
   private filterUrl = inject(FilterUrlService);
@@ -202,6 +205,7 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     }
     const data = child?.snapshot.data ?? {};
     this.pageShell.setRouteHeader(data['title'] ?? '', data['subtitle'] ?? null);
+    this.onTradeBook.set(this.router.url.split('?')[0] === '/trade-book');
   }
 
   @HostListener('window:resize')

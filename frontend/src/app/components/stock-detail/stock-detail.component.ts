@@ -13,7 +13,11 @@ import { PageShellService } from '../../services/page-shell.service';
 import { RegistryStockService } from '../../services/registry-stock.service';
 import { StockLabelsStore } from '../../services/stock-labels.store';
 import { ScreenerService } from '../../services/screener.service';
-import { TradingChartComponent } from '../trading-chart/trading-chart.component';
+import { ChartPriceLevel, TradingChartComponent } from '../trading-chart/trading-chart.component';
+import { CandleInterval, CANDLE_INTERVALS, OhlcService } from '../../services/ohlc.service';
+import { LiveQuoteService } from '../../services/live-quote.service';
+import { SignalWatchService } from '../../services/signal-watch.service';
+import { Candle } from '../../models/market.models';
 import { ScreenerFundamentalsComponent } from '../screener-fundamentals/screener-fundamentals.component';
 import { StockLabelsManagerComponent } from '../stock-labels/stock-labels-manager.component';
 import { RouterLink } from '@angular/router';
@@ -56,6 +60,14 @@ export class StockDetailComponent implements OnInit {
   private registrySvc = inject(RegistryStockService);
   readonly labelStore = inject(StockLabelsStore);
   private screenerSvc = inject(ScreenerService);
+  private ohlcSvc = inject(OhlcService);
+  readonly liveQuotes = inject(LiveQuoteService);
+  private watchSvc = inject(SignalWatchService);
+  readonly candleIntervals = CANDLE_INTERVALS;
+  chartInterval = signal<CandleInterval>('1day');
+  growwCandles = signal<Candle[]>([]);
+  chartBusy = signal(false);
+  chartError = signal<string | null>(null);
 
   newLevelPrice = '';
   newLevelLabel = '';
@@ -162,6 +174,15 @@ export class StockDetailComponent implements OnInit {
   displayExchange = computed(() => this.resolvedMarket()?.exchange || this.registryStock()?.exchange || 'NSE');
 
   displayPrice = computed(() => {
+    const live = this.liveQuotes.quote(this.displaySymbol());
+    if (live?.ltp) {
+      return {
+        value: live.ltp,
+        change: live.change,
+        changePct: live.changePct,
+        fromMarket: true,
+      };
+    }
     const s = this.resolvedMarket();
     if (s?.ltp) {
       return {
@@ -193,6 +214,39 @@ export class StockDetailComponent implements OnInit {
   });
 
   private lastSymbol = '';
+  private watches = toSignal(this.watchSvc.watchAll(), { initialValue: [] });
+  extraChartLevels = computed((): ChartPriceLevel[] => {
+    const row = this.watches().find((item) => item.symbol.toUpperCase() === this.symbol());
+    const prices = row?.prices ?? [];
+    const cmp = this.displayPrice()?.value ?? 0;
+    return prices
+      .map((price, i) => ({
+        price,
+        label: `P${i + 1}`,
+        color: cmp && price >= cmp ? '#f87171' : '#34d399',
+      }))
+      .filter((item) => item.price > 0);
+  });
+  chartCmp = computed(() => this.displayPrice()?.value ?? null);
+
+  async setChartInterval(interval: CandleInterval): Promise<void> {
+    this.chartInterval.set(interval);
+    await this.loadGrowwChart();
+  }
+
+  async loadGrowwChart(): Promise<void> {
+    const symbol = this.symbol();
+    if (!symbol) return;
+    this.chartBusy.set(true);
+    this.chartError.set(null);
+    try {
+      this.growwCandles.set(await this.ohlcSvc.list(symbol, this.chartInterval()));
+    } catch (e) {
+      this.chartError.set(e instanceof Error ? e.message : 'Could not load candles');
+    } finally {
+      this.chartBusy.set(false);
+    }
+  }
 
   week52Position = computed(() => {
     const s = this.resolvedMarket();
@@ -220,6 +274,7 @@ export class StockDetailComponent implements OnInit {
     this.screenerPageUrl = '';
     this.screenerQuoteStock.set(null);
     this.expandedDayKey.set(null);
+    void this.loadGrowwChart();
   }, { allowSignalWrites: true });
 
   private registryLoadGen = 0;

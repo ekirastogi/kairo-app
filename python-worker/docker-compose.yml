@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kairo-market-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kairo_market
+      POSTGRES_USER: kairo
+      POSTGRES_PASSWORD: kairo
+    ports:
+      - "5433:5432"
+    volumes:
+      - kairo_market_pg:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+volumes:
+  kairo_market_pg:

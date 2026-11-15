@@ -1,3 +1,7 @@
+# Python market worker
+python-worker/.env
+python-worker/.venv/
+
 # Backend
 backend/.env
 backend/bin/

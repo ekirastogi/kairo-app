@@ -84,7 +84,9 @@ if [[ "$DEPLOY_ONLY" == false ]]; then
     frontend/dist \
     frontend/node_modules \
     frontend/.angular \
-    functions
+    functions \
+    python-worker/.env \
+    python-worker/.venv
 
   if git diff --cached --quiet; then
     log "Nothing to commit"

@@ -9,4 +9,5 @@ export const firebaseConfig = {
   storageBucket: 'YOUR_PROJECT.appspot.com',
   messagingSenderId: 'YOUR_SENDER_ID',
   appId: 'YOUR_APP_ID',
+  vapidKey: 'YOUR_WEB_PUSH_CERTIFICATE_KEY',
 };

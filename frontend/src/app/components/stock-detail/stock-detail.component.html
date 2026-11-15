@@ -243,17 +243,56 @@
       </div>
     }
   } @else if (activeTab() === 'market') {
-    @if (stock(); as s) {
+    <div class="mb-3 flex flex-wrap items-center gap-2">
+      @for (item of candleIntervals; track item.id) {
+        <button
+          type="button"
+          class="rounded-full px-3 py-1 text-xs font-semibold"
+          [class.bg-slate-900]="chartInterval() === item.id"
+          [class.text-white]="chartInterval() === item.id"
+          [class.bg-slate-100]="chartInterval() !== item.id"
+          (click)="setChartInterval(item.id)"
+        >
+          {{ item.label }}
+        </button>
+      }
+      <button type="button" class="btn-secondary !py-1 !text-xs" (click)="loadGrowwChart()" [disabled]="chartBusy()">
+        {{ chartBusy() ? 'Loading…' : 'Reload' }}
+      </button>
+    </div>
+    @if (chartError()) {
+      <p class="mb-2 text-xs text-red-600">{{ chartError() }}</p>
+    }
+    @if (growwCandles().length) {
       <div class="stock-detail-chart">
         <app-trading-chart
-          [chartView]="chartView()"
-          [supportLevels]="(s.supportLevels ?? []).slice(0, 3)"
-          [resistanceLevels]="(s.resistanceLevels ?? []).slice(0, 3)"
+          [candles]="growwCandles()"
+          [extraLevels]="extraChartLevels()"
+          [cmp]="chartCmp()"
           [userSupports]="userLevels()?.supports ?? []"
           [userResistances]="userLevels()?.resistances ?? []"
-          [showSma]="true"
+          [showSma]="false"
         />
       </div>
+    } @else {
+      @if (stock(); as s) {
+        <div class="stock-detail-chart">
+          <app-trading-chart
+            [chartView]="chartView()"
+            [supportLevels]="(s.supportLevels ?? []).slice(0, 3)"
+            [resistanceLevels]="(s.resistanceLevels ?? []).slice(0, 3)"
+            [userSupports]="userLevels()?.supports ?? []"
+            [userResistances]="userLevels()?.resistances ?? []"
+            [extraLevels]="extraChartLevels()"
+            [cmp]="chartCmp()"
+            [showSma]="true"
+          />
+        </div>
+      } @else {
+        <p class="text-sm text-slate-500">No candles yet. Start python-worker in the morning to backfill Groww history.</p>
+      }
+    }
+    @if (stock(); as s) {
 
       <div class="stock-detail-metrics">
         <div class="stock-detail-metric">
