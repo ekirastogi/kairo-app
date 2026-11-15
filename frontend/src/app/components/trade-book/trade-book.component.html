@@ -230,11 +230,15 @@
     @if (row.ladder?.length) {
       <div class="sig-ladder">
         <div class="sig-ladder-track">
-          <div
-            class="sig-ladder-line"
-            [style.left.%]="row.ladder[0].position"
-            [style.right.%]="100 - row.ladder[row.ladder.length - 1].position"
-          ></div>
+          @if (lineSeg(row.ladder, 'neg'); as neg) {
+            <div class="sig-ladder-line sig-line-neg" [style.left.%]="neg.left" [style.right.%]="neg.right"></div>
+          }
+          @if (lineSeg(row.ladder, 'pos'); as pos) {
+            <div class="sig-ladder-line sig-line-pos" [style.left.%]="pos.left" [style.right.%]="pos.right"></div>
+          }
+          @if (mutedLine(row.ladder); as muted) {
+            <div class="sig-ladder-line sig-line-muted" [style.left.%]="muted.left" [style.right.%]="muted.right"></div>
+          }
           @for (pt of row.ladder; track pt.id) {
             <div class="sig-ladder-pt" [style.left.%]="pt.position">
               <p
@@ -244,11 +248,7 @@
               >
                 {{ pt.label }}
               </p>
-              <div
-                class="sig-dot"
-                [class.bg-kairo-600]="pt.kind !== 'level'"
-                [class.bg-slate-400]="pt.kind === 'level'"
-              ></div>
+              <div class="sig-dot" [ngClass]="dotClass(pt)"></div>
               <p class="mt-1 text-[10px] tabular-nums text-slate-600">{{ formatPrice(pt.price) }}</p>
               <p class="text-[10px] tabular-nums" [class]="metricTone(pt.pctFromCmp)">
                 {{ pt.kind === 'cmp' ? 'CMP' : formatPctSigned(pt.pctFromCmp, 1) }}
@@ -479,18 +479,18 @@
   @if (row.quoteStrip?.length) {
     <div class="sig-strip">
       <div class="sig-strip-track">
-      <div
-        class="sig-strip-line"
-        [style.left.%]="row.quoteStrip[0].position"
-        [style.right.%]="100 - row.quoteStrip[row.quoteStrip.length - 1].position"
-      ></div>
+      @if (lineSeg(row.quoteStrip, 'neg'); as neg) {
+        <div class="sig-strip-line sig-line-neg" [style.left.%]="neg.left" [style.right.%]="neg.right"></div>
+      }
+      @if (lineSeg(row.quoteStrip, 'pos'); as pos) {
+        <div class="sig-strip-line sig-line-pos" [style.left.%]="pos.left" [style.right.%]="pos.right"></div>
+      }
+      @if (mutedLine(row.quoteStrip); as muted) {
+        <div class="sig-strip-line sig-line-muted" [style.left.%]="muted.left" [style.right.%]="muted.right"></div>
+      }
       @for (pt of row.quoteStrip; track pt.id) {
         <div class="sig-strip-pt" [style.left.%]="pt.position">
-          <div
-            class="sig-dot mx-auto"
-            [class.bg-kairo-600]="pt.kind === 'cmp'"
-            [class.bg-slate-400]="pt.kind !== 'cmp'"
-          ></div>
+          <div class="sig-dot mx-auto" [ngClass]="dotClass(pt)"></div>
           <p class="mt-1 text-[11px] tabular-nums font-medium text-slate-900">{{ formatPrice(pt.price) }}</p>
           <p class="text-[10px] tabular-nums" [class]="metricTone(pt.kind === 'cmp' ? 0 : pt.pctFromCmp)">
             {{ pt.kind === 'cmp' ? 'CMP' : formatPctSigned(pt.pctFromCmp, 1) }}

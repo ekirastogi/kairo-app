@@ -120,13 +120,16 @@ function isNearLevel(pct: number | null | undefined): boolean {
   styles: `
     .sig-ladder { padding: 0 3.25rem; }
     .sig-ladder-track { position: relative; min-height: 5.5rem; }
-    .sig-ladder-line { position: absolute; top: 1.85rem; height: 2px; background: #cbd5e1; }
+    .sig-ladder-line { position: absolute; top: 1.85rem; height: 3px; }
     .sig-ladder-pt { position: absolute; top: 0; width: 6.25rem; margin-left: -3.125rem; text-align: center; }
     .sig-ladder-pt p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .sig-dot { margin: 0.35rem auto 0; height: 0.5rem; width: 0.5rem; border-radius: 999px; }
     .sig-strip { padding: 0 2.1rem; min-width: 22rem; }
     .sig-strip-track { position: relative; min-height: 3.35rem; }
-    .sig-strip-line { position: absolute; top: 0.35rem; height: 2px; background: #cbd5e1; }
+    .sig-strip-line { position: absolute; top: 0.3rem; height: 3px; }
+    .sig-line-neg { background: #e11d48; }
+    .sig-line-pos { background: #059669; }
+    .sig-line-muted { background: #cbd5e1; }
     .sig-strip-pt { position: absolute; top: 0; width: 4.2rem; margin-left: -2.1rem; text-align: center; }
     .sig-strip-pt p { white-space: nowrap; }
   `,
@@ -202,6 +205,38 @@ export class TradeBookComponent {
 
   extraStocks(): RegistryStock[] {
     return this.picked ? [this.picked] : [];
+  }
+
+  lineSeg(
+    points: SignalLadderPoint[] | null | undefined,
+    side: 'neg' | 'pos'
+  ): { left: number; right: number } | null {
+    const pts = points ?? [];
+    if (pts.length < 2) return null;
+    const cmp = pts.find((p) => p.kind === 'cmp' || p.kind === 'both');
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    if (!cmp || !first || !last) return null;
+    if (side === 'neg') {
+      if (first.position >= cmp.position - 0.01) return null;
+      return { left: first.position, right: 100 - cmp.position };
+    }
+    if (last.position <= cmp.position + 0.01) return null;
+    return { left: cmp.position, right: 100 - last.position };
+  }
+
+  mutedLine(points: SignalLadderPoint[] | null | undefined): { left: number; right: number } | null {
+    const pts = points ?? [];
+    if (pts.length < 2) return null;
+    if (pts.some((p) => p.kind === 'cmp' || p.kind === 'both')) return null;
+    return { left: pts[0].position, right: 100 - pts[pts.length - 1].position };
+  }
+
+  dotClass(pt: SignalLadderPoint): string {
+    if (pt.kind === 'cmp' || pt.kind === 'both') return 'bg-slate-800';
+    if (pt.pctFromCmp != null && pt.pctFromCmp < 0) return 'bg-rose-600';
+    if (pt.pctFromCmp != null && pt.pctFromCmp > 0) return 'bg-emerald-600';
+    return 'bg-slate-400';
   }
 
   capLabelFor(tier: string | null | undefined): string {
