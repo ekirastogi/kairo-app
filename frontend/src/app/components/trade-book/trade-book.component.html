@@ -129,12 +129,13 @@
         <table class="min-w-full text-sm">
           <thead class="bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
             <tr>
+              <th class="px-3 py-2 text-left w-10">#</th>
               <th class="px-4 py-2 text-left">
                 <button type="button" (click)="tableSort.toggle('symbol')">
                   Symbol {{ tableSort.indicator('symbol') }}
                 </button>
               </th>
-              <th class="px-3 py-2 text-left w-[42%]">
+              <th class="px-3 py-2 text-left w-[52%]">
                 <button type="button" (click)="tableSort.toggle('supportPct')">
                   Levels {{ tableSort.indicator('supportPct') }}
                 </button>
@@ -144,20 +145,16 @@
                   Call {{ tableSort.indicator('overallSignal') }}
                 </button>
               </th>
-              <th class="px-3 py-2 text-left">
-                <button type="button" (click)="tableSort.toggle('cap')">
-                  Cap {{ tableSort.indicator('cap') }}
-                </button>
-              </th>
             </tr>
           </thead>
           <tbody>
-            @for (row of visibleRows(); track row.id) {
+            @for (row of visibleRows(); track row.id; let i = $index) {
               <tr
                 class="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
                 [class.bg-kairo-50]="expandedId() === row.id"
                 (click)="toggle(row.id)"
               >
+                <td class="px-3 py-3 tabular-nums text-xs text-slate-400">{{ i + 1 }}</td>
                 <td class="px-4 py-3">
                   <p class="font-semibold tracking-wide text-slate-900">{{ row.symbol }}</p>
                   <p class="mt-0.5 truncate text-[11px] text-slate-500">{{ row.name }}</p>
@@ -170,7 +167,6 @@
                     {{ row.overallSignal }}
                   </span>
                 </td>
-                <td class="px-3 py-3 text-slate-600">{{ capLabelFor(row.capTier) }}</td>
               </tr>
               @if (expandedId() === row.id) {
                 <tr class="border-t border-slate-100 bg-slate-50/70">
@@ -185,11 +181,13 @@
       </div>
 
       <div class="divide-y divide-slate-100 md:hidden">
-        @for (row of visibleRows(); track row.id) {
+        @for (row of visibleRows(); track row.id; let i = $index) {
           <article>
             <button type="button" class="w-full px-4 py-3 text-left" (click)="toggle(row.id)">
               <div class="mb-2 flex items-baseline justify-between gap-2">
-                <p class="text-sm font-semibold tracking-wide text-slate-900">{{ row.symbol }}</p>
+                <p class="text-sm font-semibold tracking-wide text-slate-900">
+                  <span class="mr-1.5 tabular-nums text-xs font-medium text-slate-400">{{ i + 1 }}.</span>{{ row.symbol }}
+                </p>
                 <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ signalBadge(row.overallSignal) }}">
                   {{ row.overallSignal }}
                 </span>
@@ -229,7 +227,7 @@
       </div>
     </div>
 
-    @if (row.ladder.length) {
+    @if (row.ladder?.length) {
       <div class="sig-ladder">
         <div class="sig-ladder-track">
           <div
@@ -478,7 +476,7 @@
 </ng-template>
 
 <ng-template #quoteStrip let-row>
-  @if (row.quoteStrip.length) {
+  @if (row.quoteStrip?.length) {
     <div class="sig-strip">
       <div class="sig-strip-track">
       <div

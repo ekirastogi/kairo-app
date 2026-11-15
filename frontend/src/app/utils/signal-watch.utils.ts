@@ -134,41 +134,54 @@ export interface SignalBracket {
   pctFromCmp: number | null;
 }
 
-/** Price 1 = nearest user level strictly below CMP; Price 2 = nearest strictly above. */
-export function levelsAroundCmp(prices: number[], cmp: number | null | undefined): {
-  below: SignalBracket | null;
-  above: SignalBracket | null;
-} {
-  const levels = prices
-    .map((price, i) => ({ label: `P${i + 1}`, price }))
-    .filter((p) => Number.isFinite(p.price) && p.price > 0);
-  if (cmp == null || cmp <= 0) return { below: null, above: null };
-  const below = levels.filter((p) => p.price < cmp).sort((a, b) => b.price - a.price)[0] ?? null;
-  const above = levels.filter((p) => p.price > cmp).sort((a, b) => a.price - b.price)[0] ?? null;
-  return {
-    below: below ? { ...below, pctFromCmp: pctFromCmp(cmp, below.price) } : null,
-    above: above ? { ...above, pctFromCmp: pctFromCmp(cmp, above.price) } : null,
-  };
+function asBrackets(raw: SignalBracket[] | null | undefined): SignalBracket[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((p) => p && Number.isFinite(p.price) && p.price > 0);
 }
 
-/** Compact Below–CMP–Above strip for the closed watchlist row. */
+/** Up to two user levels strictly below CMP (nearest first) and two strictly above. */
+export function levelsAroundCmp(prices: number[] | null | undefined, cmp: number | null | undefined): {
+  below: SignalBracket[];
+  above: SignalBracket[];
+} {
+  const levels = (Array.isArray(prices) ? prices : [])
+    .map((price, i) => ({ label: `P${i + 1}`, price }))
+    .filter((p) => Number.isFinite(p.price) && p.price > 0);
+  if (cmp == null || !Number.isFinite(cmp) || cmp <= 0) return { below: [], above: [] };
+  const below = levels
+    .filter((p) => p.price < cmp)
+    .sort((a, b) => b.price - a.price)
+    .slice(0, 2)
+    .map((p) => ({ ...p, pctFromCmp: pctFromCmp(cmp, p.price) }));
+  const above = levels
+    .filter((p) => p.price > cmp)
+    .sort((a, b) => a.price - b.price)
+    .slice(0, 2)
+    .map((p) => ({ ...p, pctFromCmp: pctFromCmp(cmp, p.price) }));
+  return { below, above };
+}
+
+/** Compact two-below–CMP–two-above strip. Missing CMP or missing sides are omitted. */
 export function buildQuoteStrip(
-  below: SignalBracket | null,
+  below: SignalBracket[] | null | undefined,
   cmp: number | null | undefined,
-  above: SignalBracket | null
+  above: SignalBracket[] | null | undefined
 ): SignalLadderPoint[] {
   const pts: SignalLadderPoint[] = [];
-  if (below) {
-    pts.push({
-      id: 'below',
-      label: '',
-      price: below.price,
-      pctFromCmp: below.pctFromCmp,
-      kind: 'level',
-      position: 0,
+  asBrackets(below)
+    .slice()
+    .reverse()
+    .forEach((level, i) => {
+      pts.push({
+        id: `below-${i}`,
+        label: '',
+        price: level.price,
+        pctFromCmp: level.pctFromCmp ?? null,
+        kind: 'level',
+        position: 0,
+      });
     });
-  }
-  if (cmp != null && cmp > 0) {
+  if (cmp != null && Number.isFinite(cmp) && cmp > 0) {
     pts.push({
       id: 'cmp',
       label: '',
@@ -178,16 +191,16 @@ export function buildQuoteStrip(
       position: 50,
     });
   }
-  if (above) {
+  asBrackets(above).forEach((level, i) => {
     pts.push({
-      id: 'above',
+      id: `above-${i}`,
       label: '',
-      price: above.price,
-      pctFromCmp: above.pctFromCmp,
+      price: level.price,
+      pctFromCmp: level.pctFromCmp ?? null,
       kind: 'level',
       position: 100,
     });
-  }
+  });
   if (!pts.length) return [];
   const min = Math.min(...pts.map((p) => p.price));
   const max = Math.max(...pts.map((p) => p.price));
@@ -196,7 +209,7 @@ export function buildQuoteStrip(
   placed.sort((a, b) => a.position - b.position);
   const spaced = spreadLadderPositions(
     placed.map((p) => p.position),
-    28
+    placed.length > 3 ? 18 : 28
   );
   return placed.map((p, i) => ({ ...p, position: spaced[i] }));
 }

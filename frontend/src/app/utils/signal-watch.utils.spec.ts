@@ -2,6 +2,7 @@ import {
   avgPrice,
   buildPriceLadder,
   formatPriceListText,
+  buildQuoteStrip,
   levelsAroundCmp,
   parseBrokerTargets,
   parseAiAnalyses,
@@ -36,10 +37,25 @@ describe('signal watch utils', () => {
     expect(Math.min(...gaps)).toBeGreaterThanOrEqual(16 - 0.001);
   });
 
-  it('picks the level just below CMP and just above CMP', () => {
+  it('picks two levels below CMP and two above', () => {
     const around = levelsAroundCmp([1080, 1196, 1245, 1310], 1224);
-    expect(around.below).toEqual(jasmine.objectContaining({ label: 'P2', price: 1196 }));
-    expect(around.above).toEqual(jasmine.objectContaining({ label: 'P3', price: 1245 }));
+    expect(around.below.map((p) => p.price)).toEqual([1196, 1080]);
+    expect(around.above.map((p) => p.price)).toEqual([1245, 1310]);
+    const strip = buildQuoteStrip(around.below, 1224, around.above);
+    expect(strip.map((p) => p.price)).toEqual([1080, 1196, 1224, 1245, 1310]);
+    expect(strip.filter((p) => p.kind === 'cmp').length).toBe(1);
+  });
+
+  it('does not throw when CMP or neighbouring prices are missing', () => {
+    expect(levelsAroundCmp(undefined, null)).toEqual({ below: [], above: [] });
+    expect(levelsAroundCmp([], 100)).toEqual({ below: [], above: [] });
+    expect(levelsAroundCmp([90], 100).below.map((p) => p.price)).toEqual([90]);
+    expect(levelsAroundCmp([90], 100).above).toEqual([]);
+    expect(buildQuoteStrip(null, null, undefined)).toEqual([]);
+    expect(buildQuoteStrip([{ label: 'P1', price: 90, pctFromCmp: -10 }], 100, []).map((p) => p.kind)).toEqual([
+      'level',
+      'cmp',
+    ]);
   });
 
   it('averages prices and parses broker targets', () => {

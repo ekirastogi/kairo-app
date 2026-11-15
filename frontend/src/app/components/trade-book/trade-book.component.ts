@@ -37,8 +37,8 @@ interface SignalRow extends SignalWatch {
   sector: string;
   analysis: StockFundamentalAnalysis;
   ladder: SignalLadderPoint[];
-  below: SignalBracket | null;
-  above: SignalBracket | null;
+  below: SignalBracket[];
+  above: SignalBracket[];
   quoteStrip: SignalLadderPoint[];
   avgTarget: number | null;
   avgDiff: number | null;
@@ -124,10 +124,10 @@ function isNearLevel(pct: number | null | undefined): boolean {
     .sig-ladder-pt { position: absolute; top: 0; width: 6.25rem; margin-left: -3.125rem; text-align: center; }
     .sig-ladder-pt p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .sig-dot { margin: 0.35rem auto 0; height: 0.5rem; width: 0.5rem; border-radius: 999px; }
-    .sig-strip { padding: 0 2.6rem; min-width: 16rem; }
+    .sig-strip { padding: 0 2.1rem; min-width: 22rem; }
     .sig-strip-track { position: relative; min-height: 3.35rem; }
     .sig-strip-line { position: absolute; top: 0.35rem; height: 2px; background: #cbd5e1; }
-    .sig-strip-pt { position: absolute; top: 0; width: 5.2rem; margin-left: -2.6rem; text-align: center; }
+    .sig-strip-pt { position: absolute; top: 0; width: 4.2rem; margin-left: -2.1rem; text-align: center; }
     .sig-strip-pt p { white-space: nowrap; }
   `,
 })
@@ -245,9 +245,10 @@ export class TradeBookComponent {
             ? snap.ltp
             : null;
       const cap = registry?.marketCap ?? snap?.marketCap ?? 0;
-      const avgTarget = avgPrice(row.prices);
-      const around = levelsAroundCmp(row.prices, cmp);
-      const support = around.below?.price ?? null;
+      const prices = Array.isArray(row.prices) ? row.prices : [];
+      const avgTarget = avgPrice(prices);
+      const around = levelsAroundCmp(prices, cmp);
+      const support = around.below[0]?.price ?? null;
       const supportPct =
         cmp != null && support != null && support > 0 ? ((cmp - support) / support) * 100 : null;
       return {
@@ -256,14 +257,14 @@ export class TradeBookComponent {
         capTier: getMarketCapTier(cap),
         sector: snap?.sector?.trim() || '',
         analysis: buildStockAnalysis(registry),
-        ladder: buildPriceLadder(row.prices, cmp),
-        below: around.below,
-        above: around.above,
+        ladder: buildPriceLadder(prices, cmp),
+        below: around.below ?? [],
+        above: around.above ?? [],
         quoteStrip: buildQuoteStrip(around.below, cmp, around.above),
         avgTarget,
         avgDiff: avgTarget != null ? pctFromCmp(cmp, avgTarget) : null,
         supportPct,
-        pricesText: formatPriceListText(row.prices),
+        pricesText: formatPriceListText(prices),
         registry,
       };
     });
@@ -272,11 +273,11 @@ export class TradeBookComponent {
         case 'name':
           return row.name || row.symbol;
         case 'below':
-          return row.below?.price ?? -1;
+          return row.below?.[0]?.price ?? -1;
         case 'cmp':
           return row.cmp ?? -1;
         case 'above':
-          return row.above?.price ?? -1;
+          return row.above?.[0]?.price ?? -1;
         case 'supportPct':
           return row.supportPct ?? Number.POSITIVE_INFINITY;
         case 'cap':
