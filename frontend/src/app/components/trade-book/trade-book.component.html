@@ -17,7 +17,7 @@
         </div>
         <button type="button" class="btn-secondary !py-1.5 !text-xs" (click)="addOpen.set(false)">Close</button>
       </div>
-      <div class="grid gap-3 sm:grid-cols-12 sm:items-end">
+      <form class="grid gap-3 sm:grid-cols-12 sm:items-end" (submit)="$event.preventDefault(); addWatch()">
         <label class="block sm:col-span-5">
           <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">Stock</span>
           <app-stock-search-input
@@ -35,15 +35,16 @@
           <input
             class="input-field !py-2 tabular-nums"
             [(ngModel)]="pricesText"
+            name="signalPrices"
             placeholder="P1, P2, P3, P4"
           />
         </label>
         <div class="sm:col-span-2">
-          <button type="button" class="btn-primary w-full" [disabled]="busy()" (click)="addWatch()">
+          <button type="submit" class="btn-primary w-full" [disabled]="busy()">
             {{ busy() ? 'Saving…' : 'Add' }}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   }
 
@@ -59,7 +60,7 @@
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
-          <button type="button" class="btn-primary !py-1.5 !text-xs" (click)="addOpen.set(true)" [disabled]="addOpen()">
+          <button type="button" class="btn-primary !py-1.5 !text-xs" (click)="openAdd()" [disabled]="addOpen()">
             Open
           </button>
           <button

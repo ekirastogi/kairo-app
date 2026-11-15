@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import { Component, computed, effect, ElementRef, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { RegistryStock } from '../../../models/trading-journal.models';
@@ -21,6 +21,7 @@ function norm(value: string): string {
   `,
 })
 export class StockSearchInputComponent {
+  private host = inject(ElementRef<HTMLElement>);
   private stockSearch = inject(StockSearchService);
 
   query = input('');
@@ -70,9 +71,17 @@ export class StockSearchInputComponent {
     if (match) this.emitPick(match);
   }
 
+  focus(): void {
+    this.lastEmitted = '';
+    this.host.nativeElement.querySelector('input')?.focus();
+  }
+
   onKey(event: KeyboardEvent): void {
     if (!this.showResults()) {
       if (event.key === 'Enter') {
+        const q = norm(this.query());
+        const alreadyPicked = this.extraStocks().some((stock) => stock.symbol.toUpperCase() === q);
+        if (alreadyPicked) return;
         const match = this.findMatch(this.query()) ?? this.singleOption();
         if (match) {
           event.preventDefault();

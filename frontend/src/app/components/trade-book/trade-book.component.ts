@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal, viewChild } from '@angular/core';
 import { CommonModule, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -158,6 +158,7 @@ export class TradeBookComponent {
   private stocksSvc = inject(StockFirestoreService);
   private toast = inject(ToastService);
   readonly auth = inject(AuthService);
+  private stockSearch = viewChild(StockSearchInputComponent);
 
   readonly formatPrice = formatPrice;
   readonly formatPctSigned = formatPctSigned;
@@ -372,6 +373,11 @@ export class TradeBookComponent {
     this.query = stock.symbol;
   }
 
+  openAdd(): void {
+    this.addOpen.set(true);
+    setTimeout(() => this.stockSearch()?.focus(), 0);
+  }
+
   toggle(id: string): void {
     this.expandedId.update((cur) => (cur === id ? null : id));
     this.brokerName = '';
@@ -413,6 +419,7 @@ export class TradeBookComponent {
       this.draftGuidance[created.id] = { profit: '', sales: '' };
       this.toast.success(`Added ${symbol}`);
       void this.registrySvc.ensureListed(symbol, { name: stock.name, isin: stock.isin });
+      queueMicrotask(() => this.stockSearch()?.focus());
     } catch (e) {
       this.toast.error(e instanceof Error ? e.message : 'Could not add stock');
     } finally {
