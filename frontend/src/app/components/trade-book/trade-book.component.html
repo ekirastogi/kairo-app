@@ -489,11 +489,16 @@
         <div class="sig-strip-line sig-line-muted" [style.left.%]="muted.left" [style.right.%]="muted.right"></div>
       }
       @for (pt of row.quoteStrip; track pt.id) {
-        <div class="sig-strip-pt" [style.left.%]="pt.position">
+        <div class="sig-strip-pt" [class.sig-strip-pt-cmp]="isCmpPoint(pt)" [style.left.%]="pt.position">
           <div class="sig-dot mx-auto" [ngClass]="dotClass(pt)"></div>
-          <p class="mt-1 text-[11px] tabular-nums font-medium text-slate-900">{{ formatPrice(pt.price) }}</p>
-          <p class="text-[10px] tabular-nums" [class]="metricTone(pt.kind === 'cmp' ? 0 : pt.pctFromCmp)">
-            {{ pt.kind === 'cmp' ? 'CMP' : formatPctSigned(pt.pctFromCmp, 1) }}
+          <p class="text-[11px] tabular-nums font-medium" [class.text-slate-900]="!isCmpPoint(pt)" [class.text-slate-950]="isCmpPoint(pt)">
+            {{ formatPrice(pt.price) }}
+          </p>
+          <p
+            class="text-[10px] font-semibold tabular-nums"
+            [class]="isCmpPoint(pt) ? 'text-slate-900' : metricTone(pt.pctFromCmp)"
+          >
+            {{ isCmpPoint(pt) ? 'CMP' : formatPctSigned(pt.pctFromCmp, 1) }}
           </p>
         </div>
       }
