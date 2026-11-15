@@ -564,10 +564,10 @@
       }
     }
   } @else if (activeTab() === 'trade-plan') {
-    <app-tracking
-      [lockedSymbol]="symbol()"
-      [lockedName]="displayName()"
-      [lockedIsin]="displayIsin()"
-    />
+    <div class="stock-detail-empty">
+      <h2 class="stock-detail-empty-title">Plans live in TradeBook</h2>
+      <p class="stock-detail-empty-text">Watchlist, ladders, and calls are on TradeBook now.</p>
+      <a class="btn-primary mt-4 inline-flex" [routerLink]="['/trade-book']">Open TradeBook</a>
+    </div>
   }
 </div>

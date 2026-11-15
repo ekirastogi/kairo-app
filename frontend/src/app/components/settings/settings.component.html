@@ -230,19 +230,6 @@
             <input
               type="checkbox"
               class="mt-0.5 h-4 w-4 rounded border-slate-300 text-kairo-500"
-              [checked]="resetTradePlans()"
-              (change)="resetTradePlans.set($any($event.target).checked)"
-            />
-            <span class="text-sm text-slate-700">
-              <span class="font-medium text-slate-900">Trade plans</span>
-              — planned and journal trades.
-            </span>
-          </label>
-
-          <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3">
-            <input
-              type="checkbox"
-              class="mt-0.5 h-4 w-4 rounded border-slate-300 text-kairo-500"
               [checked]="resetWatchlists()"
               (change)="resetWatchlists.set($any($event.target).checked)"
             />

@@ -350,21 +350,7 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-3">
-        <button
-          type="button"
-          class="btn-primary !px-3 !py-1.5 text-xs"
-          [disabled]="!canAddToBook() || savingToBook() || savingToHistory()"
-          (click)="addToTradeBook()"
-        >
-          {{ savingToBook() || savingToHistory() ? 'Adding…' : historySavedAt() ? 'Added as closed trade' : 'Add to trade book' }}
-        </button>
-        <a routerLink="/trade-book" class="text-xs font-semibold text-kairo-700 hover:underline">Open trade book</a>
-        @if (historySavedAt()) {
-          <a routerLink="/trade-plans/history" class="text-xs font-semibold text-kairo-700 hover:underline">Open history</a>
-        }
-        @if (addToBookHint(); as hint) {
-          <span class="text-xs text-slate-500">{{ hint }}</span>
-        }
+        <a routerLink="/trade-book" class="text-xs font-semibold text-kairo-700 hover:underline">Open TradeBook</a>
         @if (notice()) {
           <span class="text-xs text-slate-500">{{ notice() }}</span>
         }

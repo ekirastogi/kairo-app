@@ -5,7 +5,7 @@ description: Daily refresh of Kairo Signals watchlist — Screener CMP/financial
 
 # Update Signals
 
-Run this as a **daily** research pass over every row in `public.signal_watch`. Write results into that table so the Signals page shows news, broker targets, and the overall call without a code change.
+Run this as a **daily** research pass over every row in `public.signal_watch`. Write results into that table so TradeBook shows news, broker targets, and the overall call without a code change.
 
 Repo: `kairo-app`. Do not skip stocks. Do not invent URLs or target prices.
 

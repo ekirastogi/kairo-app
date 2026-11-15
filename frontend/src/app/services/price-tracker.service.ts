@@ -101,7 +101,12 @@ export class PriceTrackerService {
       .eq('user_id', uid)
       .eq('status', status)
       .order(orderCol, { ascending: false });
-    if (error) throw error;
+    if (error) {
+      if (error.code === 'PGRST205' || error.code === '42P01' || /price_trackers/i.test(error.message || '')) {
+        return [];
+      }
+      throw error;
+    }
     return (data ?? []).map((row) => rowToPriceTracker(row));
   }
 

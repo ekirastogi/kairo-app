@@ -16,7 +16,7 @@ import { ScreenerService } from '../../services/screener.service';
 import { TradingChartComponent } from '../trading-chart/trading-chart.component';
 import { ScreenerFundamentalsComponent } from '../screener-fundamentals/screener-fundamentals.component';
 import { StockLabelsManagerComponent } from '../stock-labels/stock-labels-manager.component';
-import { TrackingComponent } from '../tracking/tracking.component';
+import { RouterLink } from '@angular/router';
 import { RegistryStock } from '../../models/trading-journal.models';
 import { StockSnapshot } from '../../models/market.models';
 import { formatCurrency, formatDate, formatPct, formatPrice, pnlClass } from '../../utils/format.utils';
@@ -40,7 +40,7 @@ import { normalizeSymbol } from '../../utils/upload-merge.utils';
     TradingChartComponent,
     ScreenerFundamentalsComponent,
     StockLabelsManagerComponent,
-    TrackingComponent,
+    RouterLink,
   ],
   templateUrl: './stock-detail.component.html',
 })

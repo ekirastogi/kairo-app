@@ -20,7 +20,7 @@ export const routes: Routes = [
       {
         path: 'signals',
         component: SignalsComponent,
-        data: { title: 'Signals', subtitle: 'Watchlist with price ladders and Screener financials' },
+        data: { title: 'Signals', subtitle: '' },
       },
       {
         path: 'analytics/custom-lists/new',
@@ -113,16 +113,7 @@ export const routes: Routes = [
           subtitle: 'Mergers, splits, and renames applied before trades are saved',
         },
       },
-      {
-        path: 'trade-plans/history',
-        loadComponent: () =>
-          import('./components/tracking/tracking.component').then((m) => m.TrackingComponent),
-        data: {
-          title: 'Trade history',
-          subtitle: 'Closed trades with entry, exit, and net P&L',
-          planView: 'history',
-        },
-      },
+      { path: 'trade-plans/history', redirectTo: 'trade-book', pathMatch: 'full' },
       { path: 'trade-plans', redirectTo: 'trade-book', pathMatch: 'full' },
       {
         path: 'trade-book',
@@ -130,7 +121,7 @@ export const routes: Routes = [
           import('./components/trade-book/trade-book.component').then((m) => m.TradeBookComponent),
         data: {
           title: 'TradeBook',
-          subtitle: 'Quick notebook-style trade plans with 1% targets',
+          subtitle: 'Watchlist with price ladders and Screener financials',
         },
       },
       { path: 'tracking', redirectTo: 'trade-book', pathMatch: 'full' },
