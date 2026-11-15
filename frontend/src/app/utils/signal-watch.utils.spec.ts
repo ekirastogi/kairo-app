@@ -10,6 +10,7 @@ import {
   parseOverallSignal,
   parsePriceListText,
   pctFromCmp,
+  signalRowTone,
 } from './signal-watch.utils';
 
 describe('signal watch utils', () => {
@@ -44,6 +45,14 @@ describe('signal watch utils', () => {
     const strip = buildQuoteStrip(around.below, 1224, around.above);
     expect(strip.map((p) => p.price)).toEqual([1080, 1196, 1224, 1245, 1310]);
     expect(strip.filter((p) => p.kind === 'cmp').length).toBe(1);
+  });
+
+  it('tints rows by call plus 1% proximity to support or resistance', () => {
+    expect(signalRowTone('positive', -0.8, 4)).toBe('green');
+    expect(signalRowTone('positive', -2, 0.4)).toBeNull();
+    expect(signalRowTone('negative', -0.2, 0.7)).toBe('red');
+    expect(signalRowTone('neutral', -0.2, 0.2)).toBeNull();
+    expect(signalRowTone('positive', null, 0.2)).toBeNull();
   });
 
   it('does not throw when CMP or neighbouring prices are missing', () => {

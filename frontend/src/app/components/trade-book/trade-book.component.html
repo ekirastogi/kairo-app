@@ -151,8 +151,7 @@
           <tbody>
             @for (row of visibleRows(); track row.id; let i = $index) {
               <tr
-                class="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
-                [class.bg-kairo-50]="expandedId() === row.id"
+                class="cursor-pointer border-t border-slate-100 {{ rowToneClass(row, expandedId() === row.id) }}"
                 (click)="toggle(row.id)"
               >
                 <td class="px-3 py-3 tabular-nums text-xs text-slate-400">{{ i + 1 }}</td>
@@ -183,7 +182,7 @@
 
       <div class="divide-y divide-slate-100 md:hidden">
         @for (row of visibleRows(); track row.id; let i = $index) {
-          <article>
+          <article [class]="rowToneClass(row, expandedId() === row.id)">
             <button type="button" class="w-full px-4 py-3 text-left" (click)="toggle(row.id)">
               <div class="mb-2 flex items-baseline justify-between gap-2">
                 <p class="text-sm font-semibold tracking-wide text-slate-900">

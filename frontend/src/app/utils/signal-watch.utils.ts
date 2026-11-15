@@ -128,6 +128,27 @@ export function pctFromCmp(cmp: number | null | undefined, price: number): numbe
   return ((price - cmp) / cmp) * 100;
 }
 
+const NEAR_LEVEL_PCT = 1;
+
+function isWithinOnePct(pct: number | null | undefined): boolean {
+  return pct != null && Number.isFinite(pct) && Math.abs(pct) <= NEAR_LEVEL_PCT;
+}
+
+export type SignalRowTone = 'green' | 'red' | null;
+
+/** Green: positive call and CMP within ~1% of nearest support. Red: negative call and CMP within ~1% of nearest resistance. */
+export function signalRowTone(
+  overall: OverallSignal,
+  supportPctFromCmp: number | null | undefined,
+  resistancePctFromCmp: number | null | undefined
+): SignalRowTone {
+  const nearSupport = isWithinOnePct(supportPctFromCmp);
+  const nearResist = isWithinOnePct(resistancePctFromCmp);
+  if (overall === 'positive' && nearSupport) return 'green';
+  if (overall === 'negative' && nearResist) return 'red';
+  return null;
+}
+
 export interface SignalBracket {
   label: string;
   price: number;

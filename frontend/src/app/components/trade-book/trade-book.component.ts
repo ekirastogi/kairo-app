@@ -27,6 +27,8 @@ import {
   SignalBracket,
   SignalBrokerTarget,
   SignalLadderPoint,
+  SignalRowTone,
+  signalRowTone,
 } from '../../utils/signal-watch.utils';
 import { TableSortState } from '../../utils/table-sort.utils';
 import { StockSearchInputComponent } from '../shared/stock-search-input/stock-search-input.component';
@@ -44,6 +46,7 @@ interface SignalRow extends SignalWatch {
   avgDiff: number | null;
   /** % CMP sits above the nearest user level under CMP (support). Null if none. */
   supportPct: number | null;
+  tone: SignalRowTone;
   pricesText: string;
   registry: RegistryStock | null;
 }
@@ -225,6 +228,12 @@ export class TradeBookComponent {
     return this.picked ? [this.picked] : [];
   }
 
+  rowToneClass(row: SignalRow, expanded: boolean): string {
+    if (row.tone === 'green') return expanded ? 'bg-emerald-100 hover:bg-emerald-100' : 'bg-emerald-50 hover:bg-emerald-100';
+    if (row.tone === 'red') return expanded ? 'bg-rose-100 hover:bg-rose-100' : 'bg-rose-50 hover:bg-rose-100';
+    return expanded ? 'bg-kairo-50 hover:bg-kairo-50' : 'hover:bg-slate-50';
+  }
+
   lineSeg(
     points: SignalLadderPoint[] | null | undefined,
     side: 'neg' | 'pos'
@@ -321,6 +330,7 @@ export class TradeBookComponent {
         avgTarget,
         avgDiff: avgTarget != null ? pctFromCmp(cmp, avgTarget) : null,
         supportPct,
+        tone: signalRowTone(row.overallSignal, around.below[0]?.pctFromCmp, around.above[0]?.pctFromCmp),
         pricesText: formatPriceListText(prices),
         registry,
       };
