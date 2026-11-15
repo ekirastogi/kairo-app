@@ -131,9 +131,9 @@ function isNearLevel(pct: number | null | undefined): boolean {
     .sig-dot { height: 0.5rem; width: 0.5rem; border-radius: 999px; }
     .sig-dot-cmp {
       z-index: 2;
-      height: 0.85rem; width: 0.85rem;
+      height: 0.62rem; width: 0.62rem;
       background: #0f172a;
-      box-shadow: 0 0 0 3px #fff, 0 0 0 5px #0f172a;
+      box-shadow: 0 0 0 2px #fff, 0 0 0 3px #0f172a;
     }
     .sig-strip { padding: 0 2.1rem; min-width: 22rem; }
     .sig-strip-track { position: relative; min-height: 3.55rem; }
