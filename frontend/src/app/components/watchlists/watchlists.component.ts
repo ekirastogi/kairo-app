@@ -32,7 +32,12 @@ import { FILTER_QUERY_KEYS, readWatchlistFilters } from '../../utils/filter-url.
 import { formatCurrency, formatPrice, pnlClass } from '../../utils/format.utils';
 import { groupStocksByLetter, LetterPnLRow } from '../../utils/letter-pnl.utils';
 import { TableSortState } from '../../utils/table-sort.utils';
+import { sharesBuyableWithPnl } from '../../utils/could-buy.utils';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
+import {
+  CmpRefreshButtonComponent,
+  CmpRefreshStock,
+} from '../shared/cmp-refresh-button/cmp-refresh-button.component';
 import { ExpandableStocksTableComponent } from '../shared/expandable-stocks-table/expandable-stocks-table.component';
 import { StockScenarioPanelComponent } from '../shared/stock-scenario-panel/stock-scenario-panel.component';
 import { TierSummaryBarComponent } from '../shared/tier-summary-bar/tier-summary-bar.component';
@@ -48,7 +53,18 @@ import {
 
 const ALL_SUBTAB_ID = '__all__';
 
-type WatchlistTab = 'losing' | 'profitable' | 'analyse' | 'letters';
+type WatchlistTab = 'losing' | 'profitable' | 'analyse' | 'could-buy' | 'letters';
+
+export interface CouldBuyRow {
+  sno: number;
+  stockName: string;
+  symbol: string;
+  isin?: string;
+  netPnL: number;
+  cmp: number | null;
+  couldBuy: number | null;
+  updatedAt?: number;
+}
 
 interface TierSummary {
   stockCount: number;
@@ -79,6 +95,7 @@ interface AutoTierTab {
     FormsModule,
     RouterLink,
     ErrorBannerComponent,
+    CmpRefreshButtonComponent,
     ExpandableStocksTableComponent,
     StockScenarioPanelComponent,
     TierSummaryBarComponent,
@@ -138,6 +155,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     { id: 'losing', label: 'Losses' },
     { id: 'profitable', label: 'Profits' },
     { id: 'analyse', label: 'Analyse' },
+    { id: 'could-buy', label: 'Could buy' },
     { id: 'letters', label: 'Letters' },
   ];
 
@@ -153,6 +171,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   analysePieLevel = signal<'all' | 'profit' | 'loss'>('all');
   selectedAnalyseBand = signal<number | null>(null);
   selectedLetter = signal<string | null>(null);
+  private cmpOverlay = signal<RegistryStock[]>([]);
   letterSide = signal<'all' | 'losing' | 'profitable'>('all');
   readonly letterSort = new TableSortState('letter');
   readonly letterColumns = [
@@ -196,6 +215,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   filterSummary = computed(() => {
     if (this.activeTab() === 'analyse') return 'Analyse';
+    if (this.activeTab() === 'could-buy') return 'Could buy';
     if (this.activeTab() === 'letters') {
       const letter = this.selectedLetter();
       return letter ? `Letters · ${letter}` : 'Letters';
@@ -416,6 +436,73 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   letterRows = computed(() =>
     this.activeTab() === 'letters' ? groupStocksByLetter(this.bookStocks()) : []
   );
+
+  private losingStocks = computed(() =>
+    this.bookStocks()
+      .filter((stock) => stock.netPnL < 0)
+      .slice()
+      .sort((a, b) => a.netPnL - b.netPnL)
+  );
+
+  private losingSymbolKey = computed(() => {
+    if (this.activeTab() !== 'could-buy') return '';
+    return [...new Set(this.losingStocks().map((stock) => this.stockSymbol(stock).toUpperCase()).filter(Boolean))]
+      .sort()
+      .join('\0');
+  });
+
+  private losingRegistry = toSignal(
+    toObservable(this.losingSymbolKey).pipe(
+      distinctUntilChanged(),
+      switchMap((key) => from(this.registrySvc.listBySymbols(key ? key.split('\0') : [])))
+    ),
+    { initialValue: [] as RegistryStock[] }
+  );
+
+  couldBuyRows = computed((): CouldBuyRow[] => {
+    const overlay = new Map(this.cmpOverlay().map((stock) => [stock.symbol.toUpperCase(), stock]));
+    const listed = new Map(this.losingRegistry().map((stock) => [stock.symbol.toUpperCase(), stock]));
+    return this.losingStocks().map((stock, index) => {
+      const symbol = this.stockSymbol(stock).toUpperCase();
+      const reg = overlay.get(symbol) ?? listed.get(symbol);
+      const cmp = reg?.currentPrice && reg.currentPrice > 0 ? reg.currentPrice : null;
+      return {
+        sno: index + 1,
+        stockName: stock.stockName,
+        symbol,
+        isin: stock.isin || reg?.isin,
+        netPnL: stock.netPnL,
+        cmp,
+        couldBuy: sharesBuyableWithPnl(stock.netPnL, cmp),
+        updatedAt: reg?.updatedAt,
+      };
+    });
+  });
+
+  couldBuyCmpStocks = computed((): CmpRefreshStock[] =>
+    this.couldBuyRows().map((row) => ({
+      symbol: row.symbol,
+      name: row.stockName,
+      isin: row.isin,
+      updatedAt: row.updatedAt,
+    }))
+  );
+
+  couldBuyTotals = computed(() => {
+    const rows = this.couldBuyRows();
+    return {
+      stockCount: rows.length,
+      netPnL: rows.reduce((sum, row) => sum + row.netPnL, 0),
+      couldBuy: rows.reduce((sum, row) => sum + (row.couldBuy ?? 0), 0),
+      withCmp: rows.filter((row) => row.cmp != null).length,
+    };
+  });
+
+  onCmpRefreshed(stocks: RegistryStock[]): void {
+    const next = new Map(this.cmpOverlay().map((stock) => [stock.symbol.toUpperCase(), stock]));
+    for (const stock of stocks) next.set(stock.symbol.toUpperCase(), stock);
+    this.cmpOverlay.set([...next.values()]);
+  }
 
   sortedLetterRows = computed(() =>
     this.letterSort.sort(this.letterRows(), (row, key) => this.letterSortValue(row, key))
