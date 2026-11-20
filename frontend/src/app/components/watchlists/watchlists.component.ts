@@ -151,6 +151,12 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
       this.selectedAutoTierId.set(null);
       return;
     }
+    if (wl.side === 'stocks') {
+      this.stocksSide.set(wl.tier === 'profitable' ? 'profitable' : 'losing');
+      this.selectedLetter.set(null);
+      this.selectedAutoTierId.set(null);
+      return;
+    }
     this.selectedLetter.set(null);
     this.selectedAutoTierId.set(wl.tier ?? null);
   }
@@ -181,6 +187,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   cmpFailedSymbols = signal<string[]>([]);
   private cmpStatusClear?: ReturnType<typeof setTimeout>;
   letterSide = signal<'all' | 'losing' | 'profitable'>('all');
+  stocksSide = signal<'losing' | 'profitable'>('losing');
   readonly letterSort = new TableSortState('letter');
   readonly stocksSort = new TableSortState('netPnL', 'asc');
   readonly stocksColumns = [
@@ -231,7 +238,9 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   filterSummary = computed(() => {
     if (this.activeTab() === 'analyse') return 'Analyse';
-    if (this.activeTab() === 'stocks') return 'Stocks';
+    if (this.activeTab() === 'stocks') {
+      return this.stocksSide() === 'profitable' ? 'Stocks · Profitable' : 'Stocks · Losing';
+    }
     if (this.activeTab() === 'letters') {
       const letter = this.selectedLetter();
       return letter ? `Letters · ${letter}` : 'Letters';
@@ -453,22 +462,31 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     this.activeTab() === 'letters' ? groupStocksByLetter(this.bookStocks()) : []
   );
 
-  private losingStocks = computed(() =>
-    this.bookStocks()
-      .filter((stock) => stock.netPnL < 0)
-      .slice()
-      .sort((a, b) => a.netPnL - b.netPnL)
+  stocksLosingCount = computed(
+    () => this.bookStocks().filter((stock) => stock.netPnL < 0).length
   );
 
-  private losingSymbolKey = computed(() => {
+  stocksProfitableCount = computed(
+    () => this.bookStocks().filter((stock) => stock.netPnL > 0).length
+  );
+
+  private stocksTableStocks = computed(() => {
+    const profitable = this.stocksSide() === 'profitable';
+    return this.bookStocks()
+      .filter((stock) => (profitable ? stock.netPnL > 0 : stock.netPnL < 0))
+      .slice()
+      .sort((a, b) => (profitable ? b.netPnL - a.netPnL : a.netPnL - b.netPnL));
+  });
+
+  private stocksSymbolKey = computed(() => {
     if (this.activeTab() !== 'stocks') return '';
-    return [...new Set(this.losingStocks().map((stock) => this.stockSymbol(stock).toUpperCase()).filter(Boolean))]
+    return [...new Set(this.bookStocks().map((stock) => this.stockSymbol(stock).toUpperCase()).filter(Boolean))]
       .sort()
       .join('\0');
   });
 
-  private losingRegistry = toSignal(
-    toObservable(this.losingSymbolKey).pipe(
+  private stocksRegistry = toSignal(
+    toObservable(this.stocksSymbolKey).pipe(
       distinctUntilChanged(),
       switchMap((key) => from(this.registrySvc.listBySymbols(key ? key.split('\0') : [])))
     ),
@@ -477,8 +495,8 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   couldBuyRows = computed((): CouldBuyRow[] => {
     const overlay = new Map(this.cmpOverlay().map((stock) => [stock.symbol.toUpperCase(), stock]));
-    const listed = new Map(this.losingRegistry().map((stock) => [stock.symbol.toUpperCase(), stock]));
-    return this.losingStocks().map((stock, index) => {
+    const listed = new Map(this.stocksRegistry().map((stock) => [stock.symbol.toUpperCase(), stock]));
+    return this.stocksTableStocks().map((stock, index) => {
       const symbol = this.stockSymbol(stock).toUpperCase();
       const reg = overlay.get(symbol) ?? listed.get(symbol);
       const cmp = reg?.currentPrice && reg.currentPrice > 0 ? reg.currentPrice : null;
@@ -634,6 +652,8 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     this.selectedAutoTierId.set(null);
     this.selectedLetter.set(null);
     this.letterSide.set('all');
+    this.stocksSide.set('losing');
+    this.stocksSort.reset('netPnL', 'asc');
     this.analysePieLevel.set('all');
     this.selectedAnalyseBand.set(null);
     this.lazyTrades.clear();
@@ -654,6 +674,14 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   setLetterSide(side: 'all' | 'losing' | 'profitable'): void {
     this.letterSide.set(side);
+  }
+
+  setStocksSide(side: 'losing' | 'profitable'): void {
+    this.stocksSide.set(side);
+    this.stocksSort.reset('netPnL', side === 'profitable' ? 'desc' : 'asc');
+    this.filterUrl.patchWatchlistQuery({
+      [FILTER_QUERY_KEYS.tier]: side === 'profitable' ? 'profitable' : null,
+    });
   }
 
   toggleMobileFilters(): void {

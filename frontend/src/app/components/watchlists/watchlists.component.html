@@ -218,9 +218,11 @@
       <div class="card overflow-hidden">
         <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-3">
           <div>
-            <h3 class="text-sm font-semibold text-slate-900">Losing stocks · shares from P&amp;L</h3>
+            <h3 class="text-sm font-semibold text-slate-900">
+              {{ stocksSide() === 'profitable' ? 'Profitable stocks' : 'Losing stocks' }} · shares from P&amp;L
+            </h3>
             <p class="mt-0.5 text-xs text-slate-500">
-              Whole shares of each stock that the loss (or |P&amp;L|) could have bought at CMP.
+              Whole shares of each stock that |P&amp;L| could have bought at CMP.
             </p>
             <p class="mt-2 text-xs text-slate-600">
               {{ couldBuyTotals().stockCount }} stocks
@@ -234,6 +236,31 @@
             (progress)="onCmpProgress($event)"
             (refreshed)="onCmpRefreshed($event)"
           />
+        </div>
+
+        <div class="border-b border-slate-100 px-4 py-2">
+          <div class="period-track" role="tablist" aria-label="Stocks side">
+            <button
+              type="button"
+              role="tab"
+              class="period-seg"
+              [class.period-seg-active]="stocksSide() === 'losing'"
+              [attr.aria-selected]="stocksSide() === 'losing'"
+              (click)="setStocksSide('losing')"
+            >
+              Losing ({{ stocksLosingCount() }})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="period-seg"
+              [class.period-seg-active]="stocksSide() === 'profitable'"
+              [attr.aria-selected]="stocksSide() === 'profitable'"
+              (click)="setStocksSide('profitable')"
+            >
+              Profitable ({{ stocksProfitableCount() }})
+            </button>
+          </div>
         </div>
 
         @if (cmpRefresh(); as status) {
@@ -290,7 +317,9 @@
               </dl>
             </article>
           } @empty {
-            <p class="px-4 py-8 text-center text-sm text-slate-400">No losing stocks in this book.</p>
+            <p class="px-4 py-8 text-center text-sm text-slate-400">
+              {{ stocksSide() === 'profitable' ? 'No profitable stocks in this book.' : 'No losing stocks in this book.' }}
+            </p>
           }
         </div>
 
@@ -326,7 +355,9 @@
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="5" class="py-8 text-center text-slate-400">No losing stocks in this book.</td>
+                  <td colspan="5" class="py-8 text-center text-slate-400">
+                    {{ stocksSide() === 'profitable' ? 'No profitable stocks in this book.' : 'No losing stocks in this book.' }}
+                  </td>
                 </tr>
               }
             </tbody>
