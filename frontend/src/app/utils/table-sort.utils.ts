@@ -16,6 +16,7 @@ const ASC_DEFAULT_COLUMNS = new Set([
   'overallSignal',
   'buyDate',
   'letter',
+  'sno',
 ]);
 
 export function defaultSortDirection(column: string): SortDir {

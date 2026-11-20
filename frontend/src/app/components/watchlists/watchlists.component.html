@@ -214,7 +214,7 @@
           </table>
         </div>
       </div>
-    } @else if (activeTab() === 'could-buy') {
+    } @else if (activeTab() === 'stocks') {
       <div class="card overflow-hidden">
         <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-3">
           <div>
@@ -231,13 +231,43 @@
           <app-cmp-refresh-button
             label="Update CMP"
             [stocks]="couldBuyCmpStocks()"
+            (progress)="onCmpProgress($event)"
             (refreshed)="onCmpRefreshed($event)"
           />
         </div>
 
+        @if (cmpRefresh(); as status) {
+          <div class="border-b border-slate-100 bg-slate-50 px-4 py-2" role="status" aria-live="polite">
+            <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700">
+              <p class="min-w-0 font-medium">
+                @if (status.running) {
+                  Updating {{ status.name || status.symbol || 'stocks' }}
+                  <span class="font-normal text-slate-500">
+                    · {{ status.index }} of {{ status.total }}
+                    · {{ status.updated }} done
+                    @if (status.failed) { · {{ status.failed }} failed }
+                  </span>
+                } @else {
+                  Updated {{ status.updated }} of {{ status.total }}
+                  @if (status.failed) { · {{ status.failed }} failed }
+                }
+              </p>
+              <span class="tabular-nums text-slate-500">{{ cmpRefreshPct() }}%</span>
+            </div>
+            <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-200">
+              <div
+                class="h-full rounded-full bg-kairo-500 transition-[width] duration-200"
+                [class.bg-emerald-500]="!status.running && !status.failed"
+                [class.bg-rose-500]="!status.running && status.failed > 0"
+                [style.width.%]="cmpRefreshPct()"
+              ></div>
+            </div>
+          </div>
+        }
+
         <div class="divide-y divide-slate-100 lg:hidden">
-          @for (row of couldBuyRows(); track row.symbol) {
-            <article class="px-4 py-3">
+          @for (row of sortedCouldBuyRows(); track row.symbol) {
+            <article class="px-4 py-3" [attr.data-cmp-row]="row.symbol" [ngClass]="cmpRowHighlight(row.symbol)">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <p class="text-[11px] font-semibold tabular-nums text-slate-400">{{ row.sno }}.</p>
@@ -268,16 +298,23 @@
           <table class="data-table min-w-0">
             <thead>
               <tr>
-                <th class="w-12">S.No</th>
-                <th>Stock</th>
-                <th class="text-right">Net P&amp;L</th>
-                <th class="text-right">CMP</th>
-                <th class="text-right">Could buy</th>
+                @for (col of stocksColumns; track col.key) {
+                  <th [class]="col.align" [class.w-12]="col.key === 'sno'">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [class.sort-btn-active]="stocksSort.isActive(col.key)"
+                      (click)="stocksSort.toggle(col.key, $event)"
+                    >
+                      {{ col.label }} <span>{{ stocksSort.indicator(col.key) }}</span>
+                    </button>
+                  </th>
+                }
               </tr>
             </thead>
             <tbody>
-              @for (row of couldBuyRows(); track row.symbol) {
-                <tr>
+              @for (row of sortedCouldBuyRows(); track row.symbol) {
+                <tr [attr.data-cmp-row]="row.symbol" [ngClass]="cmpRowHighlight(row.symbol)">
                   <td class="tabular-nums text-slate-500">{{ row.sno }}</td>
                   <td>
                     <a class="font-semibold text-kairo-700 hover:underline" [routerLink]="['/stock', row.symbol]">{{ row.stockName }}</a>
@@ -293,7 +330,7 @@
                 </tr>
               }
             </tbody>
-            @if (couldBuyRows().length) {
+            @if (sortedCouldBuyRows().length) {
               <tfoot>
                 <tr class="bg-slate-50 font-semibold">
                   <td></td>

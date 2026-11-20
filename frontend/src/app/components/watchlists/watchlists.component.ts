@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, OnInit, OnDestroy, signal } from '@angular/core';
+import { Component, computed, ElementRef, inject, input, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
@@ -36,6 +36,7 @@ import { sharesBuyableWithPnl } from '../../utils/could-buy.utils';
 import { ErrorBannerComponent } from '../shared/error-banner/error-banner.component';
 import {
   CmpRefreshButtonComponent,
+  CmpRefreshProgress,
   CmpRefreshStock,
 } from '../shared/cmp-refresh-button/cmp-refresh-button.component';
 import { ExpandableStocksTableComponent } from '../shared/expandable-stocks-table/expandable-stocks-table.component';
@@ -53,10 +54,11 @@ import {
 
 const ALL_SUBTAB_ID = '__all__';
 
-type WatchlistTab = 'losing' | 'profitable' | 'analyse' | 'could-buy' | 'letters';
+type WatchlistTab = 'losing' | 'profitable' | 'analyse' | 'stocks' | 'letters';
 
 export interface CouldBuyRow {
   sno: number;
+  rank: number;
   stockName: string;
   symbol: string;
   isin?: string;
@@ -118,6 +120,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   readonly lazyTrades = inject(LazyTradeLoaderService);
   readonly filteredStocks = inject(FilteredStockService);
   private registrySvc = inject(RegistryStockService);
+  private host = inject(ElementRef<HTMLElement>);
 
   readonly formatCurrency = formatCurrency;
   readonly formatPrice = formatPrice;
@@ -136,6 +139,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.navSub?.unsubscribe();
+    if (this.cmpStatusClear) clearTimeout(this.cmpStatusClear);
   }
 
   private syncWatchlistFromUrl(): void {
@@ -155,7 +159,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     { id: 'losing', label: 'Losses' },
     { id: 'profitable', label: 'Profits' },
     { id: 'analyse', label: 'Analyse' },
-    { id: 'could-buy', label: 'Could buy' },
+    { id: 'stocks', label: 'Stocks' },
     { id: 'letters', label: 'Letters' },
   ];
 
@@ -172,8 +176,20 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   selectedAnalyseBand = signal<number | null>(null);
   selectedLetter = signal<string | null>(null);
   private cmpOverlay = signal<RegistryStock[]>([]);
+  cmpRefresh = signal<CmpRefreshProgress | null>(null);
+  cmpUpdatedSymbols = signal<string[]>([]);
+  cmpFailedSymbols = signal<string[]>([]);
+  private cmpStatusClear?: ReturnType<typeof setTimeout>;
   letterSide = signal<'all' | 'losing' | 'profitable'>('all');
   readonly letterSort = new TableSortState('letter');
+  readonly stocksSort = new TableSortState('netPnL', 'asc');
+  readonly stocksColumns = [
+    { key: 'sno', label: 'S.No', align: 'text-left' },
+    { key: 'stockName', label: 'Stock', align: 'text-left' },
+    { key: 'netPnL', label: 'Net P&L', align: 'text-right' },
+    { key: 'cmp', label: 'CMP', align: 'text-right' },
+    { key: 'couldBuy', label: 'Could buy', align: 'text-right' },
+  ] as const;
   readonly letterColumns = [
     { key: 'letter', label: 'Letter' },
     { key: 'stockCount', label: 'Stocks' },
@@ -215,7 +231,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   filterSummary = computed(() => {
     if (this.activeTab() === 'analyse') return 'Analyse';
-    if (this.activeTab() === 'could-buy') return 'Could buy';
+    if (this.activeTab() === 'stocks') return 'Stocks';
     if (this.activeTab() === 'letters') {
       const letter = this.selectedLetter();
       return letter ? `Letters · ${letter}` : 'Letters';
@@ -445,7 +461,7 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
   );
 
   private losingSymbolKey = computed(() => {
-    if (this.activeTab() !== 'could-buy') return '';
+    if (this.activeTab() !== 'stocks') return '';
     return [...new Set(this.losingStocks().map((stock) => this.stockSymbol(stock).toUpperCase()).filter(Boolean))]
       .sort()
       .join('\0');
@@ -467,7 +483,8 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
       const reg = overlay.get(symbol) ?? listed.get(symbol);
       const cmp = reg?.currentPrice && reg.currentPrice > 0 ? reg.currentPrice : null;
       return {
-        sno: index + 1,
+        sno: 0,
+        rank: index + 1,
         stockName: stock.stockName,
         symbol,
         isin: stock.isin || reg?.isin,
@@ -477,6 +494,11 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
         updatedAt: reg?.updatedAt,
       };
     });
+  });
+
+  sortedCouldBuyRows = computed((): CouldBuyRow[] => {
+    const sorted = this.stocksSort.sort(this.couldBuyRows(), (row, key) => this.stocksSortValue(row, key));
+    return sorted.map((row, index) => ({ ...row, sno: index + 1 }));
   });
 
   couldBuyCmpStocks = computed((): CmpRefreshStock[] =>
@@ -502,6 +524,52 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
     const next = new Map(this.cmpOverlay().map((stock) => [stock.symbol.toUpperCase(), stock]));
     for (const stock of stocks) next.set(stock.symbol.toUpperCase(), stock);
     this.cmpOverlay.set([...next.values()]);
+  }
+
+  onCmpProgress(event: CmpRefreshProgress): void {
+    if (event.running && event.index === 0) {
+      if (this.cmpStatusClear) clearTimeout(this.cmpStatusClear);
+      this.cmpUpdatedSymbols.set([]);
+      this.cmpFailedSymbols.set([]);
+    }
+    if (event.stock) this.onCmpRefreshed([event.stock]);
+    if (event.symbol && event.ok === true) {
+      this.cmpUpdatedSymbols.update((rows) =>
+        rows.includes(event.symbol!) ? rows : [...rows, event.symbol!]
+      );
+    }
+    if (event.symbol && event.ok === false) {
+      this.cmpFailedSymbols.update((rows) =>
+        rows.includes(event.symbol!) ? rows : [...rows, event.symbol!]
+      );
+    }
+    this.cmpRefresh.set(event);
+    if (event.symbol) this.scrollCmpRow(event.symbol);
+    if (!event.running) {
+      if (this.cmpStatusClear) clearTimeout(this.cmpStatusClear);
+      this.cmpStatusClear = setTimeout(() => this.cmpRefresh.set(null), 6000);
+    }
+  }
+
+  cmpRowHighlight(symbol: string): string {
+    const current = this.cmpRefresh()?.symbol;
+    if (current === symbol) return 'bg-amber-50';
+    if (this.cmpFailedSymbols().includes(symbol)) return 'bg-rose-50';
+    if (this.cmpUpdatedSymbols().includes(symbol)) return 'bg-emerald-50';
+    return '';
+  }
+
+  cmpRefreshPct(): number {
+    const status = this.cmpRefresh();
+    if (!status || !status.total) return 0;
+    return Math.min(100, Math.round((status.index / status.total) * 100));
+  }
+
+  private scrollCmpRow(symbol: string): void {
+    queueMicrotask(() => {
+      const row = this.host.nativeElement.querySelector(`[data-cmp-row="${symbol}"]`);
+      row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
   }
 
   sortedLetterRows = computed(() =>
@@ -629,6 +697,23 @@ export class WatchlistsComponent implements OnInit, OnDestroy {
 
   resetAnalysePie(): void {
     this.analysePieLevel.set('all');
+  }
+
+  private stocksSortValue(row: CouldBuyRow, key: string): string | number {
+    switch (key) {
+      case 'sno':
+        return row.rank;
+      case 'stockName':
+        return row.stockName;
+      case 'netPnL':
+        return row.netPnL;
+      case 'cmp':
+        return row.cmp ?? Number.NEGATIVE_INFINITY;
+      case 'couldBuy':
+        return row.couldBuy ?? Number.NEGATIVE_INFINITY;
+      default:
+        return 0;
+    }
   }
 
   private letterSortValue(row: LetterPnLRow, key: string): string | number {

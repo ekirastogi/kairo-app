@@ -13,6 +13,18 @@ export interface CmpRefreshStock {
   updatedAt?: number;
 }
 
+export interface CmpRefreshProgress {
+  running: boolean;
+  symbol: string | null;
+  name: string;
+  index: number;
+  total: number;
+  updated: number;
+  failed: number;
+  ok?: boolean;
+  stock?: RegistryStock;
+}
+
 interface CmpCandidate extends CmpRefreshStock {
   ageMs: number | null;
   ageLabel: string;
@@ -43,6 +55,7 @@ export class CmpRefreshButtonComponent {
   buttonClass = input('btn-secondary !py-1.5 !text-xs');
 
   refreshed = output<RegistryStock[]>();
+  progress = output<CmpRefreshProgress>();
 
   readonly windows = WINDOWS;
   open = signal(false);
@@ -118,9 +131,29 @@ export class CmpRefreshButtonComponent {
     this.busy.set(true);
     const failed: string[] = [];
     const updated: RegistryStock[] = [];
+    const total = symbols.length;
+    const emitProgress = (partial: Partial<CmpRefreshProgress> & Pick<CmpRefreshProgress, 'running' | 'index'>): void => {
+      this.progress.emit({
+        symbol: null,
+        name: '',
+        total,
+        updated: updated.length,
+        failed: failed.length,
+        ...partial,
+      });
+    };
     try {
-      for (const symbol of symbols) {
+      emitProgress({ running: true, index: 0 });
+      for (let i = 0; i < symbols.length; i++) {
+        const symbol = symbols[i];
         const candidate = this.candidates().find((row) => row.symbol === symbol);
+        const name = candidate?.name || symbol;
+        emitProgress({
+          running: true,
+          symbol,
+          name,
+          index: i + 1,
+        });
         try {
           const registry = await this.registrySvc.ensureListed(symbol, {
             name: candidate?.name,
@@ -137,12 +170,28 @@ export class CmpRefreshButtonComponent {
           };
           await this.registrySvc.save(next);
           updated.push(next);
+          emitProgress({
+            running: true,
+            symbol,
+            name,
+            index: i + 1,
+            ok: true,
+            stock: next,
+          });
         } catch {
           failed.push(symbol);
+          emitProgress({
+            running: true,
+            symbol,
+            name,
+            index: i + 1,
+            ok: false,
+          });
         }
       }
       this.registrySvc.reload();
       this.refreshed.emit(updated);
+      emitProgress({ running: false, index: total, symbol: null, name: '' });
       const failNote = failed.length
         ? ` ${failed.length} failed: ${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}.`
         : '';
