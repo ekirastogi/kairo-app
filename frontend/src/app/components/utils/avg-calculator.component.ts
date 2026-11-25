@@ -281,6 +281,16 @@ export class AvgCalculatorComponent {
     return goal - (this.bookedTrip()?.netPnL ?? 0);
   });
 
+  /** Booked round-trip charges plus remaining-to-close estimate when still open. */
+  displayCharges = computed(() => {
+    const booked = this.bookedTrip()?.charges ?? 0;
+    const remaining = this.stayGreen()?.charges ?? 0;
+    const total = booked + remaining;
+    if (total > 0) return total;
+    if (this.bookedTrip() || this.stayGreen()) return 0;
+    return null;
+  });
+
   remainingProfitExit = computed(() => {
     const goal = this.remainingProfitGoal();
     const position = this.position();

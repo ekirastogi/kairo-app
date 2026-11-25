@@ -215,7 +215,7 @@
         }
 
         @if (position()) {
-          <div class="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 sm:grid-cols-3">
+          <div class="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 sm:grid-cols-4">
             <div>
               <p class="field-label">Booked net</p>
               <p class="text-base font-bold tabular-nums" [class]="bookedTrip() ? pnlClass(bookedTrip()!.netPnL) : 'text-slate-400'">
@@ -227,11 +227,22 @@
               <p class="text-base font-bold tabular-nums text-slate-900">{{ position()!.quantity | number }}</p>
               <p class="text-[11px] text-slate-500">at {{ formatPrice(position()!.avgPrice) }}</p>
             </div>
-            <div class="col-span-2 sm:col-span-1">
+            <div>
               <p class="field-label">Open breakeven</p>
               <p class="text-base font-bold tabular-nums text-slate-900">
                 {{ breakeven() != null ? formatPrice(breakeven()!) : '—' }}
               </p>
+            </div>
+            <div>
+              <p class="field-label">Charges</p>
+              <p class="text-base font-bold tabular-nums" [class]="displayCharges() != null ? 'text-red-600' : 'text-slate-400'">
+                {{ displayCharges() != null ? formatCurrency(displayCharges()!) : '—' }}
+              </p>
+              @if (bookedTrip() && stayGreen()) {
+                <p class="text-[11px] text-slate-500">booked + remaining</p>
+              } @else if (stayGreen() && !bookedTrip()) {
+                <p class="text-[11px] text-slate-500">est. to close</p>
+              }
             </div>
           </div>
 
@@ -331,7 +342,8 @@
               <p class="text-xs text-slate-500">
                 Booked
                 <span class="font-semibold tabular-nums" [class]="pnlClass(booked.netPnL)">{{ formatCurrency(booked.netPnL) }}</span>
-                net after charges on {{ book().matchedQty | number }} qty.
+                net after charges on {{ book().matchedQty | number }} qty
+                · charges <span class="font-semibold tabular-nums text-red-600">{{ formatCurrency(booked.charges) }}</span>.
               </p>
             }
           </div>
@@ -343,7 +355,9 @@
             <p class="mt-1 text-xs text-slate-500">
               Booked
               <span class="font-semibold tabular-nums" [class]="pnlClass(booked.netPnL)">{{ formatCurrency(booked.netPnL) }}</span>
-              net after charges · {{ historyDayLabel() }}. Add it to the trade book as a closed trade.
+              net after charges
+              · charges <span class="font-semibold tabular-nums text-red-600">{{ formatCurrency(booked.charges) }}</span>
+              · {{ historyDayLabel() }}. Add it to the trade book as a closed trade.
             </p>
           </div>
         }
@@ -370,7 +384,7 @@
       <p><span class="font-semibold text-slate-800">Trade name</span> is optional. Leave it blank to keep using the stock name on the tab and in the trade book.</p>
       <p><span class="font-semibold text-slate-800">Lots</span> open the position. <span class="font-semibold text-slate-800">Target profit</span> is the net you want after charges on the whole trade — no quantity to enter.</p>
       <p><span class="font-semibold text-slate-800">Custom exit</span> is a partial cover or book-out. After each one, the yellow ribbon updates: stay-green stop and the remaining target price for leftover shares.</p>
-      <p><span class="font-semibold text-slate-800">Booked net</span> is closed P&amp;L after charges. <span class="font-semibold text-slate-800">Stop to stay green</span> keeps the whole trade at least flat. <span class="font-semibold text-slate-800">Target for remaining</span> is the charge-aware price that still hits your profit on what is left.</p>
+      <p><span class="font-semibold text-slate-800">Booked net</span> is closed P&amp;L after charges. <span class="font-semibold text-slate-800">Charges</span> is booked round-trip cost plus an estimate to close what is still open. <span class="font-semibold text-slate-800">Stop to stay green</span> keeps the whole trade at least flat. <span class="font-semibold text-slate-800">Target for remaining</span> is the charge-aware price that still hits your profit on what is left.</p>
       <p><span class="font-semibold text-slate-800">Fully closed</span> means buys and sells match. Add it to the trade book as a closed trade for today — it shows up in trade history with entry, exit, and net P&amp;L.</p>
     </div>
   </div>
